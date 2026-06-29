@@ -1,0 +1,44 @@
+<?php (defined('BASEPATH')) OR exit('No direct script access allowed');
+
+class MY_Controller extends CI_Controller{
+ 
+    public function __construct(){
+
+    	parent::__construct();
+    }
+}
+
+class Admin_Controller extends MX_Controller{
+
+	protected $header_data = array();
+	//protected $sidebar_data = array();
+	protected $content_data = array();
+	protected $footer_data = array();
+	protected $id_admin = 0;
+
+	public function __construct(){
+		
+		parent::__construct();
+		$this->id_admin = $this->session->userdata('id_admin');
+
+		if( !$this->id_admin ){
+
+			redirect('login');
+		}
+	}
+
+	protected function renderPanel( $content_view = '' ){
+
+		$content_view = empty($content_view) ? 'panel.php' : $content_view . '.php';
+		//debug($this->content_data);
+		$this->load->view('header',$this->header_data);
+		//$this->load->view('sidebar',$this->sidebar_data);
+		$this->load->view($content_view,$this->content_data);
+		$this->load->view('footer',$this->footer_data);
+	}
+
+	public function get_userID(){
+		return $this->id_admin;
+	}
+
+}

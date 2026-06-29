@@ -1,0 +1,3 @@
+-- redacted: this historical version contained a full live production dump
+-- (real client PII, admin credentials, financial records) and was scrubbed
+-- from history for security. See the current HEAD for the sanitized dump.
