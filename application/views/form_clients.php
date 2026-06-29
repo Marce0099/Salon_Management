@@ -27,7 +27,7 @@
 		<label class="control-label col-md-3 col-sm-3 col-xs-12" for="id_card_client">Cedula
         </label>
 		<div class="col-md-6 col-sm-6 col-xs-12">
-            <input type="text" name="id_card_client" id="id_card_client"  class="form-control col-md-7 col-xs-12" value="<?php if($client){ echo $client->id_card_client; } ?>">
+            <input type="text" name="id_card_client" id="id_card_client" class="form-control col-md-7 col-xs-12" maxlength="50" value="<?php if($client){ echo $client->id_card_client; } ?>">
         </div>
 	</div>
 	<div class="form-group">
@@ -124,6 +124,10 @@
 
 	  	return false;
 
+	});
+
+	document.getElementById('id_card_client').addEventListener('input', function() {
+		this.value = this.value.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
 	});
 
 	$(document).on('ready',function(){

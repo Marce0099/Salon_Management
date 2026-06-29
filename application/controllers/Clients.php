@@ -35,7 +35,9 @@ class Clients extends Admin_Controller{
 			exit;
 		}
 	   
-		//$this->form_validation->set_rules('id_card_client','','required|min_length[3]|max_length[50]');
+		if (!empty($_POST['id_card_client'])) {
+			$this->form_validation->set_rules('id_card_client', '', 'max_length[50]|regex_match[/^[a-zA-Z0-9]+$/]');
+		}
 		$this->form_validation->set_rules('name_client','','required|min_length[3]|max_length[50]|regex_match[/^[a-zA-Z ]*$/]');
 		$this->form_validation->set_rules('surname_client','','required|min_length[3]|max_length[50]|regex_match[/^[a-zA-Z ]*$/]');
 
@@ -88,6 +90,9 @@ class Clients extends Admin_Controller{
 
 					$data = $this->input->post();
 
+					$val = strtolower(trim($data['id_card_client'] ?? ''));
+					$data['id_card_client'] = $val !== '' ? $val : NULL;
+
 					$employee_code = $this->clients_mdl->save( $data );
 
 					$response = array( 'type' => 'success', 'message' => 'Cliente registrado con el código: '.$data['id_card_client'] );
@@ -129,6 +134,9 @@ class Clients extends Admin_Controller{
 				if( $this->form_validation->run() ){
 
 					$data = $this->input->post();
+
+					$val = strtolower(trim($data['id_card_client'] ?? ''));
+					$data['id_card_client'] = $val !== '' ? $val : NULL;
 
 					$this->clients_mdl->edit( $id_client, $data );
 
