@@ -49,6 +49,7 @@ defined('BASEPATH') OR exit('No direct script access allowed');
  * @author		EllisLab Dev Team
  * @link		http://codeigniter.com/user_guide/libraries/benchmark.html
  */
+#[\AllowDynamicProperties]
 class CI_Benchmark {
 
 	/**
