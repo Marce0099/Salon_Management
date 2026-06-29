@@ -13,6 +13,13 @@ class Clients_mdl extends CI_Model{
 
 	public function save( $data ){
 
+		if( !empty($data['id_card_client']) ){
+			$exists = $this->db->where( 'id_card_client', $data['id_card_client'] )->count_all_results('clients');
+			if( $exists > 0 ){
+				throw new Exception( 'El cliente ya ha sido registrado' );
+			}
+		}
+
 		return $this->db->insert( 'clients', $data );
 	}
 
