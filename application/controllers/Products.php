@@ -189,7 +189,6 @@ class Products extends Admin_Controller{
 					$data['name'] = $post['name'];
 					$data['price_cost'] = $post['price_cost_dollar'];
 					$data['price_sell'] = $post['price_sell'];
-					$data['save'] = 1;
 					$data['stock'] = $post['stock'];
 					$data['is_service'] = isset($post['is_service']) ? 1 : 0;
 
@@ -365,7 +364,6 @@ class Products extends Admin_Controller{
 				$data['name'] = $post['name'];
 				$data['price_cost'] = $post['price_cost_dollar'];
 				$data['price_sell'] = $post['price_sell'];
-				$data['save'] = 1;
 				$data['stock'] = $post['stock'];
 				$data['is_service'] = isset($post['is_service']) ? 1 : 0;
 

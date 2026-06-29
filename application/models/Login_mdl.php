@@ -14,11 +14,11 @@ class Login_mdl extends MX_Controller{
 
 	public function getDatosAcceso(){
 
-		return $this->db->get('admin')->row();
+		return $this->db->get('admins')->row();
 	}
 
 	public function saveAcceso( $data ){
 
-		$this->db->update( 'admin', $data );
+		$this->db->update( 'admins', $data );
 	}
 }

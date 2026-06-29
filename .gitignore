@@ -20,6 +20,7 @@ assets/images/
 #App
 /orders_pdf/
 /uploads/
+.env
 
 # IDE Files
 #-------------------------

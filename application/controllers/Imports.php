@@ -54,14 +54,15 @@
 				$product['stock'] = $worksheet->getCell('E'.$row)->getValue();
 				$product['price'] = $worksheet->getCell('F'.$row)->getValue();
 
-				$sql = 'insert into products(barcode,name,stock,price) 
-				values(:barcode,:name,:stock,:price)';
-				
+				$sql = 'insert into products(barcode,name,stock,price_cost,price_sell)
+				values(:barcode,:name,:stock,:price_cost,:price_sell)';
+
 				$qry = $con->prepare($sql);
 				$qry->bindParam(':barcode', $product['barcode'], PDO::PARAM_STR);
 				$qry->bindParam(':name', $product['name'], PDO::PARAM_STR);
 				$qry->bindParam(':stock', $product['stock'], PDO::PARAM_STR);
-				$qry->bindParam(':price', $product['price'], PDO::PARAM_STR);
+				$qry->bindParam(':price_cost', $product['price'], PDO::PARAM_STR);
+				$qry->bindParam(':price_sell', $product['price'], PDO::PARAM_STR);
 
 				try{
 
@@ -122,14 +123,15 @@
 				$product['stock'] = empty($worksheet->getCell('A'.$row)->getValue()) ? 0 : $worksheet->getCell('A'.$row)->getValue();
 				$product['price'] = $worksheet->getCell('E'.$row)->getValue();
 
-				$sql = 'insert into products(barcode,name,stock,price) 
-				values(:barcode,:name,:stock,:price)';
-				
+				$sql = 'insert into products(barcode,name,stock,price_cost,price_sell)
+				values(:barcode,:name,:stock,:price_cost,:price_sell)';
+
 				$qry = $con->prepare($sql);
 				$qry->bindParam(':barcode', $product['barcode'], PDO::PARAM_STR);
 				$qry->bindParam(':name', $product['name'], PDO::PARAM_STR);
 				$qry->bindParam(':stock', $product['stock'], PDO::PARAM_STR);
-				$qry->bindParam(':price', $product['price'], PDO::PARAM_STR);
+				$qry->bindParam(':price_cost', $product['price'], PDO::PARAM_STR);
+				$qry->bindParam(':price_sell', $product['price'], PDO::PARAM_STR);
 
 				try{
 
@@ -193,14 +195,15 @@
 				$product['stock'] = $worksheet->getCell('B'.$row)->getValue();
 				$product['price'] = substr($worksheet->getCell('E'.$row)->getValue(),1);
 
-				$sql = 'insert into products(barcode,name,stock,price) 
-				values(:barcode,:name,:stock,:price)';
-				
+				$sql = 'insert into products(barcode,name,stock,price_cost,price_sell)
+				values(:barcode,:name,:stock,:price_cost,:price_sell)';
+
 				$qry = $con->prepare($sql);
 				$qry->bindParam(':barcode', $product['barcode'], PDO::PARAM_STR);
 				$qry->bindParam(':name', $product['name'], PDO::PARAM_STR);
 				$qry->bindParam(':stock', $product['stock'], PDO::PARAM_STR);
-				$qry->bindParam(':price', $product['price'], PDO::PARAM_STR);
+				$qry->bindParam(':price_cost', $product['price'], PDO::PARAM_STR);
+				$qry->bindParam(':price_sell', $product['price'], PDO::PARAM_STR);
 
 				try{
 
@@ -259,14 +262,15 @@
 				$product['stock'] = $worksheet->getCell('C'.$row)->getValue();
 				$product['price'] = substr(trim($worksheet->getCell('I'.$row)->getValue()),1);
 
-				$sql = 'insert into products(barcode,name,stock,price) 
-				values(:barcode,:name,:stock,:price)';
-				
+				$sql = 'insert into products(barcode,name,stock,price_cost,price_sell)
+				values(:barcode,:name,:stock,:price_cost,:price_sell)';
+
 				$qry = $con->prepare($sql);
 				$qry->bindParam(':barcode', $product['barcode'], PDO::PARAM_STR);
 				$qry->bindParam(':name', $product['name'], PDO::PARAM_STR);
 				$qry->bindParam(':stock', $product['stock'], PDO::PARAM_STR);
-				$qry->bindParam(':price', $product['price'], PDO::PARAM_STR);
+				$qry->bindParam(':price_cost', $product['price'], PDO::PARAM_STR);
+				$qry->bindParam(':price_sell', $product['price'], PDO::PARAM_STR);
 
 				try{
 

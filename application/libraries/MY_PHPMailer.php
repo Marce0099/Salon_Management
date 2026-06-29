@@ -9,49 +9,42 @@ class MY_PHPMailer{
 
 	public function __construct(){
 
-		//require_once('PHPMailer/PHPMailerAutoload.php');
 		require_once('PHPMailer/PHPMailer.php');
 		require_once('PHPMailer/SMTP.php');
 		require_once('PHPMailer/Exception.php');
 
-		//$this->phpmailer = new PHPMailer;
 		$this->phpmailer = new PHPMailer(true);
+
+		$CI =& get_instance();
+		$CI->config->load('email');
 
 		try {
 
-			$this->phpmailer->isSMTP();                                    
-			$this->phpmailer->Host = 'smtp.gmail.com';  
-			$this->phpmailer->SMTPAuth = true;                              
-			$this->phpmailer->Username = 'conceptosvp@gmail.com';               
-			$this->phpmailer->Password = 'REDACTED-LEAKED-CREDENTIAL';                       
+			$this->phpmailer->isSMTP();
+			$this->phpmailer->Host       = $CI->config->item('smtp_host');
+			$this->phpmailer->SMTPAuth   = true;
+			$this->phpmailer->Username   = $CI->config->item('smtp_user');
+			$this->phpmailer->Password   = $CI->config->item('smtp_pass');
 			$this->phpmailer->SMTPSecure = 'tls';
-			$this->phpmailer->Port = 587;
+			$this->phpmailer->Port       = $CI->config->item('smtp_port');
 			$this->phpmailer->isHTML(true);
-			$this->phpmailer->CharSet = 'UTF-8';
-			$this->phpmailer->setFrom('noreply@conceptos.com.ni', 'Conceptos\' Mailer');
+			$this->phpmailer->CharSet    = 'UTF-8';
+			$this->phpmailer->setFrom(
+				$CI->config->item('from_email'),
+				$CI->config->item('from_name')
+			);
 
 		} catch (Exception $e) {
             log_message('error', 'PHPMailer init error: ' . $e->getMessage());
         }
-		/*$this->phpmailer->isSMTP();                                    
-		$this->phpmailer->Host = 'localhost';  
-		$this->phpmailer->SMTPAuth = true;                              
-		$this->phpmailer->Username = 'noreply@empleaconacee.org';               
-		$this->phpmailer->Password = 'REDACTED-LEAKED-CREDENTIAL';                       
-		$this->phpmailer->SMTPSecure = 'tls';
-		$this->phpmailer->Port = 587;
-		$this->phpmailer->isHTML(true);
-		$this->phpmailer->CharSet = 'UTF-8';
-
-		$this->phpmailer->setFrom('noreply@empleaconacee.org', 'Jornadas CEDDD');*/
 	}
 
-	public function toOwner(  ){
-		$this->phpmailer->addAddress('REDACTED_EMAIL');
+	public function toOwner(){
+		$this->phpmailer->addAddress(getenv('OWNER_EMAIL'));
 	}
 
 	public function sendCloseCash( $email_html ){
-		
+
 		$this->toOwner();
 		$this->phpmailer->Subject = 'Reporte de cierre de caja';
 		$this->phpmailer->Body = $email_html;
@@ -59,7 +52,7 @@ class MY_PHPMailer{
 	}
 
 	public function sendOpenCash( $email_html ){
-		
+
 		$this->toOwner();
 		$this->phpmailer->Subject = 'Se ha abierto caja';
 		$this->phpmailer->Body = $email_html;
@@ -77,27 +70,16 @@ class MY_PHPMailer{
 		$this->phpmailer->Subject = $subject;
 		$this->phpmailer->Body = $message;
 
-		$fp = fopen('/var/log/app/mail.log', 'a');
-
 		$sent = $this->phpmailer->send();
 
-		if( !$sent ) {
-
-			$log = PHP_EOL.'--------Mensaje no enviado('.$to.' / '.date('Y-m-d H:i').')----------'.PHP_EOL;
-			$log .= $this->phpmailer->ErrorInfo;
-			fwrite($fp, $log);
+		if( !$sent ){
+			log_message('error', 'PHPMailer send failed to ' . $to . ': ' . $this->phpmailer->ErrorInfo);
+		} else {
+			log_message('info', 'PHPMailer sent to ' . $to);
 		}
-		else{
-
-		    $log = PHP_EOL.'--------Mensaje enviado('.$to.' / '.date('Y-m-d H:i').')----------'.PHP_EOL;
-		    $log .= strip_tags($message);
-			fwrite($fp, $log);
-		}
-
-		fclose($fp);
 
 		$this->phpmailer->ClearAllRecipients();
-		
+
 	}
 
 	public function close(){

@@ -63,12 +63,18 @@ defined('BASEPATH') OR exit('No direct script access allowed');
 $active_group = 'default';
 $query_builder = TRUE;
 
+$hostname = getenv('DB_HOSTNAME');
+$username = getenv('DB_USERNAME');
+$password = getenv('DB_PASSWORD');
+$database = getenv('DB_NAME');
+$port     = getenv('DB_PORT');
+
 $db['default'] = array(
-	'dsn'	=> 'mysql:host=localhost;dbname=coco_cosmetics2;port=3306',
-	'hostname' => 'localhost',
-	'username' => 'root',
-	'password' => '',
-	'database' => 'coco_cosmetics2',
+	'dsn'	=> "mysql:host={$hostname};dbname={$database};port={$port}",
+	'hostname' => $hostname,
+	'username' => $username,
+	'password' => $password,
+	'database' => $database,
 	'dbdriver' => 'pdo',
 	'dbprefix' => '',
 	'pconnect' => FALSE,
