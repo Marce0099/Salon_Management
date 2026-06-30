@@ -28,12 +28,16 @@
 			return $this->db->query($sql)->row();
 		}
 
-		public function invoiceNumberExists( $invoice_no, $id_invoice = NULL ){
+		public function invoiceNumberExists( $invoice_no, $id_invoice = NULL, $id_provider = NULL ){
 
 			$sql = 'select * from invoices where invoice_no = "'.$invoice_no.'"';
 			if( $id_invoice ){
 
 				$sql .= ' and id_invoice !='.$id_invoice;
+			}
+			if( $id_provider ){
+
+				$sql .= ' and id_provider = '.$id_provider;
 			}
 			return $this->db->query( $sql )->row();
 		}

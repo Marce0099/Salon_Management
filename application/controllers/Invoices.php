@@ -45,7 +45,7 @@
 				$dt .= ' '.date('H:i:s');
 				$invoice['date_time'] = date('Y-m-d H:i:s', strtotime($dt));
 
-				if( $this->invoices_mdl->invoiceNumberExists( $invoice['invoice_no'] ) ){
+				if( $this->invoices_mdl->invoiceNumberExists( $invoice['invoice_no'], NULL, $invoice['id_provider'] ) ){
 
 					$view_data['type'] = 'error';
 					$view_data['message'] = 'El numero de factura ingresado ya existe';
