@@ -43,7 +43,7 @@ class Products extends Admin_Controller{
 
 	private function setFormRules(){
 
-		$this->form_validation->set_rules('barcode','trim|required');
+		$this->form_validation->set_rules('barcode','trim');
 		$this->form_validation->set_rules('name','trim|required');
 		$this->form_validation->set_rules('description','trim');
 		$this->form_validation->set_rules('stock','is_natural_no_zero');
@@ -64,9 +64,12 @@ class Products extends Admin_Controller{
 
 					$data = $this->input->post();
 
-					if( $this->products_mdl->barcodeExists($data['barcode']) ){
-
-						throw new Exception('El código de barra ya esta registrado a un producto');
+					if (empty($data['barcode'])) {
+						$data['barcode'] = NULL;
+					} else {
+						if( $this->products_mdl->barcodeExists($data['barcode']) ){
+							throw new Exception('El código de barra ya esta registrado a un producto');
+						}
 					}
 
 					if(!$data['id_provider'])
@@ -126,9 +129,16 @@ class Products extends Admin_Controller{
 						$data['is_service'] = 0;
 					}
 
-					if( $this->products_mdl->barcodeExists($data['barcode'],$id_product) ){
+					if( empty($data['barcode']) ){
 
-						throw new Exception('El código de barra ya esta registrado a un producto');
+						$data['barcode'] = NULL;
+					}
+					else{
+
+						if( $this->products_mdl->barcodeExists($data['barcode'],$id_product) ){
+
+							throw new Exception('El código de barra ya esta registrado a un producto');
+						}
 					}
 
 					if(!$data['id_provider'])

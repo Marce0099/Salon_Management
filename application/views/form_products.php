@@ -18,7 +18,7 @@
 		<label class="control-label col-md-3 col-sm-3 col-xs-12" for="barcode">Código de barra:
         </label>
 		<div class="col-md-6 col-sm-6 col-xs-12">
-            <input type="text" name="barcode" id="barcode" required="required" class="form-control col-md-7 col-xs-12" value="<?php if($product){ echo $product->barcode; } ?>">
+            <input type="text" name="barcode" id="barcode" class="form-control col-md-7 col-xs-12" value="<?php if($product){ echo $product->barcode; } ?>">
         </div>
 	</div>
 	<div class="form-group">
