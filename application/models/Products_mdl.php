@@ -89,4 +89,29 @@ class Products_mdl extends CI_Model{
 				sum(stock * price_sell) as total_sell from products where is_service = 0")->row();
 		}
 	}
+
+	public function searchActive($barcode = '', $name = '', $type = 'all'){
+
+		$sql = 'SELECT id_product, barcode, name, price_cost, price_sell, is_service
+		        FROM products WHERE active = 1';
+
+		if( !empty($barcode) ){
+			$safe = $this->db->escape_like_str($barcode);
+			$sql .= ' AND barcode LIKE "%'.$safe.'%"';
+		}
+		if( !empty($name) ){
+			$safe = $this->db->escape_like_str($name);
+			$sql .= ' AND name LIKE "%'.$safe.'%"';
+		}
+		if( $type === 'products' ){
+			$sql .= ' AND is_service = 0';
+		}
+		elseif( $type === 'services' ){
+			$sql .= ' AND is_service = 1';
+		}
+
+		$sql .= ' ORDER BY name ASC LIMIT 50';
+
+		return $this->db->query($sql)->result();
+	}
 }

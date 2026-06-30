@@ -282,6 +282,20 @@ class Products extends Admin_Controller{
 		}
 	}
 
+	public function searchProducts(){
+
+		$barcode = $this->input->post('barcode');
+		$name    = $this->input->post('name');
+		$type    = $this->input->post('type');
+
+		if( !in_array($type, array('all','products','services')) ){
+			$type = 'all';
+		}
+
+		$data['products'] = $this->products_mdl->searchActive($barcode, $name, $type);
+		echo json_encode($data);
+	}
+
 	public function getProductForReturn(){
 
 		$barcode = $this->input->post('barcode');

@@ -42,7 +42,7 @@
 		<thead>
 			<tr>
 				<th width="2%"></th>
-				<th width="52%">Código de barra</th>
+				<th width="52%">Producto/Servicio</th>
 				<th width="10%">Cantidad</th>
 				<th width="13%">Precio costo ($)</th>
 				<th width="13%">Precio venta ($)</th>
@@ -72,7 +72,7 @@
 			</span>
 		</td>
 		<td>
-			<input type="text" class="p-barcode" placeholder="Código de barra" required="true">
+			<input type="text" class="p-barcode" placeholder="Producto/Servicio" required="true">
 			<input type="hidden" class="p-id-products" name="id_products[]" required="true">
 		</td>
 		<td>
@@ -88,6 +88,65 @@
 	</tr>
 </table>
 
+<style>
+	#picker-results tr.picker-selected td { background-color: #337ab7 !important; color: #fff; }
+</style>
+
+<div class="modal fade" id="product-picker-modal" tabindex="-1" role="dialog">
+	<div class="modal-dialog modal-lg" role="document">
+		<div class="modal-content">
+
+			<div class="modal-header">
+				<button type="button" class="close" data-dismiss="modal"><span>&times;</span></button>
+				<h4 class="modal-title">Seleccionar Producto/Servicio</h4>
+			</div>
+
+			<div class="modal-body">
+				<div class="row" style="margin-bottom:10px;">
+					<div class="col-sm-5">
+						<input type="text" id="picker-barcode" class="form-control" placeholder="Buscar por código de barra">
+					</div>
+					<div class="col-sm-5">
+						<input type="text" id="picker-name" class="form-control" placeholder="Buscar por nombre">
+					</div>
+				</div>
+				<div class="row" style="margin-bottom:10px;">
+					<div class="col-sm-12">
+						<label style="margin-right:15px;font-weight:normal;">
+							<input type="radio" name="picker-type" value="all" checked> Todos
+						</label>
+						<label style="margin-right:15px;font-weight:normal;">
+							<input type="radio" name="picker-type" value="products"> Productos
+						</label>
+						<label style="font-weight:normal;">
+							<input type="radio" name="picker-type" value="services"> Servicios
+						</label>
+					</div>
+				</div>
+				<div style="max-height:350px;overflow-y:auto;">
+					<table class="table table-bordered table-hover table-condensed">
+						<thead>
+							<tr>
+								<th>Código</th>
+								<th>Nombre</th>
+								<th>Precio costo</th>
+								<th>Precio venta</th>
+								<th>Tipo</th>
+							</tr>
+						</thead>
+						<tbody id="picker-results"></tbody>
+					</table>
+				</div>
+			</div>
+
+			<div class="modal-footer">
+				<button type="button" class="btn btn-default" data-dismiss="modal">Cancelar</button>
+				<button type="button" class="btn btn-primary" id="picker-ok" disabled>OK</button>
+			</div>
+
+		</div>
+	</div>
+</div>
 
 <script>
 
@@ -101,57 +160,164 @@
 		window.scrollTo(0,document.body.scrollHeight);
 	});
 
-	$(document).on( 'keydown', '.p-barcode',function(e){
+	// ----- Product picker modal -----
 
-		var me = $(this);
-		var barcode = $(this).val();
+	var _pickerRow         = null;
+	var _pickerSelected    = null;
+	var _pickerJustClosed  = false;
+	var _pickerSuccess     = false;
+	var _pickerTimer       = null;
 
-		if( e.which == 9 && barcode.length > 0 ){
+	// Open modal on focus of any barcode/product field
+	$(document).on('focusin', '.p-barcode', function(){
 
-		  	var post = { 'barcode' : barcode };
-			
-			$.ajax({
-
-				url : '<?php echo base_url('products/getByBarCode'); ?>',
-				type : 'post',
-				dataType : 'json',
-				data : post,
-				success : function(data){
-
-					if( data.product ){
-
-						me.val( data.product.barcode + ': ' + data.product.name );
-						me.parents('tr').find('.p-price-sell').val(data.product.price_sell);
-						me.parents('tr').find('.p-price-cost').val(data.product.price_cost);
-						me.parents('tr').find('.p-id-products').val( data.product.id_product );
-					}
-					else{
-
-						me.focus();
-
-						new PNotify({
-				            title: 'Notificación',
-				            text: 'No se ha encontrado el producto',
-				            type : 'warning',
-				            styling : 'bootstrap3',
-				            delay : 2000
-				        });
-					}
-
-				},
-				error : function(){
-
-					new PNotify({
-			            title: 'Notificación',
-			            text: 'Ha ocurrido un error obteniendo los datos',
-			            type : 'error',
-			            styling : 'bootstrap3',
-			            delay : 3500
-			        });
-				}
-
-			});
+		if( _pickerJustClosed ){
+			_pickerJustClosed = false;
+			return;
 		}
+
+		_pickerRow     = $(this).closest('tr');
+		_pickerSelected = null;
+		_pickerSuccess  = false;
+
+		$('#picker-ok').prop('disabled', true);
+		$('#picker-barcode').val('');
+		$('#picker-name').val('');
+		$('input[name="picker-type"][value="all"]').prop('checked', true);
+
+		$('#product-picker-modal').modal('show');
+
+		$('#product-picker-modal').one('shown.bs.modal', function(){
+			$('#picker-barcode').focus();
+			pickerLoad();
+		});
+	});
+
+	// After modal hides: OK → move to quantity; Cancel → return focus with guard
+	$('#product-picker-modal').on('hidden.bs.modal', function(){
+
+		if( _pickerSuccess ){
+			_pickerSuccess = false;
+			if( _pickerRow ) _pickerRow.find('.p-quantity').focus();
+		}
+		else{
+			_pickerJustClosed = true;
+			if( _pickerRow ) _pickerRow.find('.p-barcode').focus();
+		}
+	});
+
+	function pickerLoad(){
+
+		var barcode = $('#picker-barcode').val();
+		var name    = $('#picker-name').val();
+		var type    = $('input[name="picker-type"]:checked').val() || 'all';
+
+		$.ajax({
+			url      : '<?php echo base_url('products/searchProducts'); ?>',
+			type     : 'post',
+			dataType : 'json',
+			data     : { barcode: barcode, name: name, type: type },
+			success  : function(data){
+
+				var $tbody = $('#picker-results').empty();
+				_pickerSelected = null;
+				$('#picker-ok').prop('disabled', true);
+
+				if( data.products && data.products.length ){
+
+					$.each(data.products, function(i, p){
+						$('<tr>').data('product', p)
+							.append($('<td>').text(p.barcode || ''))
+							.append($('<td>').text(p.name))
+							.append($('<td>').text(p.price_cost))
+							.append($('<td>').text(p.price_sell))
+							.append($('<td>').text(p.is_service == 1 ? 'Servicio' : 'Producto'))
+							.appendTo($tbody);
+					});
+				}
+				else{
+					$('<tr><td colspan="5" class="text-center text-muted">Sin resultados</td></tr>').appendTo($tbody);
+				}
+			},
+			error : function(){
+				$('<tr><td colspan="5" class="text-center text-danger">Error al buscar productos</td></tr>')
+					.appendTo($('#picker-results').empty());
+			}
+		});
+	}
+
+	// Debounced search on text input
+	$(document).on('input', '#picker-barcode, #picker-name', function(){
+		clearTimeout(_pickerTimer);
+		_pickerTimer = setTimeout(pickerLoad, 300);
+	});
+
+	// Immediate reload on radio change
+	$(document).on('change', 'input[name="picker-type"]', pickerLoad);
+
+	// Row highlight on click
+	$(document).on('click', '#picker-results tr', function(){
+		var p = $(this).data('product');
+		if( !p ) return;
+		$('#picker-results tr').removeClass('picker-selected');
+		$(this).addClass('picker-selected');
+		_pickerSelected = p;
+		$('#picker-ok').prop('disabled', false);
+	});
+
+	// OK: fetch full product via existing endpoint, fill row same as old Tab handler
+	$('#picker-ok').on('click', function(){
+
+		if( !_pickerSelected || !_pickerRow ) return;
+
+		// Products with no barcode (edge case): populate directly from picker data
+		if( !_pickerSelected.barcode ){
+			_pickerRow.find('.p-barcode').val(_pickerSelected.name);
+			_pickerRow.find('.p-price-sell').val(_pickerSelected.price_sell);
+			_pickerRow.find('.p-price-cost').val(_pickerSelected.price_cost);
+			_pickerRow.find('.p-id-products').val(_pickerSelected.id_product);
+			updateTotal(_pickerRow);
+			_pickerSuccess = true;
+			$('#product-picker-modal').modal('hide');
+			return;
+		}
+
+		$.ajax({
+			url      : '<?php echo base_url('products/getByBarCode'); ?>',
+			type     : 'post',
+			dataType : 'json',
+			data     : { barcode: _pickerSelected.barcode },
+			success  : function(data){
+
+				if( data.product ){
+					_pickerRow.find('.p-barcode').val(data.product.barcode + ': ' + data.product.name);
+					_pickerRow.find('.p-price-sell').val(data.product.price_sell);
+					_pickerRow.find('.p-price-cost').val(data.product.price_cost);
+					_pickerRow.find('.p-id-products').val(data.product.id_product);
+					updateTotal(_pickerRow);
+					_pickerSuccess = true;
+					$('#product-picker-modal').modal('hide');
+				}
+				else{
+					new PNotify({
+						title   : 'Notificación',
+						text    : 'No se ha encontrado el producto',
+						type    : 'warning',
+						styling : 'bootstrap3',
+						delay   : 2000
+					});
+				}
+			},
+			error : function(){
+				new PNotify({
+					title   : 'Notificación',
+					text    : 'Ha ocurrido un error obteniendo los datos',
+					type    : 'error',
+					styling : 'bootstrap3',
+					delay   : 3500
+				});
+			}
+		});
 	});
 
 	$(document).on( 'click', '.delete-item',function(e){
