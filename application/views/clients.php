@@ -35,6 +35,7 @@
 			<div class="col-md-3" style="margin-top:24px;">
 				<button type="submit" class="btn btn-default">Buscar</button>
 				<a href="<?php echo base_url('/clients') ?>" class="btn btn-default">Reiniciar</a>
+				<a href="<?php echo base_url('/clients/recover') ?>" class="btn btn-default">Recuperar</a>
 			</div>
 		</form>
 	</div>

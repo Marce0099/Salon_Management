@@ -101,7 +101,7 @@ class Cash extends Admin_Controller{
 					exit;
 				}
 
-				$query = "SELECT * FROM `clients` WHERE DAY(birth_client) = DAY(CURRENT_TIMESTAMP) AND MONTH(birth_client) = MONTH(CURRENT_TIMESTAMP);";
+				$query = "SELECT * FROM `clients` WHERE active=1 AND DAY(birth_client) = DAY(CURRENT_TIMESTAMP) AND MONTH(birth_client) = MONTH(CURRENT_TIMESTAMP);";
 
 				$data['birth'] = $this->db->query($query)->result();
 

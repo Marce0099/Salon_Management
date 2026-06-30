@@ -25,10 +25,17 @@ class Clients_mdl extends CI_Model{
 
 	public function getClient( $id_client ){
 
-		return $this->db->get_where( 'clients', array( 'id_client' => $id_client ) )->row();
+		return $this->db->get_where( 'clients', array( 'id_client' => $id_client, 'active' => 1 ) )->row();
 	}
+
+	public function getInactiveClient( $id_client ){
+
+		return $this->db->get_where( 'clients', array( 'id_client' => $id_client, 'active' => 0 ) )->row();
+	}
+
 	public function getClientByIdentification( $id_card_client ){
 
+		$this->db->where('active', 1);
 		return $this->db->get_where( 'clients', array( 'id_card_client ' => $id_card_client  ) )->row();
 	}
 
@@ -39,6 +46,11 @@ class Clients_mdl extends CI_Model{
 
 	public function delete($id_client){
 
-		$this->db->delete( 'clients', array( 'id_client' => $id_client ) );
+		$this->db->where('id_client', $id_client)->update('clients', ['active' => 0]);
+	}
+
+	public function reactivate($id_client){
+
+		$this->db->where('id_client', $id_client)->update('clients', ['active' => 1]);
 	}
 }

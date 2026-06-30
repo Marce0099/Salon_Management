@@ -64,7 +64,7 @@ class Clients extends Admin_Controller{
 			'phone_client' => array( 'column' => 'phone_client', 'type' => 'string' )
 		);
 
-
+		$this->easysearch->setInitialWhere('active=1');
 		$data = $this->easysearch->search($search);
 		
 		$this->content_data = array_merge($data,$view_data);
@@ -197,6 +197,52 @@ class Clients extends Admin_Controller{
 
 			$this->session->set_userdata( 'view_data', $view_data );
 			redirect('clients');
+		}
+	}
+
+	public function recover(){
+
+		$view_data = load_data($this->session);
+		$this->load->library('easysearch');
+
+		$search['query'] = 'select * from clients';
+		$search['order_by'] = array( 'registered_client' => 'DESC' );
+		$search['return_as'] = 'clients';
+		$search['limit'] = 100;
+		$search['fields'] = array(
+			'id_card_client' => array( 'column' => 'id_card_client', 'type' => 'string' ),
+			'phone_client'   => array( 'column' => 'phone_client',   'type' => 'string' )
+		);
+
+		$this->easysearch->setInitialWhere('active=0');
+		$data = $this->easysearch->search($search);
+		$this->content_data = array_merge($data, $view_data);
+		$this->renderPanel('clients_recover');
+	}
+
+	public function reactivate( $id_client = 0 ){
+
+		try{
+
+			$client = $this->clients_mdl->getInactiveClient( $id_client );
+
+			if( !$client ){
+
+				throw new Exception('Cliente inválido');
+			}
+
+			$this->clients_mdl->reactivate($id_client);
+
+			$view_data['status'] = array( 'class' => 'success', 'message' => 'Cliente reactivado' );
+			$this->session->set_userdata( 'view_data', $view_data );
+			redirect('clients/recover');
+
+		}
+		catch( Exception $e ){
+
+			$view_data['status'] = array( 'class' => 'error', 'message' => $e->getMessage() );
+			$this->session->set_userdata( 'view_data', $view_data );
+			redirect('clients/recover');
 		}
 	}
 
