@@ -60,7 +60,7 @@ Check these files when working in the relevant area:
 | `employees` | `id_employee` | `name`, `phone`, `active` TINYINT(1) DEFAULT 1 (soft-delete; 0 = hidden from lists) | Sales staff assigned to sales |
 | `clients` | `id_client` | `id_card_client` VARCHAR(50) DEFAULT NULL UNIQUE (national ID — nullable; multiple NULLs allowed by MySQL UNIQUE), `name_client`, `surname_client`, `birth_client`, `is_vip_client` TINYINT, `active` TINYINT(1) DEFAULT 1 (soft-delete; 0 = hidden from lists) | Customer profiles |
 | `products` | `id_product` | `barcode` (UNIQUE), `name`, `description` TEXT, `price_cost` VARCHAR, `price_sell` VARCHAR, `stock`, `is_service` TINYINT (1 = no stock deducted on sale), `commisssion_rate` DECIMAL, `id_provider`->`providers.id_provider`, `active` TINYINT(1) DEFAULT 1 (soft-delete; 0 = hidden from lists) | Product catalog + live stock levels |
-| `providers` | `id_provider` | `provider`, `active` TINYINT(1) DEFAULT 1 (soft-delete; 0 = hidden from lists and invoice form) | Supplier/brand names |
+| `providers` | `id_provider` | `provider` VARCHAR(150) DEFAULT NULL (company name — optional), `representative` VARCHAR(150) NOT NULL DEFAULT '' (contact person — required on new records), `phone_provider` VARCHAR(20) DEFAULT NULL, `email_provider` VARCHAR(100) DEFAULT NULL, `active` TINYINT(1) DEFAULT 1 (soft-delete; 0 = hidden from lists and invoice form) | Supplier/brand names |
 
 ### Sales flow
 

@@ -13,6 +13,12 @@ class Providers extends Admin_Controller{
 
 		$search['query'] = 'select * from providers where active="1"';
 		$search['return_as'] = 'providers';
+		$search['fields'] = array(
+			'provider'       => array('column' => 'provider',       'type' => 'string'),
+			'representative' => array('column' => 'representative', 'type' => 'string'),
+			'phone_provider' => array('column' => 'phone_provider', 'type' => 'string'),
+			'email_provider' => array('column' => 'email_provider', 'type' => 'string'),
+		);
 
 		$data = $this->easysearch->search($search);
 
@@ -26,12 +32,26 @@ class Providers extends Admin_Controller{
 
 		if( formSubmited() ){
 
-			$data['provider'] = $this->input->post('provider');
+			$this->form_validation->set_rules('representative','','trim|required|max_length[150]');
+			if(!empty($_POST['phone_provider']))
+				$this->form_validation->set_rules('phone_provider','','regex_match[/^[0-9 -]{3,20}$/]');
+			if(!empty($_POST['email_provider']))
+				$this->form_validation->set_rules('email_provider','','min_length[3]|max_length[100]|valid_email');
+
+			if($this->form_validation->run() == FALSE){
+				echo json_encode(array('message'=>'Por favor verifica los datos del formulario','type'=>'error'));
+				return;
+			}
+
+			$data = array(
+				'provider'       => $this->input->post('provider'),
+				'representative' => $this->input->post('representative'),
+				'phone_provider' => $this->input->post('phone_provider'),
+				'email_provider' => $this->input->post('email_provider'),
+			);
 			$this->db->insert('providers',$data);
 
-			$view_data['message'] = 'Proveedor registrado correctamente';
-			$view_data['type'] = 'success';
-			echo json_encode($view_data);
+			echo json_encode(array('message'=>'Proveedor registrado correctamente','type'=>'success'));
 		}
 		else{
 
@@ -53,13 +73,26 @@ class Providers extends Admin_Controller{
 
 		if( formSubmited() ){
 
-			$data['provider'] = $this->input->post('provider');
+			$this->form_validation->set_rules('representative','','trim|required|max_length[150]');
+			if(!empty($_POST['phone_provider']))
+				$this->form_validation->set_rules('phone_provider','','regex_match[/^[0-9 -]{3,20}$/]');
+			if(!empty($_POST['email_provider']))
+				$this->form_validation->set_rules('email_provider','','min_length[3]|max_length[100]|valid_email');
+
+			if($this->form_validation->run() == FALSE){
+				echo json_encode(array('message'=>'Por favor verifica los datos del formulario','type'=>'error'));
+				return;
+			}
+
+			$data = array(
+				'provider'       => $this->input->post('provider'),
+				'representative' => $this->input->post('representative'),
+				'phone_provider' => $this->input->post('phone_provider'),
+				'email_provider' => $this->input->post('email_provider'),
+			);
 			$this->db->update('providers',$data,array('id_provider'=>$id_provider));
 
-			$view_data['message'] = 'Proveedor editado correctamente';
-			$view_data['type'] = 'success';
-			$view_data['edit'] = true;
-			echo json_encode($view_data);
+			echo json_encode(array('message'=>'Proveedor editado correctamente','type'=>'success','edit'=>true));
 		}
 		else{
 
