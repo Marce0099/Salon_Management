@@ -11,7 +11,7 @@ class Providers extends Admin_Controller{
 
 		$this->load->library('easysearch');
 
-		$search['query'] = 'select * from providers where active="1"';
+		$search['query'] = 'select * from providers';
 		$search['return_as'] = 'providers';
 		$search['fields'] = array(
 			'provider'       => array('column' => 'provider',       'type' => 'string'),
@@ -19,6 +19,7 @@ class Providers extends Admin_Controller{
 			'phone_provider' => array('column' => 'phone_provider', 'type' => 'string'),
 			'email_provider' => array('column' => 'email_provider', 'type' => 'string'),
 		);
+		$this->easysearch->setInitialWhere('active=1');
 
 		$data = $this->easysearch->search($search);
 
@@ -28,15 +29,19 @@ class Providers extends Admin_Controller{
 		$this->renderPanel('providers');
 	}
 
+	private function set_rules(){
+		$this->form_validation->set_rules('representative','','trim|required|max_length[150]');
+		if(!empty($_POST['phone_provider']))
+			$this->form_validation->set_rules('phone_provider','','regex_match[/^[0-9 -+]{3,20}$/]');
+		if(!empty($_POST['email_provider']))
+			$this->form_validation->set_rules('email_provider','','min_length[3]|max_length[100]|valid_email');
+	}
+
 	public function register(){
 
 		if( formSubmited() ){
 
-			$this->form_validation->set_rules('representative','','trim|required|max_length[150]');
-			if(!empty($_POST['phone_provider']))
-				$this->form_validation->set_rules('phone_provider','','regex_match[/^[0-9 -]{3,20}$/]');
-			if(!empty($_POST['email_provider']))
-				$this->form_validation->set_rules('email_provider','','min_length[3]|max_length[100]|valid_email');
+			$this->set_rules();
 
 			if($this->form_validation->run() == FALSE){
 				echo json_encode(array('message'=>'Por favor verifica los datos del formulario','type'=>'error'));
@@ -73,11 +78,7 @@ class Providers extends Admin_Controller{
 
 		if( formSubmited() ){
 
-			$this->form_validation->set_rules('representative','','trim|required|max_length[150]');
-			if(!empty($_POST['phone_provider']))
-				$this->form_validation->set_rules('phone_provider','','regex_match[/^[0-9 -]{3,20}$/]');
-			if(!empty($_POST['email_provider']))
-				$this->form_validation->set_rules('email_provider','','min_length[3]|max_length[100]|valid_email');
+			$this->set_rules();
 
 			if($this->form_validation->run() == FALSE){
 				echo json_encode(array('message'=>'Por favor verifica los datos del formulario','type'=>'error'));
