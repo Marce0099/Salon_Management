@@ -14,12 +14,12 @@ class Products extends Admin_Controller{
 
 		$this->load->library('easysearch');
 
-		$search['query'] = 'select * from products left outer join providers using(id_provider) WHERE products.active=1';
+		$search['query'] = 'select products.*, providers.provider from products left outer join providers using(id_provider)';
 		$search['order_by'] = array( 'id_product' => 'desc' );
 		$search['group_by'] = array( 'id_product' );
 		$search['return_as'] = 'products';
 		$search['limit'] = 150;
-		
+
 		$search['fields'] = array(
 
 			'name' => array( 'column' => 'name', 'type' => 'string' ),
@@ -30,6 +30,7 @@ class Products extends Admin_Controller{
 			'price_sell' => array( 'column' => 'price_sell', 'type' => 'numeric' )
 		);
 
+		$this->easysearch->setInitialWhere('products.active=1');
 		$data = $this->easysearch->search($search);
 
 		$data['total_inventory'] = $this->products_mdl->getTotalInventory(array_filter($_GET),$data['query_no_limit']);
