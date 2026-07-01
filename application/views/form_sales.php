@@ -238,6 +238,122 @@
 	</tr>
 </table>
 
+<style>
+	#prod-picker-results tr.picker-selected td,
+	#client-picker-results tr.picker-selected td { background-color: #337ab7 !important; color: #fff; }
+</style>
+
+<!-- Product picker modal (#barcode) -->
+<div class="modal fade" id="product-picker-modal" tabindex="-1" role="dialog">
+	<div class="modal-dialog modal-lg" role="document">
+		<div class="modal-content">
+
+			<div class="modal-header">
+				<button type="button" class="close" data-dismiss="modal"><span>&times;</span></button>
+				<h4 class="modal-title">Seleccionar Producto/Servicio</h4>
+			</div>
+
+			<div class="modal-body">
+				<div class="row" style="margin-bottom:10px;">
+					<div class="col-sm-5">
+						<input type="text" id="prod-picker-barcode" class="form-control" placeholder="Buscar por código de barra">
+					</div>
+					<div class="col-sm-5">
+						<input type="text" id="prod-picker-name" class="form-control" placeholder="Buscar por nombre">
+					</div>
+				</div>
+				<div class="row" style="margin-bottom:10px;">
+					<div class="col-sm-12">
+						<label style="margin-right:15px;font-weight:normal;">
+							<input type="radio" name="prod-picker-type" value="all" checked> Todos
+						</label>
+						<label style="margin-right:15px;font-weight:normal;">
+							<input type="radio" name="prod-picker-type" value="products"> Productos
+						</label>
+						<label style="font-weight:normal;">
+							<input type="radio" name="prod-picker-type" value="services"> Servicios
+						</label>
+					</div>
+				</div>
+				<div style="max-height:350px;overflow-y:auto;">
+					<table class="table table-bordered table-hover table-condensed">
+						<thead>
+							<tr>
+								<th>Código</th>
+								<th>Nombre</th>
+								<th>Precio venta</th>
+								<th>Tipo</th>
+							</tr>
+						</thead>
+						<tbody id="prod-picker-results"></tbody>
+					</table>
+				</div>
+			</div>
+
+			<div class="modal-footer">
+				<button type="button" class="btn btn-default" data-dismiss="modal">Cancelar</button>
+				<button type="button" class="btn btn-primary" id="prod-picker-ok" disabled>OK</button>
+			</div>
+
+		</div>
+	</div>
+</div>
+
+<!-- Client picker modal (#cedula_cliente) -->
+<div class="modal fade" id="client-picker-modal" tabindex="-1" role="dialog">
+	<div class="modal-dialog modal-lg" role="document">
+		<div class="modal-content">
+
+			<div class="modal-header">
+				<button type="button" class="close" data-dismiss="modal"><span>&times;</span></button>
+				<h4 class="modal-title">Seleccionar Cliente</h4>
+			</div>
+
+			<div class="modal-body">
+				<div class="row" style="margin-bottom:10px;">
+					<div class="col-sm-4">
+						<input type="text" id="client-picker-id-card" class="form-control" placeholder="Buscar por cédula">
+					</div>
+					<div class="col-sm-4">
+						<input type="text" id="client-picker-name" class="form-control" placeholder="Buscar por nombre">
+					</div>
+					<div class="col-sm-4">
+						<input type="text" id="client-picker-surname" class="form-control" placeholder="Buscar por apellido">
+					</div>
+				</div>
+				<div class="row" style="margin-bottom:10px;">
+					<div class="col-sm-6">
+						<input type="text" id="client-picker-phone" class="form-control" placeholder="Buscar por teléfono">
+					</div>
+					<div class="col-sm-6">
+						<input type="text" id="client-picker-email" class="form-control" placeholder="Buscar por correo">
+					</div>
+				</div>
+				<div style="max-height:350px;overflow-y:auto;">
+					<table class="table table-bordered table-hover table-condensed">
+						<thead>
+							<tr>
+								<th>Cédula</th>
+								<th>Nombre</th>
+								<th>Apellido</th>
+								<th>Teléfono</th>
+								<th>Correo</th>
+							</tr>
+						</thead>
+						<tbody id="client-picker-results"></tbody>
+					</table>
+				</div>
+			</div>
+
+			<div class="modal-footer">
+				<button type="button" class="btn btn-default" data-dismiss="modal">Cancelar</button>
+				<button type="button" class="btn btn-primary" id="client-picker-ok" disabled>OK</button>
+			</div>
+
+		</div>
+	</div>
+</div>
+
 <script>
 
 	var system = {
@@ -253,119 +369,263 @@
 		}
 	};
 
-	$('#barcode').focus().on('keypress',function(e){
+	// ----- Product picker modal (#barcode) -----
 
-		var barcode = $(this).val();
+	var _prodPickerSelected   = null;
+	var _prodPickerJustClosed = false;
+	var _prodPickerOpen       = false;
+	var _prodPickerTimer      = null;
 
-		if( e.which == 13 && barcode.length > 0 ){
+	function openProdPicker(){
 
-			e.preventDefault();
+		if( _prodPickerOpen ) return;
+		_prodPickerOpen = true;
 
-		  	var post = { 'barcode' : barcode };
-			
-			$.ajax({
+		_prodPickerSelected = null;
 
-				url : '<?php echo base_url('products/getByBarCode'); ?>',
-				type : 'post',
-				dataType : 'json',
-				data : post,
-				success : function(data){
+		$('#prod-picker-ok').prop('disabled', true);
+		$('#prod-picker-barcode').val('');
+		$('#prod-picker-name').val('');
+		$('input[name="prod-picker-type"][value="all"]').prop('checked', true);
 
-					if( data.product ){
+		$('#product-picker-modal').modal('show');
 
-						var row = $('#product-mdl tr').eq(0).clone();
+		$('#product-picker-modal').one('shown.bs.modal', function(){
+			$('#prod-picker-barcode').focus();
+			prodPickerLoad();
+		});
+	}
 
-						if( data.product.is_service == '1' ){
-							row.addClass('p-service');
+	// Focus opens the modal; a click while already focused (no new focus event) opens it too
+	$(document).on('focusin click', '#barcode', function(){
 
-						}else{
-							row.find('.p-my_product').addClass('hide');
-						}
-
-						row.find('.p-name').html(data.product.barcode+' : '+data.product.name);
-						row.find('.p-price').val(data.product.price_sell);
-						row.find('.form-ids').val(data.product.id_product);
-						row.find('.p-commission_rate').val(data.product.commisssion_rate);
-
-						$('#sales-list').append(row);
-						$('#barcode').val('');
-
-						updateTotal(row);
-						window.scrollTo(0,document.body.scrollHeight);
-					}
-					else{
-
-						new PNotify({
-				            title: 'Notificación',
-				            text: 'No se ha encontrado el producto',
-				            type : 'warning',
-				            styling : 'bootstrap3',
-				            delay : 2000
-				        });
-					}
-
-				},
-				error : function(){
-
-					new PNotify({
-			            title: 'Notificación',
-			            text: 'Ha ocurrido un error guardando los datos',
-			            type : 'error',
-			            styling : 'bootstrap3',
-			            delay : 3500
-			        });
-				}
-
-			});
+		if( _prodPickerJustClosed ){
+			_prodPickerJustClosed = false;
+			return;
 		}
+
+		openProdPicker();
 	});
 
-	$('#cedula_cliente').focus().on('keypress',function(e){
+	$('#product-picker-modal').on('hidden.bs.modal', function(){
 
-		var identification = $(this).val();
+		_prodPickerOpen = false;
+		_prodPickerJustClosed = true;
+		$('#barcode')[0].focus({ preventScroll: true });
+	});
 
-		if( e.which == 13 && identification.length > 0 ){
+	function prodPickerLoad(){
 
-			e.preventDefault();
+		var barcode = $('#prod-picker-barcode').val();
+		var name    = $('#prod-picker-name').val();
+		var type    = $('input[name="prod-picker-type"]:checked').val() || 'all';
 
-			var post = { 'id_client' : identification };
-			
-			$.ajax({
+		$.ajax({
+			url      : '<?php echo base_url('products/searchAvailableProducts'); ?>',
+			type     : 'post',
+			dataType : 'json',
+			data     : { barcode: barcode, name: name, type: type },
+			success  : function(data){
 
-				url : '<?php echo base_url('clients/getByIdCard'); ?>',
-				type : 'post',
-				dataType : 'json',
-				data : post,
-				success : function(data){
-					if( !data.error ){
-						$('#client_name').val(`${data.name_client} ${data.surname_client}`);
-						$('#id_client').val(data.id_client);
-					}
-					else{
+				var $tbody = $('#prod-picker-results').empty();
+				_prodPickerSelected = null;
+				$('#prod-picker-ok').prop('disabled', true);
 
-						new PNotify({
-							title: 'Notificación',
-							text: data.error,
-							type : 'warning',
-							styling : 'bootstrap3',
-							delay : 2000
-						});
-					}
+				if( data.products && data.products.length ){
 
-				},
-				error : function(){
-
-					new PNotify({
-						title: 'Notificación',
-						text: 'Ha ocurrido un error extrayendo los datos',
-						type : 'error',
-						styling : 'bootstrap3',
-						delay : 3500
+					$.each(data.products, function(i, p){
+						$('<tr>').data('product', p)
+							.append($('<td>').text(p.barcode || ''))
+							.append($('<td>').text(p.name))
+							.append($('<td>').text(p.price_sell))
+							.append($('<td>').text(p.is_service == 1 ? 'Servicio' : 'Producto'))
+							.appendTo($tbody);
 					});
 				}
+				else{
+					$('<tr><td colspan="4" class="text-center text-muted">Sin resultados</td></tr>').appendTo($tbody);
+				}
+			},
+			error : function(){
+				$('<tr><td colspan="4" class="text-center text-danger">Error al buscar productos</td></tr>')
+					.appendTo($('#prod-picker-results').empty());
+			}
+		});
+	}
 
+	// Debounced search on text input
+	$(document).on('input', '#prod-picker-barcode, #prod-picker-name', function(){
+		clearTimeout(_prodPickerTimer);
+		_prodPickerTimer = setTimeout(prodPickerLoad, 300);
+	});
+
+	// Immediate reload on radio change
+	$(document).on('change', 'input[name="prod-picker-type"]', prodPickerLoad);
+
+	// Row highlight on click
+	$(document).on('click', '#prod-picker-results tr', function(){
+		var p = $(this).data('product');
+		if( !p ) return;
+		$('#prod-picker-results tr').removeClass('picker-selected');
+		$(this).addClass('picker-selected');
+		_prodPickerSelected = p;
+		$('#prod-picker-ok').prop('disabled', false);
+	});
+
+	// OK: populate a new #sales-list row directly from the picker's data
+	$('#prod-picker-ok').on('click', function(){
+
+		if( !_prodPickerSelected ) return;
+
+		var p = _prodPickerSelected;
+
+		var alreadyAdded = $('#sales-list .form-ids').filter(function(){
+			return $(this).val() == p.id_product;
+		}).length > 0;
+
+		if( alreadyAdded ){
+
+			new PNotify({
+				title: 'Notificación',
+				text: 'El producto ya se encuentra agregado en la venta',
+				type : 'warning',
+				styling : 'bootstrap3',
+				delay : 2500
 			});
+
+			return;
 		}
+
+		var row = $('#product-mdl tr').eq(0).clone();
+
+		if( p.is_service == '1' ){
+			row.addClass('p-service');
+		}
+		else{
+			row.find('.p-my_product').addClass('hide');
+		}
+
+		row.find('.p-name').html( p.barcode ? (p.barcode+' : '+p.name) : p.name );
+		row.find('.p-price').val(p.price_sell);
+		row.find('.form-ids').val(p.id_product);
+		row.find('.p-commission_rate').val(p.commisssion_rate);
+
+		$('#sales-list').append(row);
+		$('#barcode').val('');
+
+		updateTotal(row);
+
+		$('#product-picker-modal').modal('hide');
+	});
+
+	// ----- Client picker modal (#cedula_cliente) -----
+
+	var _clientPickerSelected   = null;
+	var _clientPickerJustClosed = false;
+	var _clientPickerTimer      = null;
+
+	$(document).on('focusin', '#cedula_cliente', function(){
+
+		if( _clientPickerJustClosed ){
+			_clientPickerJustClosed = false;
+			return;
+		}
+
+		_clientPickerSelected = null;
+
+		$('#client-picker-ok').prop('disabled', true);
+		$('#client-picker-id-card').val('');
+		$('#client-picker-name').val('');
+		$('#client-picker-surname').val('');
+		$('#client-picker-phone').val('');
+		$('#client-picker-email').val('');
+
+		$('#client-picker-modal').modal('show');
+
+		$('#client-picker-modal').one('shown.bs.modal', function(){
+			$('#client-picker-id-card').focus();
+			clientPickerLoad();
+		});
+	});
+
+	$('#client-picker-modal').on('hidden.bs.modal', function(){
+
+		_clientPickerJustClosed = true;
+		$('#cedula_cliente').focus();
+	});
+
+	function clientPickerLoad(){
+
+		var post = {
+			id_card_client : $('#client-picker-id-card').val(),
+			name_client    : $('#client-picker-name').val(),
+			surname_client : $('#client-picker-surname').val(),
+			phone_client   : $('#client-picker-phone').val(),
+			email_client   : $('#client-picker-email').val()
+		};
+
+		$.ajax({
+			url      : '<?php echo base_url('clients/searchClients'); ?>',
+			type     : 'post',
+			dataType : 'json',
+			data     : post,
+			success  : function(data){
+
+				var $tbody = $('#client-picker-results').empty();
+				_clientPickerSelected = null;
+				$('#client-picker-ok').prop('disabled', true);
+
+				if( data.clients && data.clients.length ){
+
+					$.each(data.clients, function(i, c){
+						$('<tr>').data('client', c)
+							.append($('<td>').text(c.id_card_client || ''))
+							.append($('<td>').text(c.name_client))
+							.append($('<td>').text(c.surname_client))
+							.append($('<td>').text(c.phone_client || ''))
+							.append($('<td>').text(c.email_client || ''))
+							.appendTo($tbody);
+					});
+				}
+				else{
+					$('<tr><td colspan="5" class="text-center text-muted">Sin resultados</td></tr>').appendTo($tbody);
+				}
+			},
+			error : function(){
+				$('<tr><td colspan="5" class="text-center text-danger">Error al buscar clientes</td></tr>')
+					.appendTo($('#client-picker-results').empty());
+			}
+		});
+	}
+
+	// Debounced search on any filter input
+	$(document).on('input', '#client-picker-id-card, #client-picker-name, #client-picker-surname, #client-picker-phone, #client-picker-email', function(){
+		clearTimeout(_clientPickerTimer);
+		_clientPickerTimer = setTimeout(clientPickerLoad, 300);
+	});
+
+	// Row highlight on click
+	$(document).on('click', '#client-picker-results tr', function(){
+		var c = $(this).data('client');
+		if( !c ) return;
+		$('#client-picker-results tr').removeClass('picker-selected');
+		$(this).addClass('picker-selected');
+		_clientPickerSelected = c;
+		$('#client-picker-ok').prop('disabled', false);
+	});
+
+	// OK: populate client fields directly from the picker's data
+	$('#client-picker-ok').on('click', function(){
+
+		if( !_clientPickerSelected ) return;
+
+		var c = _clientPickerSelected;
+
+		$('#client_name').val(c.name_client+' '+c.surname_client);
+		$('#id_client').val(c.id_client);
+		$('#cedula_cliente').val(c.id_card_client || '');
+
+		$('#client-picker-modal').modal('hide');
 	});
 
 	function updateTotal( row ){

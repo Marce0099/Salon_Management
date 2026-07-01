@@ -262,4 +262,16 @@ class Clients extends Admin_Controller{
 
 		echo json_encode($data);
 	}
+
+	public function searchClients(){
+
+		$id_card_client = $this->input->post('id_card_client');
+		$name_client    = $this->input->post('name_client');
+		$surname_client = $this->input->post('surname_client');
+		$phone_client   = $this->input->post('phone_client');
+		$email_client   = $this->input->post('email_client');
+
+		$data['clients'] = $this->clients_mdl->searchActive($id_card_client, $name_client, $surname_client, $phone_client, $email_client);
+		echo json_encode($data);
+	}
 }

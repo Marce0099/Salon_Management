@@ -53,4 +53,35 @@ class Clients_mdl extends CI_Model{
 
 		$this->db->where('id_client', $id_client)->update('clients', ['active' => 1]);
 	}
+
+	public function searchActive($id_card_client = '', $name = '', $surname = '', $phone = '', $email = ''){
+
+		$sql = 'SELECT id_client, id_card_client, name_client, surname_client, phone_client, email_client
+		        FROM clients WHERE active = 1';
+
+		if( !empty($id_card_client) ){
+			$safe = $this->db->escape_like_str($id_card_client);
+			$sql .= ' AND id_card_client LIKE "%'.$safe.'%"';
+		}
+		if( !empty($name) ){
+			$safe = $this->db->escape_like_str($name);
+			$sql .= ' AND name_client LIKE "%'.$safe.'%"';
+		}
+		if( !empty($surname) ){
+			$safe = $this->db->escape_like_str($surname);
+			$sql .= ' AND surname_client LIKE "%'.$safe.'%"';
+		}
+		if( !empty($phone) ){
+			$safe = $this->db->escape_like_str($phone);
+			$sql .= ' AND phone_client LIKE "%'.$safe.'%"';
+		}
+		if( !empty($email) ){
+			$safe = $this->db->escape_like_str($email);
+			$sql .= ' AND email_client LIKE "%'.$safe.'%"';
+		}
+
+		$sql .= ' ORDER BY name_client ASC LIMIT 50';
+
+		return $this->db->query($sql)->result();
+	}
 }
