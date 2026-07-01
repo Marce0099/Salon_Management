@@ -105,10 +105,15 @@ class Cash extends Admin_Controller{
 
 				$data['birth'] = $this->db->query($query)->result();
 
-				$this->load->library('my_phpmailer');
-				$email_html = $this->load->view('open_cash_report', $data, TRUE); // Render as string
+				try {
 
-				$this->my_phpmailer->sendOpenCash($email_html);
+					$this->load->library('my_phpmailer');
+					$email_html = $this->load->view('open_cash_report', $data, TRUE); // Render as string
+
+					$this->my_phpmailer->sendOpenCash($email_html);
+				} catch (\Throwable $th) {
+					log_message('error', 'sendOpenCash failed: ' . $th->getMessage());
+				}
 
 				$sess_data['status'] = array( 'message' => 'La caja ha sido abierta con C$'.number_format($data['open_quantity']), 'class' => 'success' );
 
@@ -227,10 +232,15 @@ class Cash extends Admin_Controller{
 					'borders' => 'border: 1px solid black'
 				];
 
-				$this->load->library('my_phpmailer');
-				$email_html = $this->load->view('cash_details', $data, TRUE); // Render as string
+				try {
 
-				$this->my_phpmailer->sendCloseCash($email_html);
+					$this->load->library('my_phpmailer');
+					$email_html = $this->load->view('cash_details', $data, TRUE); // Render as string
+
+					$this->my_phpmailer->sendCloseCash($email_html);
+				} catch (\Throwable $th) {
+					log_message('error', 'sendCloseCash failed: ' . $th->getMessage());
+				}
 
 				$sess_data['status'] = array( 'message' => 'La caja ha sido cerrada', 'class' => 'success' );
 
