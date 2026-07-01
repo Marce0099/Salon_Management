@@ -54,33 +54,53 @@
 					exit();
 				}
 
-				$id_invoice = $this->invoices_mdl->saveInvoice($invoice);
-
 				$id_products = $this->input->post('id_products');
 				$quantities = $this->input->post('quantities');
 				$prices_cost = $this->input->post('prices_cost');
 				$prices_sell = $this->input->post('prices_sell');
 
-				for( $i=0; $i < count($id_products); $i++ ){
+				$this->db->trans_begin();
 
-					if( !empty( $id_products[$i] ) ){
-						
-						$invoice_details['id_product'] = $id_products[$i];
-						$invoice_details['id_invoice'] = $id_invoice;
-						$invoice_details['quantity'] = $quantities[$i];
-						$invoice_details['price_cost'] = $prices_cost[$i];
-						$invoice_details['price_sell'] = $prices_sell[$i];
+				try{
 
-						$this->invoices_mdl->saveInvoiceDetails( $invoice_details );
+					$id_invoice = $this->invoices_mdl->saveInvoice($invoice);
 
-						$this->invoices_mdl->updateStockPrice( $id_products[$i], $quantities[$i], $prices_sell[$i], $prices_cost[$i], $invoice['id_provider'] );
+					for( $i=0; $i < count($id_products); $i++ ){
+
+						if( !empty( $id_products[$i] ) ){
+
+							$invoice_details['id_product'] = $id_products[$i];
+							$invoice_details['id_invoice'] = $id_invoice;
+							$invoice_details['quantity'] = $quantities[$i];
+							$invoice_details['price_cost'] = $prices_cost[$i];
+							$invoice_details['price_sell'] = $prices_sell[$i];
+
+							$this->invoices_mdl->saveInvoiceDetails( $invoice_details );
+
+							$this->invoices_mdl->updateStockPrice( $id_products[$i], $quantities[$i], $prices_sell[$i], $prices_cost[$i], $invoice['id_provider'] );
+						}
 					}
+
+					if( $this->db->trans_status() === FALSE ){
+						throw new Exception('No se ha podido registrar la factura');
+					}
+
+					$this->db->trans_commit();
+
+					$view_data['type'] = 'success';
+					$view_data['message'] = 'Factura ingresada e inventario actualizado';
+
+					echo json_encode($view_data);
 				}
+				catch( Exception $e ){
 
-				$view_data['type'] = 'success';
-				$view_data['message'] = 'Factura ingresada e inventario actualizado';
+					$this->db->trans_rollback();
 
-				echo json_encode($view_data);
+					$view_data['type'] = 'error';
+					$view_data['message'] = $e->getMessage();
+
+					echo json_encode($view_data);
+				}
 			}
 			else{
 

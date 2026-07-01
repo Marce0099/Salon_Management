@@ -42,7 +42,7 @@ class Returns_mdl extends CI_Model{
     			$product = $this->db->get_where('products', array( 'id_product' => $id_products[$i] ))->row();
 
     			if( !$product || $product->stock < $quantities[$i] ){
-    				return 'Stock insuficiente para: ' . ($product ? $product->name : 'ID '.$id_products[$i]);
+    				throw new Exception('Stock insuficiente para: ' . ($product ? $product->name : 'ID '.$id_products[$i]));
     			}
 
     			$ip = $this->db->get_where('invoice_products', array(
@@ -67,8 +67,6 @@ class Returns_mdl extends CI_Model{
 
     		$this->db->insert_batch('returns_products', $data);
     	}
-
-    	return true;
     }
 
     public function getInvoicesByProvider( $id_provider ){

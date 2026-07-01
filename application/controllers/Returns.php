@@ -70,22 +70,33 @@ class Returns extends Admin_Controller{
                     return;
                 }
 
-                $date      = date('Y-m-d', strtotime( str_replace('/', '-', $data['date_time']) ));
-                $id_return = $this->returns_mdl->save($id_provider, $date, $id_invoice);
-                $result    = $this->returns_mdl->saveProductsReturn(
-                    $id_return, $data['id_products'], $data['quantities_returns'], $id_invoice
-                );
+                $date = date('Y-m-d', strtotime( str_replace('/', '-', $data['date_time']) ));
 
-                if( $result !== true ){
-                    $this->db->delete('returns', array( 'id_return' => $id_return ));
-                    $view_data['status'] = array( 'class' => 'error', 'message' => $result );
-                    $this->form($view_data);
-                    return;
+                $this->db->trans_begin();
+
+                try{
+
+                    $id_return = $this->returns_mdl->save($id_provider, $date, $id_invoice);
+                    $this->returns_mdl->saveProductsReturn(
+                        $id_return, $data['id_products'], $data['quantities_returns'], $id_invoice
+                    );
+
+                    if( $this->db->trans_status() === FALSE ){
+                        throw new Exception('No se ha podido registrar la devolución');
+                    }
+
+                    $this->db->trans_commit();
+
+                    $view_data['status'] = array( 'class' => 'success', 'message' => 'Devolución de productos registrada e inventario actualizado' );
+                    $this->session->set_userdata('view_data', $view_data);
+                    redirect('returns');
                 }
+                catch( Exception $e ){
 
-                $view_data['status'] = array( 'class' => 'success', 'message' => 'Devolución de productos registrada e inventario actualizado' );
-                $this->session->set_userdata('view_data', $view_data);
-                redirect('returns');
+                    $this->db->trans_rollback();
+                    $view_data['status'] = array( 'class' => 'error', 'message' => $e->getMessage() );
+                    $this->form($view_data);
+                }
             }
             else{
 

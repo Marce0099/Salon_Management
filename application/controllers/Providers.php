@@ -54,7 +54,14 @@ class Providers extends Admin_Controller{
 				'phone_provider' => $this->input->post('phone_provider'),
 				'email_provider' => $this->input->post('email_provider'),
 			);
-			$this->db->insert('providers',$data);
+
+			try {
+				$this->db->insert('providers',$data);
+			} catch (\Throwable $th) {
+				$message = $th->getMessage() ?? 'Ha ocurrido un error registrando proveedor';
+				echo json_encode(array('message'=>$message,'type'=>'error'));
+				return;
+			}
 
 			echo json_encode(array('message'=>'Proveedor registrado correctamente','type'=>'success'));
 		}
@@ -91,7 +98,14 @@ class Providers extends Admin_Controller{
 				'phone_provider' => $this->input->post('phone_provider'),
 				'email_provider' => $this->input->post('email_provider'),
 			);
-			$this->db->update('providers',$data,array('id_provider'=>$id_provider));
+
+			try {
+				$this->db->update('providers',$data,array('id_provider'=>$id_provider));
+			} catch (\Throwable $th) {
+				$message = $th->getMessage() ?? 'Ha ocurrido un error editando proveedor';
+				echo json_encode(array('message'=>$message,'type'=>'error'));
+				return;
+			}
 
 			echo json_encode(array('message'=>'Proveedor editado correctamente','type'=>'success','edit'=>true));
 		}

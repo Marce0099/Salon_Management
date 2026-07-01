@@ -41,21 +41,50 @@ class Orders extends Admin_Controller{
 			$quantities = $this->input->post('quantities');
 
 			$order['id_provider'] = $id_provider;
-			$id_order = $this->orders_mdl->save($order);
 
-			for( $i=0; $i < count($id_products); $i++ ){
+			$this->db->trans_begin();
 
-				$data['id_order'] = $id_order;
-				$data['id_product'] = $id_products[$i];
-				$data['quantity'] = $quantities[$i];
-				$this->orders_mdl->saveOrderProduct($data);
+			try{
+
+				$id_order = $this->orders_mdl->save($order);
+
+				for( $i=0; $i < count($id_products); $i++ ){
+
+					$data['id_order'] = $id_order;
+					$data['id_product'] = $id_products[$i];
+					$data['quantity'] = $quantities[$i];
+					$this->orders_mdl->saveOrderProduct($data);
+				}
+
+				if( $this->db->trans_status() === FALSE ){
+					throw new Exception('No se ha podido registrar la orden de pedido');
+				}
+
+				$this->db->trans_commit();
+			}
+			catch( Exception $e ){
+
+				$this->db->trans_rollback();
+
+				$sess_data['status'] = array( 'class' => 'error', 'message' => $e->getMessage() );
+				$this->session->set_userdata('view_data',$sess_data);
+				redirect('orders');
+				return;
 			}
 
 			$file = $this->generatePdf($id_order, $id_provider,$id_products,$quantities);
 
 			if( $file ){
-				$message = 'Orden de pedido registrada';
-				$this->orders_mdl->setFile($id_order,$file);
+
+				try{
+
+					$this->orders_mdl->setFile($id_order,$file);
+					$message = 'Orden de pedido registrada';
+				}
+				catch( Exception $e ){
+
+					$message = 'Orden de pedido registrada, pero no pudo generarse el documento PDF';
+				}
 			}
 			else
 				$message = 'Orden de pedido registrada, pero no pudo generarse el documento PDF';

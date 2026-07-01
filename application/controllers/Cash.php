@@ -156,7 +156,14 @@ class Cash extends Admin_Controller{
 				$data['id_admin'] = $this->id_admin;
 				$data['description'] = $this->input->post('description');
 
-				$this->cash_mdl->save_outcome( $data );
+				try {
+					$this->cash_mdl->save_outcome( $data );
+				} catch (\Throwable $th) {
+					$sess_data['status'] = array( 'message' => 'Ha ocurrido un error al registrar el egreso', 'class' => 'error' );
+					$this->session->set_userdata('view_data',$sess_data);
+					redirect('cash/register_outcome');
+					exit;
+				}
 
 				$sess_data['status'] = array( 'message' => 'Registro de egreso registrado', 'class' => 'success' );
 

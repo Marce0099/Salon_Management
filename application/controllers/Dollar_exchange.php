@@ -32,7 +32,15 @@ class Dollar_exchange extends Admin_Controller{
 		if( formPosted() && $this->form_validation->run() ){
 
 			$data = $this->input->post();
-			$this->dollar_exchange_mdl->save($data);
+
+			try {
+				$this->dollar_exchange_mdl->save($data);
+			} catch (\Throwable $th) {
+				$view_data['message'] = 'Ha ocurrido un error actualizando la tarifa de dollar';
+				$view_data['type'] = 'error';
+				echo json_encode($view_data);
+				return;
+			}
 
 			$view_data['message'] = 'Tarífa de dollar actualizada';
 			$view_data['type'] = 'success';
