@@ -78,7 +78,7 @@ Check these files when working in the relevant area:
 | `invoice_products` | `id_invoice_product` | `id_invoice`->`invoices.id_invoice`, `id_product`->`products.id_product`, `quantity`, `price_cost` VARCHAR, `price_sell` VARCHAR | Invoice line items |
 | `orders` | `id_order` | `id_provider`->`providers.id_provider`, `date_time`, `file` VARCHAR (attached PDF filename) | Purchase order to a supplier |
 | `orders_products` | `id_order_product` | `id_order`->`orders.id_order`, `id_product`->`products.id_product`, `quantity` | Order line items |
-| `returns` | `id_return` | `id_provider`->`providers.id_provider`, `date_time` | Return-to-supplier header |
+| `returns` | `id_return` | `id_provider`->`providers.id_provider`, `id_invoice`->`invoices.id_invoice` (nullable, ON DELETE SET NULL), `date_time` | Return-to-supplier header |
 | `returns_products` | `id_return_product` | `id_return`->`returns.id_return`, `id_product`->`products.id_product`, `quantity`, `price_cost` VARCHAR, `price_sell` VARCHAR | Return line items |
 
 ### Cash & financial

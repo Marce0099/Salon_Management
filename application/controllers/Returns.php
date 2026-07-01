@@ -47,23 +47,44 @@ class Returns extends Admin_Controller{
 
         if( formPosted() ){
 
-            //$this->form_validation->set_rules('id_provider','','required|is_natural_no_zero');
-            $this->form_validation->set_rules('date_time','','required');
-            $this->form_validation->set_rules('id_products[]','','required');
-            $this->form_validation->set_rules('quantities_returns[]','required');
+            $this->form_validation->set_rules('id_provider',         '', 'required|is_natural_no_zero');
+            $this->form_validation->set_rules('id_invoice',          '', 'required|is_natural_no_zero');
+            $this->form_validation->set_rules('date_time',           '', 'required');
+            $this->form_validation->set_rules('id_products[]',       '', 'required');
+            $this->form_validation->set_rules('quantities_returns[]','', 'required');
 
             if( $this->form_validation->run() ){
 
-                $data = $this->input->post();
-                $date = date('Y-m-d', strtotime( str_replace('/', '-', $data['date_time']) ) );
+                $data        = $this->input->post();
+                $id_provider = (int)$data['id_provider'];
+                $id_invoice  = (int)$data['id_invoice'];
 
-                $id_provider = $data['id_provider'] == "" ? NULL : $data['id_provider'];
-                $id_return = $this->returns_mdl->save($id_provider,$date);
+                $invoice = $this->db->get_where('invoices', array(
+                    'id_invoice'  => $id_invoice,
+                    'id_provider' => $id_provider,
+                ))->row();
 
-                $this->returns_mdl->saveProductsReturn( $id_return, $data['id_products'], $data['quantities_returns'] );
+                if( !$invoice ){
+                    $view_data['status'] = array( 'class' => 'error', 'message' => 'La factura seleccionada no pertenece al proveedor indicado' );
+                    $this->form($view_data);
+                    return;
+                }
+
+                $date      = date('Y-m-d', strtotime( str_replace('/', '-', $data['date_time']) ));
+                $id_return = $this->returns_mdl->save($id_provider, $date, $id_invoice);
+                $result    = $this->returns_mdl->saveProductsReturn(
+                    $id_return, $data['id_products'], $data['quantities_returns'], $id_invoice
+                );
+
+                if( $result !== true ){
+                    $this->db->delete('returns', array( 'id_return' => $id_return ));
+                    $view_data['status'] = array( 'class' => 'error', 'message' => $result );
+                    $this->form($view_data);
+                    return;
+                }
 
                 $view_data['status'] = array( 'class' => 'success', 'message' => 'Devolución de productos registrada e inventario actualizado' );
-                $this->session->set_userdata('view_data',$view_data);
+                $this->session->set_userdata('view_data', $view_data);
                 redirect('returns');
             }
             else{
@@ -81,8 +102,26 @@ class Returns extends Admin_Controller{
     private function form( $view_data = array() ){
 
         $this->footer_data = $view_data;
-        $this->content_data['providers'] = $this->db->query('select * from providers')->result();
+        $this->content_data['providers'] = $this->db->get_where('providers', array( 'active' => 1 ))->result();
         $this->renderPanel('form_returns');
+    }
+
+    public function getInvoicesByProvider(){
+
+        $id_provider = $this->input->post('id_provider');
+
+        if( $id_provider ){
+            echo json_encode(array( 'invoices' => $this->returns_mdl->getInvoicesByProvider($id_provider) ));
+        }
+    }
+
+    public function getProductsByInvoice(){
+
+        $id_invoice = $this->input->post('id_invoice');
+
+        if( $id_invoice ){
+            echo json_encode(array( 'products' => $this->returns_mdl->getProductsByInvoice($id_invoice) ));
+        }
     }
 
     public function details( $id_return = 0 ){
