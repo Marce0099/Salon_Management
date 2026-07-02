@@ -335,14 +335,21 @@ class Sales extends Admin_Controller{
 
 			$message = '<p>Venta registrada</p>';
 
+			$residual_cordobas = $total_cordobas;
+			foreach ($payment as $p) {
+				if ($p["payment_method"] !== "cash") {
+					$residual_cordobas -= floatval($p["cordoba"]) + round(floatval($p["dolar"]) * floatval($exchange->sell_price));
+				}
+			}
+
 			foreach ($payment as $p) {
 				if($p["payment_method"] === "cash"){
 					$cash_cordobas = floatval($p["cordoba"]);
 
 					if( $p['dolar'] )
-					$cash_cordobas += round( floatval($p['dolar']) * floatval($exchange->buy_price ));
+					$cash_cordobas += round( floatval($p['dolar']) * floatval($exchange->sell_price ));
 
-					$message .= '<p>Cambio: C$'.number_format($cash_cordobas - $total_cordobas, 2 ).'</p>';
+					$message .= '<p>Cambio: C$'.number_format($cash_cordobas - $residual_cordobas, 2 ).'</p>';
 				}
 			}
 
