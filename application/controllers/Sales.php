@@ -325,8 +325,13 @@ class Sales extends Admin_Controller{
 				exit();
 			}
 
+			ob_start();
 			$prnt = $this->printInvoice( $id_sale );
+			ob_end_clean();
+
+			ob_start();
 			$prnt = $this->printInvoice( $id_sale, TRUE );
+			ob_end_clean();
 
 			$message = '<p>Venta registrada</p>';
 
@@ -543,7 +548,7 @@ class Sales extends Admin_Controller{
 
 			return TRUE;
 		}
-		catch( Exception $e ){
+		catch( \Throwable $e ){
 			return FALSE;
 		}
 	}
