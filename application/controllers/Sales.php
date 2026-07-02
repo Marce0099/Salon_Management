@@ -296,6 +296,8 @@ class Sales extends Admin_Controller{
 					if( !$res ){
 						$response['type'] = 'error';
 						$response['message'] = 'Cuenta bancaria no existe';
+						$this->db->trans_rollback();
+						echo json_encode($response);
 						exit();
 					}
 					$pay['account'] = $res->id_account;
