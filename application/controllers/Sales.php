@@ -138,7 +138,7 @@ class Sales extends Admin_Controller{
 				if( $discounts[$i] )
 					$subtotal -= $subtotal * $discounts[$i] / 100;
 
-				$total_cordobas += round( $subtotal * $exchange->buy_price );
+				$total_cordobas += round( $subtotal * $exchange->sell_price );
 			}
 
 			/* coupon uniqueness + order-dependent overpay rejection (mirrors the JS check) */
@@ -323,7 +323,7 @@ class Sales extends Admin_Controller{
 				if( $sale_product['discount'] )
 					$subtotal -= $subtotal * $sale_product['discount'] / 100;
 
-				$total_cordobas += round( $subtotal * $exchange->buy_price );
+				$total_cordobas += round( $subtotal * $exchange->sell_price );
 
 				$stock = $this->sales_mdl->saveSaleProduct($sale_product);
 			}
