@@ -243,6 +243,19 @@ class Sales extends Admin_Controller{
 
 			/*******/
 
+			for( $i=0; $i < count($id_products); $i++ ){
+
+				$product = $this->db->get_where('products', array( 'id_product' => $id_products[$i] ))->row();
+
+				if( !$product->is_service && $product->stock < $quantities[$i] ){
+
+					$response['type'] = 'error';
+					$response['message'] = 'Stock insuficiente para "'.$product->name.'" (disponible: '.$product->stock.')';
+					echo json_encode($response);
+					exit();
+				}
+			}
+
 			$this->db->trans_start();
 			$id_sale = $this->sales_mdl->saveSale( $sale );
 
