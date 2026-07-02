@@ -91,26 +91,35 @@ class Sales extends Admin_Controller{
 			$discounts = $this->input->post('discounts');
 			$commission_rate = $this->input->post('commission_rate');
 			$my_product = $this->input->post('my_product');
- 
+
 			$sale['client'] = $this->input->post('id_client');
 			$sale['id_employee'] = $this->input->post('id_employee') ? $this->input->post('id_employee') : NULL;
 			//$sale['pos_paid'] = $this->input->post('pos_paid') ? 1 : 0;
 
-			$payment1 = $this->input->post('meth1_payment_method');
-			$payment2 = $this->input->post('meth2_payment_method');
+			$payment_methods = $this->input->post('payment_method');
+			$cordobas_inputs = $this->input->post('cordobas_input');
+			$dolar_inputs = $this->input->post('dolar_input');
+			$account_numbers = $this->input->post('account_number');
+			$cupon_codes = $this->input->post('cupon_code');
+			$cupon_amounts = $this->input->post('cupon_amount');
+			$cupon_discounts = $this->input->post('cupon_discount_rate'); // plumbed through for a future feature, never stored
 
-			$meth1_cordobas = str_replace(',', '',$this->input->post('meth1_cordobas_input'));
-			$meth1_dolar = str_replace(',','',$this->input->post('meth1_dolar_input'));
+			foreach( $payment_methods as $pm ){
+				if( !in_array($pm, array('cash','pos','transfer','cupon')) ){
 
-			$meth2_cordobas = $payment2 ? str_replace(',', '',$this->input->post('meth2_cordobas_input')) : null;
-			$meth2_dolar = $payment2 ? str_replace(',','',$this->input->post('meth2_dolar_input')) : null;
+					$response['type'] = 'error';
+					$response['message'] = 'Metodo de pago no válido';
+					echo json_encode($response);
+					exit();
+				}
+			}
 
 			/*if( !$sale['pos_paid'] ){
 
 				$sale['cash_cordobas'] = str_replace(',', '',$this->input->post('cash_cordobas'));
 				$sale['cash_dollar'] = str_replace(',','',$this->input->post('cash_dollar'));
 			}*/
-			
+
 			$dt = str_replace('/', '-', $this->input->post('date_time'));
 			$dt .= ' '.date('H:i:s');
 			$sale['date_time'] = date('Y-m-d H:i:s', strtotime($dt));
@@ -119,48 +128,97 @@ class Sales extends Admin_Controller{
 			$sale['dollar_ex_buy'] = $exchange->buy_price;
 			$sale['dollar_ex_sell'] = $exchange->sell_price;
 
+			/* invoice total, needed unconditionally for the coupon overpay check below */
+			$total_cordobas = 0;
+			for( $i=0; $i < count($id_products); $i++ ){
+
+				$price = str_replace(',', '', $prices[$i] );
+				$subtotal = $price * $quantities[$i];
+
+				if( $discounts[$i] )
+					$subtotal -= $subtotal * $discounts[$i] / 100;
+
+				$total_cordobas += round( $subtotal * $exchange->buy_price );
+			}
+
+			/* coupon uniqueness + order-dependent overpay rejection (mirrors the JS check) */
+			$seen_codes = array();
+			$running_total = 0;
+
+			for( $i=0; $i < count($payment_methods); $i++ ){
+
+				$method = $payment_methods[$i];
+
+				if( $method === 'cupon' ){
+
+					$code = trim($cupon_codes[$i]);
+					$amount = floatval(str_replace(',', '', $cupon_amounts[$i]));
+
+					if( $code === '' || $amount <= 0 ){
+
+						$response['type'] = 'error';
+						$response['message'] = 'Debe ingresar el código y el monto del cupón';
+						echo json_encode($response);
+						exit();
+					}
+
+					if( isset($seen_codes[$code]) ){
+
+						$response['type'] = 'error';
+						$response['message'] = 'El cupón "'.$code.'" ya fue usado en otro metodo de pago de esta venta';
+						echo json_encode($response);
+						exit();
+					}
+					$seen_codes[$code] = TRUE;
+
+					if( $running_total + $amount > $total_cordobas ){
+
+						$response['type'] = 'error';
+						$response['message'] = 'El cupón "'.$code.'" excede el total pendiente de la factura';
+						echo json_encode($response);
+						exit();
+					}
+
+					$running_total += $amount;
+
+				}else{
+
+					$amt = floatval(str_replace(',', '', $cordobas_inputs[$i]));
+
+					if( $dolar_inputs[$i] )
+						$amt += round( floatval(str_replace(',', '', $dolar_inputs[$i])) * floatval($exchange->buy_price) );
+
+					$running_total += $amt;
+				}
+			}
+
 			/* check cash available */
 
 			//if( !$sale['pos_paid'] ){
-			$total_cordobas = 0;
-			if( $payment1 === "cash" || $payment2 === "cash" ){
+			$has_cash = in_array('cash', $payment_methods);
 
-
-				for( $i=0; $i < count($id_products); $i++ ){
-
-					$price = str_replace(',', '', $prices[$i] );
-					$subtotal = $price * $quantities[$i];
-
-					if( $discounts[$i] )
-						$subtotal -= $subtotal * $discounts[$i] / 100;
-
-					$total_cordobas += round( $subtotal * $exchange->buy_price );
-				}
+			if( $has_cash ){
 
 				$_total_cordobas = $total_cordobas;
 				$cash_cordobas = 0;
 
-				$cash_mth1_cordobas = floatval($meth1_cordobas);
+				for( $i=0; $i < count($payment_methods); $i++ ){
 
-				if( $meth1_dolar )
-					$cash_mth1_cordobas += round( floatval($meth1_dolar) * floatval($exchange->buy_price ));
+					$method = $payment_methods[$i];
 
-				if( $payment1 !== "cash" ){
-					$_total_cordobas -= $cash_mth1_cordobas;
-				}else{
-					$cash_cordobas = $cash_mth1_cordobas;
-				}
-
-				if( !is_null($payment2) ){
-					$cash_mth2_cordobas = floatval($meth2_cordobas);
-
-					if( $meth2_dolar )
-						$cash_mth2_cordobas += round( floatval($meth2_dolar) * floatval($exchange->buy_price ));
-
-					if( $payment2 !== "cash" ){
-						$_total_cordobas -= $cash_mth2_cordobas;
+					if( $method === 'cupon' ){
+						$amt = floatval(str_replace(',', '', $cupon_amounts[$i]));
 					}else{
-						$cash_cordobas = $cash_mth2_cordobas;
+						$amt = floatval(str_replace(',', '', $cordobas_inputs[$i]));
+
+						if( $dolar_inputs[$i] )
+							$amt += round( floatval(str_replace(',', '', $dolar_inputs[$i])) * floatval($exchange->buy_price) );
+					}
+
+					if( $method === 'cash' ){
+						$cash_cordobas += $amt;
+					}else{
+						$_total_cordobas -= $amt;
 					}
 				}
 
@@ -189,24 +247,34 @@ class Sales extends Admin_Controller{
 			$id_sale = $this->sales_mdl->saveSale( $sale );
 
 			$payment = array();
-			array_push($payment, array(
-				"id_sale" => $id_sale,
-				"payment_method" => $payment1,
-				"account" => $this->input->post('meth1_account_number'),
-				"cordoba" => $meth1_cordobas,
-				"dolar" => $meth1_dolar,
-				"tax_rate" => $payment1 === "pos" ? 6.75 : null,
-			));
 
-			if(!is_null($payment2)){
-				array_push($payment, array(
-					"id_sale" => $id_sale,
-					"payment_method" => $payment2,
-					"account" => $this->input->post('meth2_account_number'),
-					"cordoba" => $meth2_cordobas,
-					"dolar" => $meth2_dolar,
-					"tax_rate" => $payment2 === "pos" ? 6.75 : null,
-				));
+			for( $i=0; $i < count($payment_methods); $i++ ){
+
+				$method = $payment_methods[$i];
+
+				if( $method === 'cupon' ){
+
+					array_push($payment, array(
+						"id_sale" => $id_sale,
+						"payment_method" => $method,
+						"account" => null,
+						"cordoba" => floatval(str_replace(',', '', $cupon_amounts[$i])),
+						"dolar" => null,
+						"tax_rate" => null,
+					));
+					// cupon_code / cupon_discount_rate intentionally not persisted
+
+				}else{
+
+					array_push($payment, array(
+						"id_sale" => $id_sale,
+						"payment_method" => $method,
+						"account" => $method === 'transfer' ? $account_numbers[$i] : null,
+						"cordoba" => str_replace(',', '', $cordobas_inputs[$i]),
+						"dolar" => str_replace(',', '', $dolar_inputs[$i]),
+						"tax_rate" => $method === 'pos' ? 6.75 : null,
+					));
+				}
 			}
 
 			foreach($payment as &$pay){
@@ -383,7 +451,8 @@ class Sales extends Admin_Controller{
 			$methods = [
 				'cash' => 'Efectivo',
 				'pos' => 'POS',
-				'transfer' => 'Transferencia'
+				'transfer' => 'Transferencia',
+				'cupon' => 'Cupón'
 			];
 
 			$cash = array();
@@ -512,6 +581,7 @@ class Sales extends Admin_Controller{
 			$priority = [
 				'transfer' => 1,
 				'pos' => 1,
+				'cupon' => 1,
 				'cash' => 2
 			];
 			return ($priority[$a->payment_method] ?? 99) <=> ($priority[$b->payment_method] ?? 99);
@@ -524,7 +594,8 @@ class Sales extends Admin_Controller{
 		$view_data['payment_methods'] = [
 			'cash' => 'Efectivo',
 			'pos' => 'POS',
-			'transfer' => 'Transferencia'
+			'transfer' => 'Transferencia',
+			'cupon' => 'Cupón'
 		];
 		$this->content_data = $view_data;
 		$this->renderPanel('sale_details');

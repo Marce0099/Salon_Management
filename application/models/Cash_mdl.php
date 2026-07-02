@@ -27,10 +27,12 @@ class Cash_mdl extends CI_Model{
 		$data['sales_cash_num'] = 0;
 		$data['sales_pos_num'] = 0;
 		$data['sales_transfer_num'] = 0;
+		$data['sales_cupon_num'] = 0;
 		$data['sales_total_cordobas'] = 0;
 		$data['sales_total_dollar'] = 0;
 		$data['sales_total_pos'] = 0;
 		$data['sales_total_transfer'] = 0;
+		$data['sales_total_cupon'] = 0;
 		$data['sales_num_total'] = 0;
 
 		$query = "SELECT 

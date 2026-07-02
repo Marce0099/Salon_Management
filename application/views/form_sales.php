@@ -73,94 +73,70 @@
 			<button type="button" class="btn btn-warning" id="add_payment">Agregar mas forma de pago</button>
 		</div>
 	</div>
-	<div class="payment_container">
+	<div id="payment-blocks">
+		<div class="payment_container" data-idx="0">
 
-		<div class="form-group">
-			
-			<label class="control-label col-md-2 col-sm-3 col-xs-12" for="">Metodo de pago:</label>
-			<div class="col-md-6 col-sm-6 col-xs-12">
-				<select class="form-control" id="meth1_payment_method" name="meth1_payment_method">
-					<option value="cash">Efectivo</option>
-					<option value="pos">POS</option>
-					<option value="transfer">Transferencia</option>
-				</select>
+			<div class="form-group">
+
+				<label class="control-label col-md-2 col-sm-3 col-xs-12" for="">Metodo de pago:</label>
+				<div class="col-md-6 col-sm-6 col-xs-12">
+					<select class="form-control payment-method-select" name="payment_method[]">
+						<option value="cash">Efectivo</option>
+						<option value="pos">POS</option>
+						<option value="transfer">Transferencia</option>
+						<option value="cupon">Cupón</option>
+					</select>
+				</div>
+
 			</div>
 
-		</div>
-
-		<div class="form-group hide" id="meth1_payment_accountContainer">
-			<label class="control-label col-md-2 col-sm-3 col-xs-12" for="">Numero de cuenta:</label>
-			<div class="col-md-6 col-sm-6 col-xs-12">
-				<select class="form-control" name="meth1_account_number" id="meth1_account_number">
-					<?php  foreach($accounts as $account): ?>
-						<option value="<?php echo $account->token_account ?>"><?php echo $account->name_account; ?></option>
-					<?php endforeach; ?>
-				</select>
+			<div class="form-group hide payment-account-container">
+				<label class="control-label col-md-2 col-sm-3 col-xs-12" for="">Numero de cuenta:</label>
+				<div class="col-md-6 col-sm-6 col-xs-12">
+					<select class="form-control payment-account-select" name="account_number[]">
+						<?php  foreach($accounts as $account): ?>
+							<option value="<?php echo $account->token_account ?>"><?php echo $account->name_account; ?></option>
+						<?php endforeach; ?>
+					</select>
+				</div>
 			</div>
-		</div>
 
-		<div class="form-group">
-			<label class="control-label col-md-2 col-sm-3 col-xs-12" for="">Monto:</label>
-			<div class="col-md-9 col-sm-9">
-				<div class="row" style="margin-top: 8px;">
-					<div class="col-md-2">
-						<label for="">Córdobas:</label>
-						<input type="text" name="meth1_cordobas_input" id="meth1_cordobas_input" class="form-control numeric-input cash-input" data-parsley-type="number">
-					</div>
-					<div class="col-md-2">
-						<label for="">Dólares:</label>
-						<input type="text" name="meth1_dolar_input" id="meth1_dolar_input" class="form-control numeric-input cash-input" data-parsley-type="number">
-					</div>
-					<div class="col-md-2">
-						<label for="">Total C$</label>
-						<input type="text" id="meth1_total_cordobas" readonly="true" class="form-control">
+			<div class="form-group">
+				<label class="control-label col-md-2 col-sm-3 col-xs-12" for="">Monto:</label>
+				<div class="col-md-9 col-sm-9">
+					<div class="row" style="margin-top: 8px;">
+						<div class="col-md-2 payment-cash-fields">
+							<label for="">Córdobas:</label>
+							<input type="text" name="cordobas_input[]" class="form-control numeric-input cash-input cordobas-input" data-parsley-type="number">
+						</div>
+						<div class="col-md-2 payment-cash-fields">
+							<label for="">Dólares:</label>
+							<input type="text" name="dolar_input[]" class="form-control numeric-input cash-input dolar-input" data-parsley-type="number">
+						</div>
+						<div class="col-md-2">
+							<label for="">Total C$</label>
+							<input type="text" readonly="true" class="form-control payment-total-cordobas">
+						</div>
 					</div>
 				</div>
 			</div>
-		</div>
-	</div>
-	
-	<div class="payment_container dynamic hide">
-		<p title="Cerrar" id="dynamic_hide">X</p>
-		<div class="form-group">
-			
-			<label class="control-label col-md-2 col-sm-3 col-xs-12" for="">Metodo de pago:</label>
-			<div class="col-md-6 col-sm-6 col-xs-12">
-				<select class="form-control" id="meth2_payment_method" name="meth2_payment_method">
-					<option value="cash">Efectivo</option>
-					<option value="pos">POS</option>
-					<option value="transfer">Transferencia</option>
-				</select>
-			</div>
 
-		</div>
-
-		<div class="form-group hide" id="meth2_payment_accountContainer">
-			<label class="control-label col-md-2 col-sm-3 col-xs-12" for="">Numero de cuenta:</label>
-			<div class="col-md-6 col-sm-6 col-xs-12">
-				<select class="form-control" name="meth2_account_number" id="meth2_account_number">
-					<?php  foreach($accounts as $account): ?>
-						<option value="<?php echo $account->token_account ?>"><?php echo $account->name_account; ?></option>
-					<?php endforeach; ?>
-				</select>
-			</div>
-		</div>
-
-		<div class="form-group">
-			<label class="control-label col-md-2 col-sm-3 col-xs-12" for="">Monto:</label>
-			<div class="col-md-9 col-sm-9">
-				<div class="row" style="margin-top: 8px;">
-					<div class="col-md-2">
-						<label for="">Córdobas:</label>
-						<input type="text" name="meth2_cordobas_input" id="meth2_cordobas_input" class="form-control numeric-input cash-input" data-parsley-type="number">
-					</div>
-					<div class="col-md-2">
-						<label for="">Dólares:</label>
-						<input type="text" name="meth2_dolar_input" id="meth2_dolar_input" class="form-control numeric-input cash-input" data-parsley-type="number">
-					</div>
-					<div class="col-md-2">
-						<label for="">Total C$</label>
-						<input type="text" id="meth2_total_cordobas" readonly="true" class="form-control">
+			<div class="form-group payment-cupon-fields hide">
+				<label class="control-label col-md-2 col-sm-3 col-xs-12" for="">Cupón:</label>
+				<div class="col-md-9 col-sm-9">
+					<div class="row" style="margin-top: 8px;">
+						<div class="col-md-2">
+							<label for="">Código:</label>
+							<input type="text" name="cupon_code[]" class="form-control cupon-code-input">
+						</div>
+						<div class="col-md-2">
+							<label for="">Monto C$:</label>
+							<input type="text" name="cupon_amount[]" class="form-control numeric-input cupon-amount-input" data-parsley-type="number">
+						</div>
+						<div class="col-md-2">
+							<label for="">Desc. banco %:</label>
+							<input type="text" name="cupon_discount_rate[]" class="form-control numeric-input cupon-discount-input" data-parsley-type="number">
+						</div>
 					</div>
 				</div>
 			</div>
@@ -237,6 +213,77 @@
 		<input class="p-commission_rate" type="hidden" name="commission_rate[]" value="">
 	</tr>
 </table>
+
+<div class="hide" id="payment-mdl">
+	<div class="payment_container dynamic">
+		<p title="Cerrar" class="dynamic_hide">X</p>
+
+		<div class="form-group">
+
+			<label class="control-label col-md-2 col-sm-3 col-xs-12" for="">Metodo de pago:</label>
+			<div class="col-md-6 col-sm-6 col-xs-12">
+				<select class="form-control payment-method-select" name="payment_method[]">
+					<option value="cash">Efectivo</option>
+					<option value="pos">POS</option>
+					<option value="transfer">Transferencia</option>
+					<option value="cupon">Cupón</option>
+				</select>
+			</div>
+
+		</div>
+
+		<div class="form-group hide payment-account-container">
+			<label class="control-label col-md-2 col-sm-3 col-xs-12" for="">Numero de cuenta:</label>
+			<div class="col-md-6 col-sm-6 col-xs-12">
+				<select class="form-control payment-account-select" name="account_number[]">
+					<?php  foreach($accounts as $account): ?>
+						<option value="<?php echo $account->token_account ?>"><?php echo $account->name_account; ?></option>
+					<?php endforeach; ?>
+				</select>
+			</div>
+		</div>
+
+		<div class="form-group">
+			<label class="control-label col-md-2 col-sm-3 col-xs-12" for="">Monto:</label>
+			<div class="col-md-9 col-sm-9">
+				<div class="row" style="margin-top: 8px;">
+					<div class="col-md-2 payment-cash-fields">
+						<label for="">Córdobas:</label>
+						<input type="text" name="cordobas_input[]" class="form-control numeric-input cash-input cordobas-input" data-parsley-type="number">
+					</div>
+					<div class="col-md-2 payment-cash-fields">
+						<label for="">Dólares:</label>
+						<input type="text" name="dolar_input[]" class="form-control numeric-input cash-input dolar-input" data-parsley-type="number">
+					</div>
+					<div class="col-md-2">
+						<label for="">Total C$</label>
+						<input type="text" readonly="true" class="form-control payment-total-cordobas">
+					</div>
+				</div>
+			</div>
+		</div>
+
+		<div class="form-group payment-cupon-fields hide">
+			<label class="control-label col-md-2 col-sm-3 col-xs-12" for="">Cupón:</label>
+			<div class="col-md-9 col-sm-9">
+				<div class="row" style="margin-top: 8px;">
+					<div class="col-md-2">
+						<label for="">Código:</label>
+						<input type="text" name="cupon_code[]" class="form-control cupon-code-input">
+					</div>
+					<div class="col-md-2">
+						<label for="">Monto C$:</label>
+						<input type="text" name="cupon_amount[]" class="form-control numeric-input cupon-amount-input" data-parsley-type="number">
+					</div>
+					<div class="col-md-2">
+						<label for="">Desc. banco %:</label>
+						<input type="text" name="cupon_discount_rate[]" class="form-control numeric-input cupon-discount-input" data-parsley-type="number">
+					</div>
+				</div>
+			</div>
+		</div>
+	</div>
+</div>
 
 <style>
 	#prod-picker-results tr.picker-selected td,
@@ -357,17 +404,13 @@
 <script>
 
 	var system = {
-		mth_visible : false,
 		total_invoice : 0,
-		meth1 : {
-			subtotal : 0,
-			total : 0
-		},
-		meth2 : {
-			subtotal : 0,
-			total : 0
+		payments : {
+			'0' : { method : 'cash', subtotal : 0, total : 0 }
 		}
 	};
+
+	var _paymentCounter = 1; // idx 0 is the permanent block already in the markup
 
 	// ----- Product picker modal (#barcode) -----
 
@@ -754,14 +797,59 @@
 	        return false;
 		}
 
-		var total = system.mth_visible 
-		? system.meth1.subtotal + system.meth2.subtotal 
-		: system.meth1.subtotal;
+		var total = 0;
+		$.each(system.payments, function(idx, p){ total += p.subtotal; });
 
 		if( total < system.total_invoice ){
 			new PNotify({
 		            title: 'Notificación',
 		            text: 'El efectivo entregado es menor que el total de la factura',
+		            type : 'error',
+		            styling : 'bootstrap3',
+		            delay : 4000
+		    });
+
+		    return false;
+		}
+
+		var couponError = null;
+		var seenCoupons = {};
+		var runningTotal = 0;
+
+		$('#payment-blocks').children('.payment_container').each(function(){
+
+			var $block  = $(this);
+			var method  = $block.find('.payment-method-select').val();
+			var amount  = system.payments[$block.data('idx')].subtotal;
+
+			if( method === 'cupon' ){
+
+				var code = $.trim( $block.find('.cupon-code-input').val() );
+
+				if( !code || !amount ){
+					couponError = 'Debe ingresar el código y el monto del cupón';
+					return false;
+				}
+
+				if( seenCoupons[code] ){
+					couponError = 'El cupón "' + code + '" ya fue usado en otro metodo de pago de esta venta';
+					return false;
+				}
+				seenCoupons[code] = true;
+
+				if( runningTotal + amount > system.total_invoice ){
+					couponError = 'El cupón "' + code + '" excede el total pendiente de la factura';
+					return false;
+				}
+			}
+
+			runningTotal += amount;
+		});
+
+		if( couponError ){
+			new PNotify({
+		            title: 'Notificación',
+		            text: couponError,
 		            type : 'error',
 		            styling : 'bootstrap3',
 		            delay : 4000
@@ -858,29 +946,20 @@
 		var btn = $('#btn-submit');
 		var loader = $('#loader');
 
-		if( system.mth_visible ){
-			$('#meth2_payment_method').prop('disabled', false);
-			$('#meth2_account_number').prop('disabled', false);
-			$('#meth2_cordobas_input').prop('disabled', false);
-			$('#meth2_dolar_input').prop('disabled', false);
-		}else{
-			$('#meth2_payment_method').prop('disabled', true);
-			$('#meth2_account_number').prop('disabled', true);
-			$('#meth2_cordobas_input').prop('disabled', true);
-			$('#meth2_dolar_input').prop('disabled', true);
-		}
+		$('#payment-blocks').children('.payment_container').each(function(){
 
-		if( $('#meth1_payment_method').val() !== "transfer" ){
-			$('#meth1_account_number').prop('disabled', true);
-		}else{
-			$('#meth1_account_number').prop('disabled', false);
-		}
+			var $block = $(this);
+			var method = $block.find('.payment-method-select').val();
 
-		if( $('#meth2_payment_method').val() !== "transfer" ){
-			$('#meth2_account_number').prop('disabled', true);
-		}else{
-			$('#meth2_account_number').prop('disabled', false);
-		}
+			if( method !== 'transfer' )
+				$block.find('.payment-account-select').val('');
+
+			if( method === 'cupon' ){
+				$block.find('.cordobas-input, .dolar-input').val('');
+			}else{
+				$block.find('.cupon-code-input, .cupon-amount-input, .cupon-discount-input').val('');
+			}
+		});
 
 	  	var post = $('#form').serializeArray();
 	  	btn.attr('disabled','true');
@@ -909,12 +988,16 @@
 		        	$('#id_client').val('');
 		        	$('#client_name').val('');
 		        	$('#id_employee option:eq(0)').prop('selected',true);
-		        	$('.cash-input').val('');
-		        	$('#pos_paid').iCheck('uncheck');
 		        	$('#form .product').remove();
 		        	$('#total-cordobas').html('');
 		        	$('#total-dollar').html('');
-		        	$('#cash_total_cordobas').val('');
+
+		        	$('#payment-blocks').children('.payment_container').not(':eq(0)').remove();
+		        	$('#payment-blocks .payment_container').eq(0).find('.payment-method-select').val('cash').trigger('change');
+		        	$('#payment-blocks .payment_container').eq(0).find('.cash-input, .cupon-code-input, .cupon-amount-input, .cupon-discount-input').val('');
+
+		        	system.payments = { '0' : { method : 'cash', subtotal : 0, total : 0 } };
+		        	_paymentCounter = 1;
 		        }
 
 		        btn.removeAttr('disabled');
@@ -936,32 +1019,39 @@
 	  	});
 	}
 
-	function recalcAmountPayment(mth){
-		var method = $(`#${mth}_payment_method`).val();
+	function recalcAmountPayment($block){
+		var idx = $block.data('idx');
+		var method = $block.find('.payment-method-select').val();
+		var subtotal, total;
 
-		var cordobas = numeral( $(`#${mth}_cordobas_input`).val() || 0 );
+		if( method === 'cupon' ){
 
-		var dollar = numeral( Math.round( $(`#${mth}_dolar_input`).val() * <?php echo $exchange->buy_price; ?> ) || 0 );
+			var amt = numeral( $block.find('.cupon-amount-input').val() || 0 );
+			subtotal = amt.value();
+			total = subtotal;
+		}else{
 
-		if( dollar )
-			cordobas.add( dollar.value() );
+			var cordobas = numeral( $block.find('.cordobas-input').val() || 0 );
+			var dollar = numeral( Math.round( $block.find('.dolar-input').val() * <?php echo $exchange->buy_price; ?> ) || 0 );
 
-		system[mth]['subtotal'] = cordobas.value();
-		
-		if( method === "pos" )
-			cordobas.add( cordobas.value() * (6.75/100)  );
+			if( dollar )
+				cordobas.add( dollar.value() );
 
-		system[mth]['total'] = cordobas.value();
-		
-		$(`#${mth}_total_cordobas`).val( cordobas.format('0,0.00') );
+			subtotal = cordobas.value();
+
+			if( method === "pos" )
+				cordobas.add( cordobas.value() * (6.75/100)  );
+
+			total = cordobas.value();
+		}
+
+		system.payments[idx] = { method : method, subtotal : subtotal, total : total };
+
+		$block.find('.payment-total-cordobas').val( numeral(total).format('0,0.00') );
 	}
 
-	$('.cash-input').each(function(index, element){
-		var [mth, pay, inp] = element.id.split("_");
-
-		$(element).on('keyup',function(){
-			recalcAmountPayment(mth);
-		});
+	$(document).on('keyup', '#payment-blocks .cash-input, #payment-blocks .cupon-amount-input', function(){
+		recalcAmountPayment( $(this).closest('.payment_container') );
 	});
 
 	/*$('.cash-input').on('keyup',function(){
@@ -988,42 +1078,48 @@
 	});*/
 
 	$('#add_payment').on('click', function(event){
-		var container = $('.payment_container.dynamic');
-		if( container.hasClass('hide') ){
-			container.removeClass('hide');
-			system.mth_visible = true;
-		}else{
+
+		var total = 0;
+		$.each(system.payments, function(idx, p){ total += p.subtotal; });
+
+		if( total >= system.total_invoice && system.total_invoice > 0 ){
 			new PNotify({
 		            title: 'Notificación',
-		            text: 'Ya se ha agregado otro metodo de pago',
-		            type : 'error',
+		            text: 'El monto ingresado ya cubre el total de la factura, no es necesario agregar otro metodo de pago',
+		            type : 'warning',
 		            styling : 'bootstrap3',
 		            delay : 4000
 		    });
+		    return;
 		}
-		
+
+		var idx = _paymentCounter++;
+		var $clone = $('#payment-mdl .payment_container').eq(0).clone();
+		$clone.attr('data-idx', idx).removeClass('hide');
+
+		$('#payment-blocks').append($clone);
+
+		system.payments[idx] = { method : $clone.find('.payment-method-select').val(), subtotal : 0, total : 0 };
+
+		recalcAmountPayment($clone);
 	});
 
-	$('#dynamic_hide').on('click', function(event){
-		var container = $('.payment_container.dynamic');
-		if( !container.hasClass('hide') ){
-			container.addClass('hide');
-			system.mth_visible = false;
-		}
+	$(document).on('click', '.dynamic_hide', function(event){
+		var $block = $(this).closest('.payment_container');
+
+		delete system.payments[ $block.data('idx') ];
+		$block.remove();
 	});
 
-	$('#meth1_payment_method, #meth2_payment_method').on('change', function(event){
-		var [mth, pay, desc] = event.target.id.split("_")
-		var container = $(`#${mth}_payment_accountContainer`);
-		var option = $(event.target);
+	$(document).on('change', '.payment-method-select', function(event){
+		var $block = $(this).closest('.payment_container');
+		var method = $(this).val();
 
-		recalcAmountPayment(mth);
-		
-		if(option.val() === "transfer"){
-			container.removeClass('hide');
-		}else{
-			container.addClass('hide');
-		}
+		$block.find('.payment-account-container').toggleClass('hide', method !== 'transfer');
+		$block.find('.payment-cash-fields').toggleClass('hide', method === 'cupon');
+		$block.find('.payment-cupon-fields').toggleClass('hide', method !== 'cupon');
+
+		recalcAmountPayment($block);
 	});
 
 </script>
