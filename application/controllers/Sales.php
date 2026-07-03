@@ -138,7 +138,7 @@ class Sales extends Admin_Controller{
 				if( $discounts[$i] )
 					$subtotal -= $subtotal * $discounts[$i] / 100;
 
-				$total_cordobas += round( $subtotal * $exchange->sell_price );
+				$total_cordobas += $subtotal * $exchange->buy_price;
 			}
 
 			/* coupon uniqueness + order-dependent overpay rejection (mirrors the JS check) */
@@ -186,7 +186,7 @@ class Sales extends Admin_Controller{
 					$amt = floatval(str_replace(',', '', $cordobas_inputs[$i]));
 
 					if( $dolar_inputs[$i] )
-						$amt += round( floatval(str_replace(',', '', $dolar_inputs[$i])) * floatval($exchange->buy_price) );
+						$amt += floatval(str_replace(',', '', $dolar_inputs[$i])) * floatval($exchange->buy_price);
 
 					$running_total += $amt;
 				}
@@ -212,7 +212,7 @@ class Sales extends Admin_Controller{
 						$amt = floatval(str_replace(',', '', $cordobas_inputs[$i]));
 
 						if( $dolar_inputs[$i] )
-							$amt += round( floatval(str_replace(',', '', $dolar_inputs[$i])) * floatval($exchange->buy_price) );
+							$amt += floatval(str_replace(',', '', $dolar_inputs[$i])) * floatval($exchange->buy_price);
 					}
 
 					if( $method === 'cash' ){
@@ -325,7 +325,7 @@ class Sales extends Admin_Controller{
 				if( $sale_product['discount'] )
 					$subtotal -= $subtotal * $sale_product['discount'] / 100;
 
-				$total_cordobas += round( $subtotal * $exchange->sell_price );
+				$total_cordobas += $subtotal * $exchange->buy_price;
 
 				$stock = $this->sales_mdl->saveSaleProduct($sale_product);
 			}
@@ -353,7 +353,7 @@ class Sales extends Admin_Controller{
 			$residual_cordobas = $total_cordobas;
 			foreach ($payment as $p) {
 				if ($p["payment_method"] !== "cash") {
-					$residual_cordobas -= floatval($p["cordoba"]) + round(floatval($p["dolar"]) * floatval($exchange->sell_price));
+					$residual_cordobas -= floatval($p["cordoba"]) + floatval($p["dolar"]) * floatval($exchange->buy_price);
 				}
 			}
 
@@ -362,7 +362,7 @@ class Sales extends Admin_Controller{
 					$cash_cordobas = floatval($p["cordoba"]);
 
 					if( $p['dolar'] )
-					$cash_cordobas += round( floatval($p['dolar']) * floatval($exchange->sell_price ));
+					$cash_cordobas += floatval($p['dolar']) * floatval($exchange->buy_price);
 
 					$message .= '<p>Cambio: C$'.number_format($cash_cordobas - $residual_cordobas, 2 ).'</p>';
 				}
@@ -466,7 +466,7 @@ class Sales extends Admin_Controller{
 				));
 			}
 
-			$total_cor = round( $total_dol * $sale->dollar_ex_sell );
+			$total_cor = $total_dol * $sale->dollar_ex_buy;
 			$_total_cor = $total_cor;
 
 			//totals
@@ -498,7 +498,7 @@ class Sales extends Admin_Controller{
 						$printer->text($methods[$pay->payment_method].":".str_pad("$".number_format($pay->dolar,2)."\n",15,' ',STR_PAD_LEFT) );
 					}
 
-					$dol_to_cor = $dol * $sale->dollar_ex_sell;
+					$dol_to_cor = $dol * $sale->dollar_ex_buy;
 					$total_cordobas = $cor + $dol_to_cor;
 
 					$_total_cor -= $total_cordobas;
@@ -525,7 +525,7 @@ class Sales extends Admin_Controller{
 					$printer->text($methods[$pay->payment_method].":".str_pad("$".number_format($pay->dolar,2)."\n",15,' ',STR_PAD_LEFT) );
 				}
 
-				$dol_to_cor = $dol * $sale->dollar_ex_sell;
+				$dol_to_cor = $dol * $sale->dollar_ex_buy;
 				$total_cordobas = $cor + $dol_to_cor;
 
 				$printer->text("Cambio: ".str_pad("C$".number_format($total_cordobas - $_total_cor,2)."\n",15,' ',STR_PAD_LEFT) );

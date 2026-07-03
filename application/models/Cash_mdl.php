@@ -94,64 +94,20 @@ class Cash_mdl extends CI_Model{
 
 				$sales_payment = $this->db->query($sql)->result();
 
-				$num_payments = count($sales_payment);
+				$_sale_total = $sale_total * $s->dollar_ex_buy; //C$
 
-				$_sale_total = round($sale_total * $s->dollar_ex_sell); //C$
-
-				$recalc = array();
+				$cash_cordoba = 0;
+				$cash_dolar = 0;
+				$has_cash = FALSE;
 
 				foreach( $sales_payment as $spa){
 
 					if( $spa->payment_method === "cash" ){
 
-						if( $spa->cordoba && !$spa->dolar ){
-	
-							if($num_payments == 1){
-								$change = $spa->cordoba - $_sale_total;
-								$added = $spa->cordoba - $change;
-								$data['sales_total_cordobas'] += $added;
-	
-								$_sale_total -= $added;
-							}else{
-								$recalc['case'] = 1;
-								$recalc['cor'] = $spa->cordoba;
-							}
-						}
-						else if( $spa->dolar && !$spa->cordoba ){
-	
-							$cor = round( $spa->dolar * $s->dollar_ex_buy );
-							if($num_payments == 1){
-								$change = $cor - $_sale_total;
-								$data['sales_total_dollar'] += $spa->dolar;
-		
-								$data['sales_total_cordobas'] -= $change;
-	
-								$_sale_total -= $cor;
-							}else{
-								$recalc['case'] = 2;
-								$recalc['cor'] = $cor;
-								$recalc['dol'] = $spa->dolar;
-							}
-						}
-						else{
-	
-							$dol_to_cor = round( $spa->dolar * $s->dollar_ex_buy );
-							$cor = $dol_to_cor + $spa->cordoba;
+						$has_cash = TRUE;
+						$cash_cordoba += floatval($spa->cordoba);
+						$cash_dolar += floatval($spa->dolar);
 
-							if($num_payments == 1){
-								$change = $cor - $_sale_total;
-								$data['sales_total_dollar'] += $spa->dolar;
-	
-								$tcor = $spa->cordoba - $change;
-								$data['sales_total_cordobas'] += $tcor;
-								$_sale_total -= ($dol_to_cor + $tcor);
-							}else{
-								$recalc['case'] = 3;
-								$recalc['cor'] = $cor;
-								$recalc['dol'] = $spa->dolar;
-								$recalc['spacor'] = $spa->cordoba;
-							}
-						}
 					}else{
 						$cor = $spa->cordoba ?? 0;
 						$dol = $spa->dolar ?? 0;
@@ -164,31 +120,14 @@ class Cash_mdl extends CI_Model{
 
 				}
 
-				if( count($recalc) >0 ){
-					switch ($recalc['case']) {
-						case 1:
-							$change = $recalc['cor'] - $_sale_total;
-							$added = $recalc['cor'] - $change;
-							$data['sales_total_cordobas'] += $added;
-							break;
-						case 2:
-							$change = $recalc['cor'] - $_sale_total;
-							$data['sales_total_dollar'] += $recalc['dol'];
-	
-							$data['sales_total_cordobas'] -= $change;
-							break;
-						case 3:
-							$change = $recalc['cor'] - $_sale_total;
-							$data['sales_total_dollar'] += $recalc['dol'];
+				if( $has_cash ){
 
-							$tcor = $recalc['spacor'] - $change;
-							$data['sales_total_cordobas'] += $tcor;
-							break;
-						
-						default:
-							# code...
-							break;
-					}
+					$dol_to_cor = $cash_dolar * $s->dollar_ex_buy;
+					$cor = $dol_to_cor + $cash_cordoba;
+					$change = $cor - $_sale_total;
+
+					$data['sales_total_dollar'] += $cash_dolar;
+					$data['sales_total_cordobas'] += $cash_cordoba - $change;
 				}
 
 				/*if( !$s->pos_paid ){
