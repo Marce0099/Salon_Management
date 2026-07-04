@@ -96,6 +96,14 @@ class Sales extends Admin_Controller{
 			$sale['id_employee'] = $this->input->post('id_employee') ? $this->input->post('id_employee') : NULL;
 			//$sale['pos_paid'] = $this->input->post('pos_paid') ? 1 : 0;
 
+			if( !$sale['id_employee'] ){
+
+				$response['type'] = 'error';
+				$response['message'] = 'Debe seleccionar un vendedor';
+				echo json_encode($response);
+				exit();
+			}
+
 			$payment_methods = $this->input->post('payment_method');
 			$cordobas_inputs = $this->input->post('cordobas_input');
 			$dolar_inputs = $this->input->post('dolar_input');

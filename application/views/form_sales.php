@@ -784,6 +784,19 @@
 		if( !$('#form').parsley().validate() )
 			return false;
 
+		if( !$('#id_employee').val() ){
+
+			new PNotify({
+		            title: 'Notificación',
+		            text: 'Debe seleccionar un vendedor',
+		            type : 'error',
+		            styling : 'bootstrap3',
+		            delay : 2800
+		        });
+
+		        return false;
+		}
+
 		if( $('#form .product').length == 0 ){
 
 			new PNotify({
