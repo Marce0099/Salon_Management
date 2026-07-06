@@ -94,7 +94,7 @@ class Cash_mdl extends CI_Model{
 
 				$sales_payment = $this->db->query($sql)->result();
 
-				$_sale_total = $sale_total * $s->dollar_ex_buy; //C$
+				$_sale_total = $sale_total * $s->dollar_ex_sell; //C$
 
 				$cash_cordoba = 0;
 				$cash_dolar = 0;
@@ -111,7 +111,7 @@ class Cash_mdl extends CI_Model{
 					}else{
 						$cor = $spa->cordoba ?? 0;
 						$dol = $spa->dolar ?? 0;
-						$dol *= $s->dollar_ex_buy; // $ to C$
+						$dol *= $s->dollar_ex_sell; // $ to C$
 
 						$added = $cor + $dol;
 						$data['sales_total_' . $spa->payment_method] += $added;
@@ -122,7 +122,7 @@ class Cash_mdl extends CI_Model{
 
 				if( $has_cash ){
 
-					$dol_to_cor = $cash_dolar * $s->dollar_ex_buy;
+					$dol_to_cor = $cash_dolar * $s->dollar_ex_sell;
 					$cor = $dol_to_cor + $cash_cordoba;
 					$change = $cor - $_sale_total;
 

@@ -215,7 +215,7 @@
 
 	function updateCostDollar(){
 
-		var cost_dollar = numeral( price_cost.val() / <?php echo $exchange->buy_price; ?> );
+		var cost_dollar = numeral( price_cost.val() / <?php echo $exchange->sell_price; ?> );
 		price_cost_dollar.val( cost_dollar.value().toFixed(2) );
 		updatePrices();
 
@@ -228,7 +228,7 @@
 
 	$('#price_sell').on('keyup',function(){
 
-		var sell_dollar = numeral( price_sell.val() * <?php echo $exchange->buy_price; ?> );
+		var sell_dollar = numeral( price_sell.val() * <?php echo $exchange->sell_price; ?> );
 		price_sell_cordobas.val( sell_dollar.value().toFixed(2) );
 
 	});
@@ -242,7 +242,7 @@
 
 		price_sell.val( pdollar.value().toFixed(2) );
 
-		price_sell_cordobas.val( numeral( pdollar.value() * <?php echo $exchange->buy_price; ?> ).value().toFixed(2) );
+		price_sell_cordobas.val( numeral( pdollar.value() * <?php echo $exchange->sell_price; ?> ).value().toFixed(2) );
 	}
 
 </script>

@@ -24,7 +24,7 @@
 				<tbody>
 					<?php foreach($sales as $s) : ?>
 						<?php 
-							$_total_sale = $s->sale_total * $s->dollar_ex_buy;
+							$_total_sale = $s->sale_total * $s->dollar_ex_sell;
 							$total_cordobas = $_total_sale;
 
 							$query = "SELECT 
@@ -85,7 +85,7 @@
 								<?php 
 									$cor = floatval($pay->cordoba); 
 									$dol = floatval($pay->dolar); 
-									$dol_to_cor = $dol * floatval($s->dollar_ex_buy);
+									$dol_to_cor = $dol * floatval($s->dollar_ex_sell);
 									$total_cor = $cor + $dol_to_cor;
 
 									if($pay->payment_method !== 'cash'){

@@ -702,7 +702,7 @@
 		$('#total-dollar').html(total_dollar.format('0,0.00'));
 
 		//subtotal cordobas
-		subtotal_cordobas = numeral( subtotal_dollar.value() * <?php echo $exchange->buy_price; ?> );
+		subtotal_cordobas = numeral( subtotal_dollar.value() * <?php echo $exchange->sell_price; ?> );
 
 		row.find('.subtotal-cordobas').html( subtotal_cordobas.format('0,0.00') );
 
@@ -1045,7 +1045,7 @@
 		}else{
 
 			var cordobas = numeral( $block.find('.cordobas-input').val() || 0 );
-			var dollar = numeral( ( $block.find('.dolar-input').val() * <?php echo $exchange->buy_price; ?> ) || 0 );
+			var dollar = numeral( ( $block.find('.dolar-input').val() * <?php echo $exchange->sell_price; ?> ) || 0 );
 
 			if( dollar )
 				cordobas.add( dollar.value() );

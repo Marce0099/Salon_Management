@@ -53,7 +53,7 @@
 					$subtotal -= $subtotal * $d->discount / 100;
 
 				$total_dollar += $subtotal;
-				$subtotal_cordobas = $subtotal*$sale->dollar_ex_buy;
+				$subtotal_cordobas = $subtotal*$sale->dollar_ex_sell;
 				$total_cordobas += $subtotal_cordobas;
 				$_total_cordobas = $total_cordobas;
 				//$total += $subtotal;
@@ -98,7 +98,7 @@
 			<?php 
 				$cor = floatval($pay->cordoba); 
 				$dol = floatval($pay->dolar); 
-				$dol_to_cor = $dol * floatval($sale->dollar_ex_buy);
+				$dol_to_cor = $dol * floatval($sale->dollar_ex_sell);
 				$total_cor = $cor + $dol_to_cor;
 			?>
 			<tr>
