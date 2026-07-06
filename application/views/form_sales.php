@@ -69,8 +69,9 @@
         </div>
 	</div>
 	<div class="form-group" style="margin-bottom: 20px;">
-		<div class="col-md-offset-2 col-sm-offset-3 col-md-3 col-sm-3">
-			<button type="button" class="btn btn-warning" id="add_payment">Agregar mas forma de pago</button>
+		<div class="col-md-offset-2 col-sm-offset-3 col-md-6 col-sm-6" style="display: flex; align-items: center; flex-wrap: wrap;">
+			<button type="button" class="btn btn-warning" id="add_payment" style="white-space: nowrap;">Agregar mas forma de pago</button>
+			<span id="payment-due-badge" class="label label-warning" style="margin-left: 10px; font-size: 100%; white-space: nowrap;"></span>
 		</div>
 	</div>
 	<div id="payment-blocks">
@@ -716,6 +717,7 @@
 		total_cordobas = numeral(total_cordobas);
 		system.total_invoice = total_cordobas.value();
 		$('#total-cordobas').html(total_cordobas.format('0,0.00'));
+		updateDueAmount();
 	}
 
 	function updateTotalSubsctract( row, event ){
@@ -734,6 +736,7 @@
 		var tot_cord = numeral( total_cordobas.value() - subtotal_cordobas.value());
 		system.total_invoice = tot_cord.value();
 		$('#total-cordobas').html( tot_cord.format('0,0.00') );
+		updateDueAmount();
 
 		row.remove();
 	}
@@ -1011,6 +1014,7 @@
 
 		        	system.payments = { '0' : { method : 'cash', subtotal : 0, total : 0 } };
 		        	_paymentCounter = 1;
+		        	updateDueAmount();
 		        }
 
 		        btn.removeAttr('disabled');
@@ -1061,6 +1065,25 @@
 		system.payments[idx] = { method : method, subtotal : subtotal, total : total };
 
 		$block.find('.payment-total-cordobas').val( numeral(total).format('0,0.00') );
+		updateDueAmount();
+	}
+
+	function updateDueAmount(){
+		var paid = 0;
+		$.each(system.payments, function(idx, p){ paid += p.subtotal; });
+
+		var due = numeral(system.total_invoice - paid);
+		var $badge = $('#payment-due-badge');
+
+		if( system.total_invoice > 0 && due.value() > 0 ){
+			$badge.removeClass('label-success').addClass('label-warning')
+				.text('Pendiente: C$' + due.format('0,0.00'));
+		}else if( system.total_invoice > 0 ){
+			$badge.removeClass('label-warning').addClass('label-success')
+				.text('Pagado');
+		}else{
+			$badge.text('');
+		}
 	}
 
 	$(document).on('keyup', '#payment-blocks .cash-input, #payment-blocks .cupon-amount-input', function(){
@@ -1122,6 +1145,7 @@
 
 		delete system.payments[ $block.data('idx') ];
 		$block.remove();
+		updateDueAmount();
 	});
 
 	$(document).on('change', '.payment-method-select', function(event){
