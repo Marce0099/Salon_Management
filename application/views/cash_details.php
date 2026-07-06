@@ -13,7 +13,7 @@
 <table class="table table-bordered" style="border-collapse: separate;<?php echo $coll; ?>">
 	<tr>
 		<td colspan="3" class="bg-blue2 bold" style="<?php echo $bor; ?>">Apertura</td>
-		<td class="bg-blue2" style="<?php echo $bor; ?>">C$<?php echo number_format($current->open_quantity,2); ?></td>
+		<td class="bg-blue2" style="<?php echo $bor; ?>">C$<?php echo number_format($current->open_quantity,2); ?> | $<?php echo number_format($current->open_quantity_dollar ?? 0,2); ?></td>
 	</tr>
 	<tr>
 		<td colspan="4" class="bg-green2">Ventas</td>
@@ -184,7 +184,7 @@
 	</tr>
 	<?php endif; ?>
 	<tr>
-		<td colspan="4" class="bold">Total en caja: C$<?php echo number_format( $current->open_quantity + $sales_total_cordobas - $total_outcomes, 2 ); ?> | $<?php echo number_format($sales_total_dollar,2); ?>
+		<td colspan="4" class="bold">Total en caja: C$<?php echo number_format( $current->open_quantity + $sales_total_cordobas - $total_outcomes, 2 ); ?> | $<?php echo number_format($current->open_quantity_dollar + $sales_total_dollar,2); ?>
 		</td>
 	</tr>
 </table>

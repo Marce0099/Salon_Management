@@ -53,7 +53,7 @@
 		<?php foreach( $historial as $h ) : ?>
 		<tr>
 			<td><?php echo date('d/m/Y h:i:s', strtotime($h->open_date_time)); ?></td>
-			<td>C$ <?php echo number_format($h->open_quantity,2); ?></td>
+			<td>C$ <?php echo number_format($h->open_quantity,2); ?> | $ <?php echo number_format($h->open_quantity_dollar ?? 0,2); ?></td>
 			<td><?php echo $h->open_admin; ?></td>
 			<td>
 				<?php if( $h->close_date_time ) : ?>

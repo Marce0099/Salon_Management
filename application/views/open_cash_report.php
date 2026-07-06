@@ -16,7 +16,7 @@
 ?>
 <h3 class="section-title">Reporte de caja abierto</h3>
 
-<p>Se ha abierto caja con un monto de <span style="font-weight:bold;">C$<?php echo $open_quantity; ?></span> el dia de hoy (<?php echo formatter_date(date("Y-m-d")); ?>)</p>
+<p>Se ha abierto caja con un monto de <span style="font-weight:bold;">C$<?php echo $open_quantity; ?></span> y <span style="font-weight:bold;">$<?php echo $open_quantity_dollar; ?></span> el dia de hoy (<?php echo formatter_date(date("Y-m-d")); ?>)</p>
 <h3 class="section-title">Cumpleañeros Conceptos</h3>
 
 <table style="border-collapse: collapse;">

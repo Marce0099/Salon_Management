@@ -157,7 +157,7 @@
 			</tr>
 			<tr>
 				<td>$<input type="text" id="monto-ingresado-dolares" name="user_dolares" class="no-input" readonly="true" value="0.00"></td>
-				<td>$<span id="monto-caja-dolares"><?php echo number_format($cash['sales_total_dollar'],2); ?></span></td>
+				<td>$<span id="monto-caja-dolares"><?php echo number_format($cash['sales_total_dollar'] + $cash['current']->open_quantity_dollar,2); ?></span></td>
 				<td>$<span id="diferencia-dolares">0.00</span></td>
 			</tr>
 		</tbody>

@@ -85,10 +85,12 @@ class Cash extends Admin_Controller{
 		if( formSubmited() ){
 
 			$this->form_validation->set_rules('quantity','','required|numeric|greater_than[-1]');
+			$this->form_validation->set_rules('quantity_dollar','','required|numeric|greater_than[-1]');
 
 			if( $this->form_validation->run() ){
 
 				$data['open_quantity'] = str_replace(',', '', number_format($this->input->post('quantity'),2));
+				$data['open_quantity_dollar'] = str_replace(',', '', number_format($this->input->post('quantity_dollar'),2));
 				$data['open_id_admin'] = $this->id_admin;
 
 				try {
@@ -115,7 +117,7 @@ class Cash extends Admin_Controller{
 					log_message('error', 'sendOpenCash failed: ' . $th->getMessage());
 				}
 
-				$sess_data['status'] = array( 'message' => 'La caja ha sido abierta con C$'.number_format($data['open_quantity']), 'class' => 'success' );
+				$sess_data['status'] = array( 'message' => 'La caja ha sido abierta con C$'.number_format($data['open_quantity']).' y $'.number_format($data['open_quantity_dollar']), 'class' => 'success' );
 
 				$this->session->set_userdata('view_data',$sess_data);
 				redirect('cash/state');
@@ -207,7 +209,7 @@ class Cash extends Admin_Controller{
 				$data['close_quantity_cordobas'] = $cash['sales_total_cordobas'] + $cash['current']->open_quantity - $cash['outcomes_total'];
 				$data['close_quantity_pos'] = $cash['sales_total_pos'];
 				$data['close_quantity_transfer'] = $cash['sales_total_transfer'];
-				$data['close_quantity_dollar'] = $cash['sales_total_dollar'];
+				$data['close_quantity_dollar'] = $cash['sales_total_dollar'] + $cash['current']->open_quantity_dollar;
 				$data['close_user_quantity_cordobas'] = str_replace(',', '', $this->input->post('user_cordobas'));
 				$data['close_user_quantity_dollar'] = str_replace(',', '', $this->input->post('user_dolares'));
 				$data['close_id_admin'] = $this->id_admin;

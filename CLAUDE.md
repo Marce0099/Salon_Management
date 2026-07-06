@@ -85,7 +85,7 @@ Check these files when working in the relevant area:
 
 | Table | PK | Key columns | Purpose |
 |---|---|---|---|
-| `cash` | `id_cash` | `open_date_time`, `close_date_time`, `open_quantity` VARCHAR (opening cash amount), `close_quantity_cordobas/dollar/pos/transfer` VARCHAR, `close_user_quantity_cordobas/dollar` VARCHAR, `open_id_admin`->`admins.id_admin`, `close_id_admin`->`admins.id_admin` | Daily cash drawer session; one open row at a time gates sale registration |
+| `cash` | `id_cash` | `open_date_time`, `close_date_time`, `open_quantity` VARCHAR (opening cordoba amount), `open_quantity_dollar` VARCHAR (opening dollar amount), `close_quantity_cordobas/dollar/pos/transfer` VARCHAR, `close_user_quantity_cordobas/dollar` VARCHAR, `open_id_admin`->`admins.id_admin`, `close_id_admin`->`admins.id_admin` | Daily cash drawer session; one open row at a time gates sale registration |
 | `outcomes` | `id_outcome` | `id_admin`->`admins.id_admin`, `quantity` VARCHAR, `description` TEXT, `date_time` | Cash outflows/expenses subtracted from cash state |
 | `bank_account` | `id_account` | `token_account` (UNIQUE — display identifier), `name_account`, `active` TINYINT(1) DEFAULT 1 (soft-delete; 0 = hidden from transfer dropdowns) | Bank accounts used as targets for transfer payments |
 | `dollar_exchange` | — | `buy_price` DECIMAL DEFAULT 29.50, `sell_price` DECIMAL DEFAULT 30.00 | Single-row table; buy rate values every córdoba conversion in the sale/print/cash-drawer flow (what a client is charged, receipts, drawer reconciliation); sell rate is unused in that flow, only shown in a live commission-value display |
