@@ -94,17 +94,32 @@
 		</tr>
 	</thead>
 	<tbody>
+		<?php
+			/* a sale should only ever have one 'cash' row going forward, but this view
+			   also renders sales created before that rule existed, so the cash amounts
+			   are combined here to keep the Cambio column correct for those legacy sales */
+			$cash_total_cordobas = 0;
+			foreach($payments as $pay){
+				if($pay->payment_method === 'cash'){
+					$cash_total_cordobas += floatval($pay->cordoba) + floatval($pay->dolar) * floatval($sale->dollar_ex_sell);
+				}
+			}
+			$cash_rows_seen = 0;
+		?>
 		<?php foreach($payments as $pay): ?>
-			<?php 
-				$cor = floatval($pay->cordoba); 
-				$dol = floatval($pay->dolar); 
+			<?php
+				$cor = floatval($pay->cordoba);
+				$dol = floatval($pay->dolar);
 				$dol_to_cor = $dol * floatval($sale->dollar_ex_sell);
 				$total_cor = $cor + $dol_to_cor;
+
+				if( $pay->payment_method === 'cash' )
+					$cash_rows_seen++;
 			?>
 			<tr>
-				<td>C$<?php 
+				<td>C$<?php
 					if($pay->payment_method === 'cash'){
-						echo $_total_cordobas;
+						echo $cash_rows_seen === 1 ? $_total_cordobas : "0.00";
 					}else{
 						echo $total_cor;
 						$_total_cordobas -= $total_cor;
@@ -116,9 +131,9 @@
 				</td>
 				<td>C$<?php echo $pay->cordoba; ?></td>
 				<td>$<?php echo $pay->dolar; ?></td>
-				<td>C$<?php 
-						if($pay->payment_method === 'cash'){
-							echo number_format($total_cor - $_total_cordobas,2);
+				<td>C$<?php
+						if($pay->payment_method === 'cash' && $cash_rows_seen === 1){
+							echo number_format($cash_total_cordobas - $_total_cordobas,2);
 						}else{
 							echo "0.00";
 						}

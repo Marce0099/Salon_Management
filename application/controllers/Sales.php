@@ -122,6 +122,19 @@ class Sales extends Admin_Controller{
 				}
 			}
 
+			$cash_count = 0;
+			foreach( $payment_methods as $pm ){
+				if( $pm === 'cash' ) $cash_count++;
+			}
+
+			if( $cash_count > 1 ){
+
+				$response['type'] = 'error';
+				$response['message'] = 'No se permite más de un método de pago en efectivo por venta';
+				echo json_encode($response);
+				exit();
+			}
+
 			/*if( !$sale['pos_paid'] ){
 
 				$sale['cash_cordobas'] = str_replace(',', '',$this->input->post('cash_cordobas'));

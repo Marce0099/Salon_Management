@@ -1073,6 +1073,14 @@
 		updateDueAmount();
 	}
 
+	function hasCashPayment(excludeIdx){
+		var found = false;
+		$.each(system.payments, function(idx, p){
+			if( idx != excludeIdx && p.method === 'cash' ) found = true;
+		});
+		return found;
+	}
+
 	function updateDueAmount(){
 		var paid = 0;
 		$.each(system.payments, function(idx, p){ paid += p.subtotal; });
@@ -1148,6 +1156,17 @@
 		var $clone = $('#payment-mdl .payment_container').eq(0).clone();
 		$clone.attr('data-idx', idx).removeClass('hide');
 
+		if( hasCashPayment() ){
+			$clone.find('.payment-method-select').val('pos');
+			new PNotify({
+		            title: 'Notificación',
+		            text: 'Ya existe un método de pago en efectivo en esta venta; se seleccionó POS para el nuevo método',
+		            type : 'info',
+		            styling : 'bootstrap3',
+		            delay : 4000
+		    });
+		}
+
 		$('#payment-blocks').append($clone);
 
 		system.payments[idx] = { method : $clone.find('.payment-method-select').val(), subtotal : 0, total : 0 };
@@ -1166,6 +1185,18 @@
 	$(document).on('change', '.payment-method-select', function(event){
 		var $block = $(this).closest('.payment_container');
 		var method = $(this).val();
+
+		if( method === 'cash' && hasCashPayment( $block.data('idx') ) ){
+			new PNotify({
+		            title: 'Notificación',
+		            text: 'No se permite más de un método de pago en efectivo por venta',
+		            type : 'error',
+		            styling : 'bootstrap3',
+		            delay : 4000
+		    });
+			method = 'pos';
+			$(this).val('pos');
+		}
 
 		$block.find('.payment-account-container').toggleClass('hide', method !== 'transfer');
 		$block.find('.payment-cash-fields').toggleClass('hide', method === 'cupon');
