@@ -69,9 +69,11 @@
         </div>
 	</div>
 	<div class="form-group" style="margin-bottom: 20px;">
-		<div class="col-md-offset-2 col-sm-offset-3 col-md-6 col-sm-6" style="display: flex; align-items: center; flex-wrap: wrap;">
+		<div class="col-md-offset-2 col-sm-offset-3 col-md-6 col-sm-6" style="display: flex; align-items: center; flex-wrap: wrap; gap:10px;">
 			<button type="button" class="btn btn-warning" id="add_payment" style="white-space: nowrap;">Agregar mas forma de pago</button>
-			<span id="payment-due-badge" class="label label-warning" style="margin-left: 10px; font-size: 100%; white-space: nowrap;"></span>
+			<span class="label label-info" style="font-size: 100%; white-space: nowrap;">$1 -> C$<?php echo $exchange->sell_price; ?></span>
+			<span id="payment-due-badge" class="label label-warning" style="font-size: 100%; white-space: nowrap;"></span>
+			<span id="payment-overpayment-badge" class="label label-info" style="font-size: 100%; white-space: nowrap; display: none;"></span>
 		</div>
 	</div>
 	<div id="payment-blocks">
@@ -412,6 +414,9 @@
 	};
 
 	var _paymentCounter = 1; // idx 0 is the permanent block already in the markup
+
+	var dollarBuyRate = <?php echo $exchange->buy_price; ?>;
+	var dollarSellRate = <?php echo $exchange->sell_price; ?>;
 
 	// ----- Product picker modal (#barcode) -----
 
@@ -1074,15 +1079,25 @@
 
 		var due = numeral(system.total_invoice - paid);
 		var $badge = $('#payment-due-badge');
+		var $overpaymentBadge = $('#payment-overpayment-badge');
 
 		if( system.total_invoice > 0 && due.value() > 0 ){
+			var dueDollars = numeral(due.value() / dollarSellRate);
 			$badge.removeClass('label-success').addClass('label-warning')
-				.text('Pendiente: C$' + due.format('0,0.00'));
+				.text('Pendiente: $' + dueDollars.format('0,0.00') + ' (C$' + due.format('0,0.00') + ')');
 		}else if( system.total_invoice > 0 ){
 			$badge.removeClass('label-warning').addClass('label-success')
 				.text('Pagado');
 		}else{
 			$badge.text('');
+		}
+
+		if( system.total_invoice > 0 && due.value() < 0 ){
+			var overpaidCordobas = due.value() * -1;
+			var overpaidDollars = numeral(overpaidCordobas / dollarBuyRate);
+			$overpaymentBadge.text('Vuelto: $' + overpaidDollars.format('0,0.00') + ' (C$' + numeral(overpaidCordobas).format('0,0.00') + ')').show();
+		}else{
+			$overpaymentBadge.hide().text('');
 		}
 	}
 
