@@ -549,7 +549,10 @@ class Sales extends Admin_Controller{
 				$dol_to_cor = $dol * $sale->dollar_ex_sell;
 				$total_cordobas = $cor + $dol_to_cor;
 
-				$printer->text("Cambio: ".str_pad("C$".number_format($total_cordobas - $_total_cor,2)."\n",15,' ',STR_PAD_LEFT) );
+				$change_cordobas = $total_cordobas - $_total_cor;
+				$change_dollars = $change_cordobas / $sale->dollar_ex_buy;
+
+				$printer->text("Cambio: ".str_pad("$".number_format($change_dollars,2)." (C$".number_format($change_cordobas,2).")\n",15,' ',STR_PAD_LEFT) );
 			}
 
 			/*if( $sale->pos_paid )
