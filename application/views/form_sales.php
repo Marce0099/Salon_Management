@@ -99,9 +99,15 @@
 				<div class="col-md-6 col-sm-6 col-xs-12">
 					<select class="form-control payment-account-select" name="account_number[]">
 						<?php  foreach($accounts as $account): ?>
-							<option value="<?php echo $account->token_account ?>"><?php echo $account->name_account; ?></option>
+							<option value="<?php echo $account->token_account ?>" data-type="<?php echo $account->type; ?>"><?php echo $account->name_account; ?></option>
 						<?php endforeach; ?>
 					</select>
+				</div>
+			</div>
+
+			<div class="form-group payment-currency-notice hide">
+				<div class="col-md-offset-2 col-sm-offset-3 col-md-6 col-sm-6">
+					<div class="payment-currency-notice-text"></div>
 				</div>
 			</div>
 
@@ -241,9 +247,15 @@
 			<div class="col-md-6 col-sm-6 col-xs-12">
 				<select class="form-control payment-account-select" name="account_number[]">
 					<?php  foreach($accounts as $account): ?>
-						<option value="<?php echo $account->token_account ?>"><?php echo $account->name_account; ?></option>
+						<option value="<?php echo $account->token_account ?>" data-type="<?php echo $account->type; ?>"><?php echo $account->name_account; ?></option>
 					<?php endforeach; ?>
 				</select>
+			</div>
+		</div>
+
+		<div class="form-group payment-currency-notice hide">
+			<div class="col-md-offset-2 col-sm-offset-3 col-md-6 col-sm-6">
+				<div class="payment-currency-notice-text"></div>
 			</div>
 		</div>
 
@@ -793,6 +805,19 @@
 		if( !$('#form').parsley().validate() )
 			return false;
 
+		if( !$('#id_client').val() ){
+
+			new PNotify({
+		            title: 'Notificación',
+		            text: 'Debe seleccionar un cliente',
+		            type : 'error',
+		            styling : 'bootstrap3',
+		            delay : 2800
+		        });
+
+		        return false;
+		}
+
 		if( !$('#id_employee').val() ){
 
 			new PNotify({
@@ -1074,6 +1099,41 @@
 		updateDueAmount();
 	}
 
+	function checkCurrencyMismatch($block){
+		var $select = $block.find('.payment-account-select');
+		var accountType = $select.find('option:selected').data('type');
+		var $cordoba = $block.find('.cordobas-input');
+		var $dolar = $block.find('.dolar-input');
+		var $notice = $block.find('.payment-currency-notice');
+
+		$cordoba.removeClass('payment-currency-mismatch');
+		$dolar.removeClass('payment-currency-mismatch');
+
+		if( $block.find('.payment-method-select').val() !== 'transfer' || !accountType ){
+			$notice.addClass('hide');
+			return;
+		}
+
+		var cordobaVal = parseFloat( ($cordoba.val() || '0').replace(',', '') ) || 0;
+		var dolarVal = parseFloat( ($dolar.val() || '0').replace(',', '') ) || 0;
+
+		var message = '';
+
+		if( accountType === 'dolares' && cordobaVal > 0 ){
+			$cordoba.addClass('payment-currency-mismatch');
+			message = 'Escribiendo monto en córdobas en una cuenta de dólares.';
+		}else if( accountType === 'cordobas' && dolarVal > 0 ){
+			$dolar.addClass('payment-currency-mismatch');
+			message = 'Escribiendo monto en dólares en una cuenta de córdobas.';
+		}
+
+		if( message ){
+			$notice.removeClass('hide').find('.payment-currency-notice-text').text(message);
+		}else{
+			$notice.addClass('hide');
+		}
+	}
+
 	function hasCashPayment(excludeIdx){
 		var found = false;
 		$.each(system.payments, function(idx, p){
@@ -1112,6 +1172,11 @@
 
 	$(document).on('keyup', '#payment-blocks .cash-input, #payment-blocks .cupon-amount-input', function(){
 		recalcAmountPayment( $(this).closest('.payment_container') );
+		checkCurrencyMismatch( $(this).closest('.payment_container') );
+	});
+
+	$(document).on('change', '.payment-account-select', function(){
+		checkCurrencyMismatch( $(this).closest('.payment_container') );
 	});
 
 	/*$('.cash-input').on('keyup',function(){
@@ -1204,6 +1269,7 @@
 		$block.find('.payment-cupon-fields').toggleClass('hide', method !== 'cupon');
 
 		recalcAmountPayment($block);
+		checkCurrencyMismatch($block);
 	});
 
 </script>

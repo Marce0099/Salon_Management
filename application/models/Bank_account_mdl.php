@@ -18,6 +18,12 @@ class Bank_account_mdl extends CI_Model{
 		$this->db->update('bank_account', ["active" => 0]);
 	}
 
+	public function update($id_account, $data){
+
+		$this->db->where('id_account', $id_account);
+		$this->db->update('bank_account', $data);
+	}
+
 	public function getAccounts(){
 		$this->db->where('active', 1);
 		return $this->db->get('bank_account')->result();

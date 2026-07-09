@@ -24,6 +24,28 @@ class Bank_account extends Admin_Controller{
 			'max_length[60]',
 			'regex_match[/^[\p{L}\s\+\&\.\-]+$/u]'
 		]);
+		$this->form_validation->set_rules('type','', 'required|in_list[cordobas,dolares]');
+		$this->form_validation->set_rules('buy_rate','',[
+			'required',
+			'regex_match[/^\d+(\.\d{1,2})?$/]'
+		]);
+		$this->form_validation->set_rules('sell_rate','',[
+			'required',
+			'regex_match[/^\d+(\.\d{1,2})?$/]'
+		]);
+	}
+
+	private function setEditFormRules(){
+
+		$this->form_validation->set_rules('token_account','', 'required');
+		$this->form_validation->set_rules('buy_rate','',[
+			'required',
+			'regex_match[/^\d+(\.\d{1,2})?$/]'
+		]);
+		$this->form_validation->set_rules('sell_rate','',[
+			'required',
+			'regex_match[/^\d+(\.\d{1,2})?$/]'
+		]);
 	}
 
 	public function save(){
@@ -50,9 +72,44 @@ class Bank_account extends Admin_Controller{
 			$message = $th->getMessage() == 'Datos inválidos' ? 'Datos inválidos' : 'Error al guardar cuenta bancaria'; 
 
 			$view_data['status'] = array( 'class' => 'error', 'message' => $message );
-			echo json_encode($data);
+			echo json_encode($view_data);
 		}
-		
+
+	}
+
+	public function update(){
+
+		$this->setEditFormRules();
+
+		try {
+			if( formPosted() && $this->form_validation->run() ){
+
+				$account = $this->bank_account_mdl->getAccount( $this->input->post('token_account') );
+				if( !$account ){
+					throw new \Exception('No existe cuenta');
+				}
+
+				$data = [
+					'buy_rate'  => $this->input->post('buy_rate'),
+					'sell_rate' => $this->input->post('sell_rate'),
+				];
+				$this->bank_account_mdl->update($account->id_account, $data);
+
+				$view_data['status'] = array( 'class' => 'success', 'message' => 'Cuenta bancaria actualizada' );
+				$this->session->set_userdata( 'view_data', $view_data );
+
+				echo json_encode($view_data);
+			}
+			else{
+
+				throw new \Exception('Datos inválidos');
+			}
+		} catch (\Throwable $th) {
+			$message = $th->getMessage() == 'Datos inválidos' ? 'Datos inválidos' : 'Error al actualizar cuenta bancaria';
+
+			$view_data['status'] = array( 'class' => 'error', 'message' => $message );
+			echo json_encode($view_data);
+		}
 	}
 
 	public function dishabilitate($token_account){

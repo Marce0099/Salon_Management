@@ -68,7 +68,7 @@ Check these files when working in the relevant area:
 |---|---|---|---|
 | `sales` | `id_sale` | `id_employee`->`employees.id_employee`, `client`->`clients.id_client`, `date_time`, `dollar_ex_buy` DECIMAL, `dollar_ex_sell` DECIMAL (exchange rate snapshot at time of sale) | Sale header |
 | `sale_products` | `id_sale_product` | `id_sale`->`sales.id_sale`, `id_product`->`products.id_product`, `quantity`, `price` VARCHAR (sell price at time of sale), `discount` INT (percentage), `commission_rate` DECIMAL, `my_product` TINYINT | Sale line items; stock decremented on save unless `is_service=1` |
-| `sale_payments` | `id_sale_payment` | `id_sale`->`sales.id_sale`, `payment_method` VARCHAR(8) (cash/pos/transfer), `account` TINYINT (references `bank_account.id_account`, no FK enforced), `cordoba` DECIMAL, `dolar` DECIMAL, `tax_rate` DECIMAL (POS commission %, typically 6.75) | One or two payment rows per sale (split payments supported) |
+| `sale_payments` | `id_sale_payment` | `id_sale`->`sales.id_sale`, `payment_method` VARCHAR(8) (cash/pos/transfer), `account` TINYINT (references `bank_account.id_account`, no FK enforced), `cordoba` DECIMAL, `dolar` DECIMAL, `tax_rate` DECIMAL (POS commission %, typically 6.75) | One or two payment rows per sale (split payments supported); for `transfer` rows, `cordoba`/`dolar` are stored in the resolved account's currency (converted via `bank_account.buy_rate`/`sell_rate` if the employee typed the other currency), not necessarily the currency originally typed |
 
 ### Purchase flow
 
@@ -87,7 +87,7 @@ Check these files when working in the relevant area:
 |---|---|---|---|
 | `cash` | `id_cash` | `open_date_time`, `close_date_time`, `open_quantity` VARCHAR (opening cordoba amount), `open_quantity_dollar` VARCHAR (opening dollar amount), `close_quantity_cordobas/dollar/pos/transfer` VARCHAR, `close_user_quantity_cordobas/dollar` VARCHAR, `open_id_admin`->`admins.id_admin`, `close_id_admin`->`admins.id_admin` | Daily cash drawer session; one open row at a time gates sale registration |
 | `outcomes` | `id_outcome` | `id_admin`->`admins.id_admin`, `quantity` VARCHAR, `description` TEXT, `date_time` | Cash outflows/expenses subtracted from cash state |
-| `bank_account` | `id_account` | `token_account` (UNIQUE — display identifier), `name_account`, `active` TINYINT(1) DEFAULT 1 (soft-delete; 0 = hidden from transfer dropdowns) | Bank accounts used as targets for transfer payments |
+| `bank_account` | `id_account` | `token_account` (UNIQUE — display identifier), `name_account`, `type` ENUM('cordobas','dolares') (currency the account is held in), `buy_rate`/`sell_rate` DECIMAL(10,2) NULL (per-account exchange rates; used to convert a transfer payment into the account's currency before it's stored in `sale_payments` — see `Sales::register()`), `active` TINYINT(1) DEFAULT 1 (soft-delete; 0 = hidden from transfer dropdowns and rejected if submitted directly at sale time) | Bank accounts used as targets for transfer payments |
 | `dollar_exchange` | — | `buy_price` DECIMAL DEFAULT 29.50, `sell_price` DECIMAL DEFAULT 30.00 | Single-row table; buy rate values every córdoba conversion in the sale/print/cash-drawer flow (what a client is charged, receipts, drawer reconciliation); sell rate is unused in that flow, only shown in a live commission-value display |
 | `goals` | `id_goal` | `month_goal` TINYINT (1–12, CHECK constraint), `year_goal` YEAR, `amount` DECIMAL; UNIQUE(`month_goal`, `year_goal`) | Monthly sales targets; visible only to admin (id_admin=1) |
 

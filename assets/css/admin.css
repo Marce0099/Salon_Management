@@ -301,3 +301,15 @@ input.readonly{
 .payment_container.dynamic > p:hover{
 	cursor: pointer;
 }
+
+.payment-currency-mismatch,
+.form-control.payment-currency-mismatch:focus{
+	box-shadow: 0 0 8px 2px rgba(52, 152, 219, 0.88) !important;
+}
+
+.payment-currency-notice-text{
+	padding: 8px 12px;
+	border-radius: 4px;
+	background-color: rgba(52, 152, 219, 0.88);
+	color: #f9f9f9;
+}

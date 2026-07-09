@@ -96,6 +96,14 @@ class Sales extends Admin_Controller{
 			$sale['id_employee'] = $this->input->post('id_employee') ? $this->input->post('id_employee') : NULL;
 			//$sale['pos_paid'] = $this->input->post('pos_paid') ? 1 : 0;
 
+			if( !$sale['client'] ){
+
+				$response['type'] = 'error';
+				$response['message'] = 'Debe seleccionar un cliente';
+				echo json_encode($response);
+				exit();
+			}
+
 			if( !$sale['id_employee'] ){
 
 				$response['type'] = 'error';
@@ -311,7 +319,13 @@ class Sales extends Admin_Controller{
 				}
 			}
 
-			foreach($payment as &$pay){
+			// $payment_to_save holds the amounts actually persisted to sale_payments (converted
+			// to match each transfer account's currency); $payment itself is left with the
+			// raw customer-typed amounts, since the residual/change calculations below still
+			// need those against the sale-wide dollar_exchange rate.
+			$payment_to_save = $payment;
+
+			foreach($payment_to_save as &$pay){
 				if($pay['payment_method'] === 'transfer'){
 					$res = $this->bank_account_mdl->getAccount( $pay['account'] );
 					if( !$res ){
@@ -321,12 +335,48 @@ class Sales extends Admin_Controller{
 						echo json_encode($response);
 						exit();
 					}
+					if( (int) $res->active !== 1 ){
+						$response['type'] = 'error';
+						$response['message'] = 'Cuenta bancaria ya no está disponible';
+						$this->db->trans_rollback();
+						echo json_encode($response);
+						exit();
+					}
+
+					$cordobaAmt = floatval( str_replace(',', '', $pay['cordoba']) );
+					$dolarAmt   = floatval( str_replace(',', '', $pay['dolar']) );
+
+					if( $res->type === 'dolares' && $cordobaAmt > 0 && (float) $res->sell_rate <= 0 ){
+						$response['type'] = 'error';
+						$response['message'] = 'La cuenta no tiene una tasa de venta válida configurada';
+						$this->db->trans_rollback();
+						echo json_encode($response);
+						exit();
+					}
+					if( $res->type === 'cordobas' && $dolarAmt > 0 && (float) $res->buy_rate <= 0 ){
+						$response['type'] = 'error';
+						$response['message'] = 'La cuenta no tiene una tasa de compra válida configurada';
+						$this->db->trans_rollback();
+						echo json_encode($response);
+						exit();
+					}
+
+					if( $res->type === 'dolares' ){
+						$converted = $cordobaAmt > 0 ? ($cordobaAmt / $res->sell_rate) : 0;
+						$pay['dolar']   = $dolarAmt + $converted;
+						$pay['cordoba'] = 0;
+					}else{
+						$converted = $dolarAmt > 0 ? ($dolarAmt * $res->buy_rate) : 0;
+						$pay['cordoba'] = $cordobaAmt + $converted;
+						$pay['dolar']   = 0;
+					}
+
 					$pay['account'] = $res->id_account;
 
 				}
 			}unset($pay);
 
-			$this->payments_mdl->savePayment( $payment );
+			$this->payments_mdl->savePayment( $payment_to_save );
 			
 			$total_cordobas = 0;
 
