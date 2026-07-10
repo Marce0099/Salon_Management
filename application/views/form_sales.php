@@ -861,7 +861,7 @@
 
 		var couponError = null;
 		var seenCoupons = {};
-		var runningTotal = 0;
+		var nonCashTotal = 0;
 
 		$('#payment-blocks').children('.payment_container').each(function(){
 
@@ -883,20 +883,28 @@
 					return false;
 				}
 				seenCoupons[code] = true;
-
-				if( runningTotal + amount > system.total_invoice ){
-					couponError = 'El cupón "' + code + '" excede el total pendiente de la factura';
-					return false;
-				}
 			}
 
-			runningTotal += amount;
+			if( method !== 'cash' )
+				nonCashTotal += amount;
 		});
 
 		if( couponError ){
 			new PNotify({
 		            title: 'Notificación',
 		            text: couponError,
+		            type : 'error',
+		            styling : 'bootstrap3',
+		            delay : 4000
+		    });
+
+		    return false;
+		}
+
+		if( nonCashTotal - system.total_invoice > 0.01 ){
+			new PNotify({
+		            title: 'Notificación',
+		            text: 'El total de pagos con POS, transferencia y/o cupón no puede exceder el total de la factura. El efectivo debe cubrir cualquier excedente.',
 		            type : 'error',
 		            styling : 'bootstrap3',
 		            delay : 4000

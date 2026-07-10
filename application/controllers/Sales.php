@@ -170,9 +170,9 @@ class Sales extends Admin_Controller{
 				$total_cordobas += $subtotal * $exchange->sell_price;
 			}
 
-			/* coupon uniqueness + order-dependent overpay rejection (mirrors the JS check) */
+			/* coupon uniqueness + aggregate non-cash overpay rejection (mirrors the JS check) */
 			$seen_codes = array();
-			$running_total = 0;
+			$non_cash_total = 0;
 
 			for( $i=0; $i < count($payment_methods); $i++ ){
 
@@ -200,25 +200,26 @@ class Sales extends Admin_Controller{
 					}
 					$seen_codes[$code] = TRUE;
 
-					if( $running_total + $amount > $total_cordobas ){
+					$non_cash_total += $amount;
 
-						$response['type'] = 'error';
-						$response['message'] = 'El cupón "'.$code.'" excede el total pendiente de la factura';
-						echo json_encode($response);
-						exit();
-					}
-
-					$running_total += $amount;
-
-				}else{
+				}else if( $method !== 'cash' ){
 
 					$amt = floatval(str_replace(',', '', $cordobas_inputs[$i]));
 
 					if( $dolar_inputs[$i] )
 						$amt += floatval(str_replace(',', '', $dolar_inputs[$i])) * floatval($exchange->sell_price);
 
-					$running_total += $amt;
+					$non_cash_total += $amt;
 				}
+			}
+
+			/* only cash may cover an overpayment (it gives change); POS/transfer/cupon combined can't exceed the total */
+			if( $non_cash_total - $total_cordobas > 0.01 ){
+
+				$response['type'] = 'error';
+				$response['message'] = 'El total de pagos con POS, transferencia y/o cupón no puede exceder el total de la factura. El efectivo debe cubrir cualquier excedente.';
+				echo json_encode($response);
+				exit();
 			}
 
 			/* check cash available */
