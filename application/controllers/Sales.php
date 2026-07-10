@@ -230,24 +230,28 @@ class Sales extends Admin_Controller{
 			if( $has_cash ){
 
 				$_total_cordobas = $total_cordobas;
-				$cash_cordobas = 0;
+				$cash_cordoba_raw = 0;
+				$cash_dolar_raw = 0;
 
 				for( $i=0; $i < count($payment_methods); $i++ ){
 
 					$method = $payment_methods[$i];
 
-					if( $method === 'cupon' ){
-						$amt = floatval(str_replace(',', '', $cupon_amounts[$i]));
-					}else{
-						$amt = floatval(str_replace(',', '', $cordobas_inputs[$i]));
-
-						if( $dolar_inputs[$i] )
-							$amt += floatval(str_replace(',', '', $dolar_inputs[$i])) * floatval($exchange->sell_price);
-					}
-
 					if( $method === 'cash' ){
-						$cash_cordobas += $amt;
+
+						$cash_cordoba_raw += floatval(str_replace(',', '', $cordobas_inputs[$i]));
+						$cash_dolar_raw += floatval(str_replace(',', '', $dolar_inputs[$i]));
 					}else{
+
+						if( $method === 'cupon' ){
+							$amt = floatval(str_replace(',', '', $cupon_amounts[$i]));
+						}else{
+							$amt = floatval(str_replace(',', '', $cordobas_inputs[$i]));
+
+							if( $dolar_inputs[$i] )
+								$amt += floatval(str_replace(',', '', $dolar_inputs[$i])) * floatval($exchange->sell_price);
+						}
+
 						$_total_cordobas -= $amt;
 					}
 				}
@@ -257,11 +261,13 @@ class Sales extends Admin_Controller{
 				if( $sale['cash_dollar'] )
 					$cash_cordobas += round( floatval($sale['cash_dollar']) * floatval($exchange->buy_price ));*/
 
-				$change = $cash_cordobas - $_total_cordobas;
-				$current_cash = $this->cash_mdl->getCashMovements();
-				$current_cash = $current_cash['sales_total_cordobas'] + $current_cash['current']->open_quantity - $current_cash['outcomes_total'];
+				$split = splitCashChange( $_total_cordobas, $cash_cordoba_raw, $cash_dolar_raw, $exchange->sell_price );
 
-				if( $change > $current_cash ){
+				$current_cash = $this->cash_mdl->getCashMovements();
+				$current_cordobas = $current_cash['sales_total_cordobas'] + $current_cash['current']->open_quantity - $current_cash['outcomes_total'];
+				$current_dollars = $current_cash['sales_total_dollar'] + $current_cash['current']->open_quantity_dollar;
+
+				if( $split['change_cordoba'] > $current_cordobas || $split['change_dollar'] > $current_dollars ){
 
 					$response['type'] = 'warning';
 					$response['message'] = 'No hay suficiente efectivo en caja para el cambio';

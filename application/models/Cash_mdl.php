@@ -122,12 +122,10 @@ class Cash_mdl extends CI_Model{
 
 				if( $has_cash ){
 
-					$dol_to_cor = $cash_dolar * $s->dollar_ex_sell;
-					$cor = $dol_to_cor + $cash_cordoba;
-					$change = $cor - $_sale_total;
+					$split = splitCashChange( $_sale_total, $cash_cordoba, $cash_dolar, $s->dollar_ex_sell );
 
-					$data['sales_total_dollar'] += $cash_dolar;
-					$data['sales_total_cordobas'] += $cash_cordoba - $change;
+					$data['sales_total_dollar'] += $split['applied_dollar'];
+					$data['sales_total_cordobas'] += $split['applied_cordoba'];
 				}
 
 				/*if( !$s->pos_paid ){
