@@ -9,7 +9,7 @@ class Login_mdl extends MX_Controller{
 
 	public function check( $username, $password ){
 
-		return $this->db->get_where( 'admins', array( 'username' => $username, 'password' => sha1($password) ) )->row();
+		return $this->db->get_where( 'admins', array( 'username' => $username, 'password' => sha1($password ?? '') ) )->row();
 	}
 
 	public function getDatosAcceso(){

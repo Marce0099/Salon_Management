@@ -118,7 +118,7 @@ class Sales extends Admin_Controller{
 			$account_numbers = $this->input->post('account_number');
 			$cupon_codes = $this->input->post('cupon_code');
 			$cupon_amounts = $this->input->post('cupon_amount');
-			$cupon_discounts = $this->input->post('cupon_discount_rate'); // plumbed through for a future feature, never stored
+			$cupon_discounts = $this->input->post('cupon_discount_rate');
 
 			foreach( $payment_methods as $pm ){
 				if( !in_array($pm, array('cash','pos','transfer','cupon')) ){
@@ -157,9 +157,15 @@ class Sales extends Admin_Controller{
 			$sale['dollar_ex_buy'] = $exchange->buy_price;
 			$sale['dollar_ex_sell'] = $exchange->sell_price;
 
-			/* invoice total, needed unconditionally for the coupon overpay check below */
+			/* invoice total + services-only subtotal, needed unconditionally for the coupon overpay check below */
 			$total_cordobas = 0;
+			$services_total_cordobas = 0;
+			$sale_products_cache = array();
+
 			for( $i=0; $i < count($id_products); $i++ ){
+
+				$product = $this->db->get_where('products', array( 'id_product' => $id_products[$i] ))->row();
+				$sale_products_cache[$i] = $product;
 
 				$price = str_replace(',', '', $prices[$i] );
 				$subtotal = $price * $quantities[$i];
@@ -167,12 +173,17 @@ class Sales extends Admin_Controller{
 				if( $discounts[$i] )
 					$subtotal -= $subtotal * $discounts[$i] / 100;
 
-				$total_cordobas += $subtotal * $exchange->sell_price;
+				$subtotal_cordobas = $subtotal * $exchange->sell_price;
+				$total_cordobas += $subtotal_cordobas;
+
+				if( $product && $product->is_service )
+					$services_total_cordobas += $subtotal_cordobas;
 			}
 
-			/* coupon uniqueness + aggregate non-cash overpay rejection (mirrors the JS check) */
+			/* coupon uniqueness + sequential coverage + aggregate non-cash overpay rejection (mirrors the JS check) */
 			$seen_codes = array();
 			$non_cash_total = 0;
+			$coupon_remaining = $services_total_cordobas; // coupons may only be redeemed against the services portion of the invoice, not products
 
 			for( $i=0; $i < count($payment_methods); $i++ ){
 
@@ -182,6 +193,7 @@ class Sales extends Admin_Controller{
 
 					$code = trim($cupon_codes[$i]);
 					$amount = floatval(str_replace(',', '', $cupon_amounts[$i]));
+					$discount_rate = ($cupon_discounts[$i] !== '' && $cupon_discounts[$i] !== null) ? floatval($cupon_discounts[$i]) : 0;
 
 					if( $code === '' || $amount <= 0 ){
 
@@ -199,6 +211,23 @@ class Sales extends Admin_Controller{
 						exit();
 					}
 					$seen_codes[$code] = TRUE;
+
+					if( $discount_rate < 0 || $discount_rate > 100 ){
+
+						$response['type'] = 'error';
+						$response['message'] = 'El descuento del cupón "'.$code.'" debe estar entre 0 y 100';
+						echo json_encode($response);
+						exit();
+					}
+
+					if( $amount - $coupon_remaining > 0.01 ){
+
+						$response['type'] = 'error';
+						$response['message'] = 'El cupón "'.$code.'" excede el total disponible de servicios en la factura (disponible: C$'.number_format($coupon_remaining,2).')';
+						echo json_encode($response);
+						exit();
+					}
+					$coupon_remaining -= $amount;
 
 					$non_cash_total += $amount;
 
@@ -220,6 +249,20 @@ class Sales extends Admin_Controller{
 				$response['message'] = 'El total de pagos con POS, transferencia y/o cupón no puede exceder el total de la factura. El efectivo debe cubrir cualquier excedente.';
 				echo json_encode($response);
 				exit();
+			}
+
+			/* a coupon code can only ever be redeemed once, across all sales */
+			if( !empty($seen_codes) ){
+
+				$used_codes = $this->payments_mdl->getUsedCouponCodes( array_keys($seen_codes) );
+
+				if( !empty($used_codes) ){
+
+					$response['type'] = 'error';
+					$response['message'] = 'El cupón "'.$used_codes[0].'" ya fue utilizado en otra venta';
+					echo json_encode($response);
+					exit();
+				}
 			}
 
 			/* check cash available */
@@ -281,7 +324,7 @@ class Sales extends Admin_Controller{
 
 			for( $i=0; $i < count($id_products); $i++ ){
 
-				$product = $this->db->get_where('products', array( 'id_product' => $id_products[$i] ))->row();
+				$product = $sale_products_cache[$i];
 
 				if( !$product->is_service && $product->stock < $quantities[$i] ){
 
@@ -307,18 +350,21 @@ class Sales extends Admin_Controller{
 						"id_sale" => $id_sale,
 						"payment_method" => $method,
 						"account" => null,
+						"cupon_code" => trim($cupon_codes[$i]),
+						"cupon_discount_rate" => ($cupon_discounts[$i] !== '' && $cupon_discounts[$i] !== null) ? floatval($cupon_discounts[$i]) : null,
 						"cordoba" => floatval(str_replace(',', '', $cupon_amounts[$i])),
 						"dolar" => null,
 						"tax_rate" => null,
 					));
-					// cupon_code / cupon_discount_rate intentionally not persisted
 
 				}else{
 
 					array_push($payment, array(
 						"id_sale" => $id_sale,
 						"payment_method" => $method,
-						"account" => $method === 'transfer' ? $account_numbers[$i] : null,
+						"account" => $method === 'transfer' ? ($account_numbers[$i] ?? null) : null,
+						"cupon_code" => null,
+						"cupon_discount_rate" => null,
 						"cordoba" => str_replace(',', '', $cordobas_inputs[$i]),
 						"dolar" => str_replace(',', '', $dolar_inputs[$i]),
 						"tax_rate" => $method === 'pos' ? 6.75 : null,

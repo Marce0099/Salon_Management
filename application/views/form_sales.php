@@ -145,7 +145,7 @@
 						</div>
 						<div class="col-md-2">
 							<label for="">Desc. banco %:</label>
-							<input type="text" name="cupon_discount_rate[]" class="form-control numeric-input cupon-discount-input" data-parsley-type="number">
+							<input type="text" name="cupon_discount_rate[]" class="form-control numeric-input cupon-discount-input" data-parsley-type="number" data-parsley-min="0" data-parsley-max="100">
 						</div>
 					</div>
 				</div>
@@ -201,7 +201,7 @@
 		</td>
 		<td>
 			<div class="tr-input">
-				<input type="text" name="discounts[]" class="form-control has-feedback-left p-discount"  onkeyup="updateTotal($(this).parents('tr'))" data-parsley-type="integer">
+				<input type="text" name="discounts[]" class="form-control has-feedback-left p-discount" data-parsley-type="integer">
 	    		<span class="fa fa-percent form-control-feedback left"></span>
 	    	</div>
 	    </td>
@@ -293,7 +293,7 @@
 					</div>
 					<div class="col-md-2">
 						<label for="">Desc. banco %:</label>
-						<input type="text" name="cupon_discount_rate[]" class="form-control numeric-input cupon-discount-input" data-parsley-type="number">
+						<input type="text" name="cupon_discount_rate[]" class="form-control numeric-input cupon-discount-input" data-parsley-type="number" data-parsley-min="0" data-parsley-max="100">
 					</div>
 				</div>
 			</div>
@@ -421,6 +421,7 @@
 
 	var system = {
 		total_invoice : 0,
+		total_services : 0,
 		payments : {
 			'0' : { method : 'cash', subtotal : 0, total : 0 }
 		}
@@ -735,6 +736,16 @@
 		total_cordobas = numeral(total_cordobas);
 		system.total_invoice = total_cordobas.value();
 		$('#total-cordobas').html(total_cordobas.format('0,0.00'));
+
+		//services-only subtotal, used to cap coupon redemption
+		var total_services = 0;
+		$('#products-sale tr.p-service .subtotal-cordobas').each(function(index,element){
+
+			total_services += numeral( $(element).html() ).value();
+
+		});
+		system.total_services = total_services;
+
 		updateDueAmount();
 	}
 
@@ -754,6 +765,11 @@
 		var tot_cord = numeral( total_cordobas.value() - subtotal_cordobas.value());
 		system.total_invoice = tot_cord.value();
 		$('#total-cordobas').html( tot_cord.format('0,0.00') );
+
+		if( row.hasClass('p-service') ){
+			system.total_services = numeral( system.total_services - subtotal_cordobas.value() ).value();
+		}
+
 		updateDueAmount();
 
 		row.remove();
@@ -862,6 +878,7 @@
 		var couponError = null;
 		var seenCoupons = {};
 		var nonCashTotal = 0;
+		var couponRemaining = system.total_services;
 
 		$('#payment-blocks').children('.payment_container').each(function(){
 
@@ -883,6 +900,12 @@
 					return false;
 				}
 				seenCoupons[code] = true;
+
+				if( amount - couponRemaining > 0.01 ){
+					couponError = 'El cupón "' + code + '" excede el total disponible de servicios en la factura';
+					return false;
+				}
+				couponRemaining -= amount;
 			}
 
 			if( method !== 'cash' )
@@ -1006,8 +1029,10 @@
 			var $block = $(this);
 			var method = $block.find('.payment-method-select').val();
 
-			if( method !== 'transfer' )
-				$block.find('.payment-account-select').val('');
+			// intentionally not blanking the account select for non-transfer methods: it has no
+			// blank option, so .val('') deselects it and jQuery drops it from the serialized form
+			// entirely, shifting account_number[] out of alignment with payment_method[] on submit.
+			// The server only reads this field when method === 'transfer', so a stale value here is harmless.
 
 			if( method === 'cupon' ){
 				$block.find('.cordobas-input, .dolar-input').val('');
@@ -1048,11 +1073,13 @@
 		        	$('#total-dollar').html('');
 
 		        	$('#payment-blocks').children('.payment_container').not(':eq(0)').remove();
-		        	$('#payment-blocks .payment_container').eq(0).find('.payment-method-select').val('cash').trigger('change');
-		        	$('#payment-blocks .payment_container').eq(0).find('.cash-input, .cupon-code-input, .cupon-amount-input, .cupon-discount-input').val('');
 
 		        	system.payments = { '0' : { method : 'cash', subtotal : 0, total : 0 } };
 		        	_paymentCounter = 1;
+
+		        	$('#payment-blocks .payment_container').eq(0).find('.payment-method-select').val('cash').trigger('change');
+		        	$('#payment-blocks .payment_container').eq(0).find('.cash-input, .cupon-code-input, .cupon-amount-input, .cupon-discount-input').val('');
+
 		        	updateDueAmount();
 		        }
 
@@ -1177,6 +1204,32 @@
 			$overpaymentBadge.hide().text('');
 		}
 	}
+
+	$(document).on('keyup', '#products-sale .p-discount', function(){
+
+		var $input = $(this);
+		var val = $.trim( $input.val() );
+
+		if( val !== '' ){
+
+			var discount = Number(val);
+
+			if( isNaN(discount) || discount < 0 || discount > 100 ){
+
+				$input.val('');
+
+				new PNotify({
+			            title: 'Notificación',
+			            text: 'El descuento debe ser un valor numérico entre 0 y 100',
+			            type : 'error',
+			            styling : 'bootstrap3',
+			            delay : 3000
+			    });
+			}
+		}
+
+		updateTotal( $input.parents('tr') );
+	});
 
 	$(document).on('keyup', '#payment-blocks .cash-input, #payment-blocks .cupon-amount-input', function(){
 		recalcAmountPayment( $(this).closest('.payment_container') );

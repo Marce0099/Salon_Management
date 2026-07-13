@@ -108,6 +108,15 @@ class Cash_mdl extends CI_Model{
 						$cash_cordoba += floatval($spa->cordoba);
 						$cash_dolar += floatval($spa->dolar);
 
+					}else if( $spa->payment_method === 'cupon' ){
+
+						// tendered amount still covers the invoice; the reported total is net of the coupon's discount rate (real revenue, not tendered)
+						$cor = floatval($spa->cordoba ?? 0);
+						$discount = floatval($spa->cupon_discount_rate ?? 0);
+
+						$data['sales_total_cupon'] += round($cor * (1 - $discount / 100), 2);
+						$_sale_total -= $cor;
+
 					}else{
 						$cor = $spa->cordoba ?? 0;
 						$dol = $spa->dolar ?? 0;

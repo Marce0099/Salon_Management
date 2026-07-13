@@ -12,16 +12,16 @@
 
 <table class="table table-bordered" style="border-collapse: separate;<?php echo $coll; ?>">
 	<tr>
-		<td colspan="3" class="bg-blue2 bold" style="<?php echo $bor; ?>">Apertura</td>
+		<td colspan="4" class="bg-blue2 bold" style="<?php echo $bor; ?>">Apertura</td>
 		<td class="bg-blue2" style="<?php echo $bor; ?>">C$<?php echo number_format($current->open_quantity,2); ?> | $<?php echo number_format($current->open_quantity_dollar ?? 0,2); ?></td>
 	</tr>
 	<tr>
-		<td colspan="4" class="bg-green2">Ventas</td>
+		<td colspan="5" class="bg-green2">Ventas</td>
 	</tr>
 	</tr>
 		<?php $sales_global_total = 0; if( !empty($sales) ) : ?>
 		<tr>
-		<td colspan="4" style="padding: 0;border:0;">
+		<td colspan="5" style="padding: 0;border:0;">
 			<table class="table table-bordered" style="margin-bottom: 0;background-color: initial;<?php echo $coll; ?>">
 				<thead>
 					<tr>
@@ -50,6 +50,7 @@
 								$priority = [
 									'transfer' => 1,
 									'pos' => 1,
+									'cupon' => 1,
 									'cash' => 2
 								];
 								return ($priority[$a->payment_method] ?? 99) <=> ($priority[$b->payment_method] ?? 99);
@@ -145,8 +146,9 @@
 		<td style="<?php echo $bor; ?>">Ventas realizadas: <?php echo $sales_num_total; ?> ( $<?php echo number_format($sales_global_total,2); ?>)</td>
 		<td style="<?php echo $bor; ?>">POS(<?php echo $sales_pos_num; ?>): C$<?php echo number_format($sales_total_pos,2); ?></td>
 		<td style="<?php echo $bor; ?>">Transferencia(<?php echo $sales_transfer_num; ?>): C$<?php echo number_format($sales_total_transfer,2); ?></td>
-		<td style="<?php echo $bor; ?>" colspan="2">
-		Efectivo(<?php echo $sales_cash_num; ?>): 
+		<td style="<?php echo $bor; ?>">Cupón(<?php echo $sales_cupon_num; ?>): C$<?php echo number_format($sales_total_cupon,2); ?></td>
+		<td style="<?php echo $bor; ?>">
+		Efectivo(<?php echo $sales_cash_num; ?>):
 		$<?php echo number_format($sales_total_dollar); ?> |
 		C$<?php echo number_format($sales_total_cordobas,2); ?>
 		</td>
@@ -154,10 +156,10 @@
 	</tr>
 	<?php $total_outcomes = 0; if( !empty($outcomes) ) : ?>
 	<tr>
-		<td colspan="4" class="bg-red2">Egresos</td>
+		<td colspan="5" class="bg-red2">Egresos</td>
 	</tr>
 	<tr>
-		<td colspan="4" style="padding: 0; border:0;">
+		<td colspan="5" style="padding: 0; border:0;">
 			<table class="table table-bordered" style="background-color: inherit;margin-bottom: 0;<?php echo $coll; ?>">
 				<thead>
 					<tr>
@@ -180,11 +182,11 @@
 		</td>
 	</tr>
 	<tr>
-		<td colspan="4" class="text-right">Total egresos: C$<?php echo number_format($total_outcomes,2); ?></td>
+		<td colspan="5" class="text-right">Total egresos: C$<?php echo number_format($total_outcomes,2); ?></td>
 	</tr>
 	<?php endif; ?>
 	<tr>
-		<td colspan="4" class="bold">Total en caja: C$<?php echo number_format( $current->open_quantity + $sales_total_cordobas - $total_outcomes, 2 ); ?> | $<?php echo number_format($current->open_quantity_dollar + $sales_total_dollar,2); ?>
+		<td colspan="5" class="bold">Total en caja: C$<?php echo number_format( $current->open_quantity + $sales_total_cordobas - $total_outcomes, 2 ); ?> | $<?php echo number_format($current->open_quantity_dollar + $sales_total_dollar,2); ?>
 		</td>
 	</tr>
 </table>

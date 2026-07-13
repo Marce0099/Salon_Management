@@ -63,7 +63,8 @@ class Cash extends Admin_Controller{
 		$data['payment_methods'] = [
 			'cash' => 'Efectivo',
 			'pos' => 'POS',
-			'transfer' => 'Transferencia'
+			'transfer' => 'Transferencia',
+			'cupon' => 'Cupón'
 		];
 
 		$this->content_data = array_merge($data,$state);
@@ -209,6 +210,7 @@ class Cash extends Admin_Controller{
 				$data['close_quantity_cordobas'] = $cash['sales_total_cordobas'] + $cash['current']->open_quantity - $cash['outcomes_total'];
 				$data['close_quantity_pos'] = $cash['sales_total_pos'];
 				$data['close_quantity_transfer'] = $cash['sales_total_transfer'];
+				$data['close_quantity_cupon'] = $cash['sales_total_cupon'];
 				$data['close_quantity_dollar'] = $cash['sales_total_dollar'] + $cash['current']->open_quantity_dollar;
 				$data['close_user_quantity_cordobas'] = str_replace(',', '', $this->input->post('user_cordobas'));
 				$data['close_user_quantity_dollar'] = str_replace(',', '', $this->input->post('user_dolares'));
@@ -234,7 +236,8 @@ class Cash extends Admin_Controller{
 				$data['payment_methods'] = [
 					'cash' => 'Efectivo',
 					'pos' => 'POS',
-					'transfer' => 'Transferencia'
+					'transfer' => 'Transferencia',
+					'cupon' => 'Cupón'
 				];
 				$data['implements'] = [
 					'print_btn' => false,
@@ -295,7 +298,8 @@ class Cash extends Admin_Controller{
 		$data['payment_methods'] = [
 			'cash' => 'Efectivo',
 			'pos' => 'POS',
-			'transfer' => 'Transferencia'
+			'transfer' => 'Transferencia',
+			'cupon' => 'Cupón'
 		];
 
 		$this->content_data = $data;

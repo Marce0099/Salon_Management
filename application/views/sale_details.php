@@ -89,6 +89,7 @@
 			<th>Metodo Pago</th>
 			<th>Cordoba</th>
 			<th>Dolar</th>
+			<th>Ingreso real (C$)</th>
 			<th>Cambio</th>
 
 		</tr>
@@ -131,6 +132,15 @@
 				</td>
 				<td>C$<?php echo $pay->cordoba; ?></td>
 				<td>$<?php echo $pay->dolar; ?></td>
+				<td>C$<?php
+						if( $pay->payment_method === 'cupon' ){
+							$discount = floatval($pay->cupon_discount_rate ?? 0);
+							echo number_format( floatval($pay->cordoba) * (1 - $discount/100), 2 );
+						}else{
+							echo number_format( $total_cor, 2 );
+						}
+					?>
+				</td>
 				<td>C$<?php
 						if($pay->payment_method === 'cash' && $cash_rows_seen === 1){
 							echo number_format($cash_total_cordobas - $_total_cordobas,2);
