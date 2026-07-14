@@ -626,12 +626,6 @@ class Sales extends Admin_Controller{
 					$total_cordobas = $cor + $dol_to_cor;
 
 					$_total_cor -= $total_cordobas;
-
-					if( $pay->tax_rate ){
-						$commission = $total_cordobas * ($pay->tax_rate / 100);
-
-						$printer->text("Comision (".$pay->tax_rate."%):".str_pad("C$".number_format($commission,2)."\n",15,' ',STR_PAD_LEFT) );
-					}
 				}
 			}
 

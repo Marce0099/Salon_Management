@@ -136,6 +136,9 @@
 						if( $pay->payment_method === 'cupon' ){
 							$discount = floatval($pay->cupon_discount_rate ?? 0);
 							echo number_format( floatval($pay->cordoba) * (1 - $discount/100), 2 );
+						}else if( $pay->payment_method === 'pos' ){
+							$tax_rate = floatval($pay->tax_rate ?? 0);
+							echo number_format( $total_cor * (1 - $tax_rate/100), 2 );
 						}else{
 							echo number_format( $total_cor, 2 );
 						}

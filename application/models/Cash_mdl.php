@@ -117,6 +117,19 @@ class Cash_mdl extends CI_Model{
 						$data['sales_total_cupon'] += round($cor * (1 - $discount / 100), 2);
 						$_sale_total -= $cor;
 
+					}else if( $spa->payment_method === 'pos' ){
+
+						// bank charges a commission on POS payments; the business absorbs it, so
+						// recognized income is net of tax_rate even though the full tendered amount
+						// covers the invoice and is what the customer paid
+						$cor = floatval($spa->cordoba ?? 0);
+						$dol = floatval($spa->dolar ?? 0) * $s->dollar_ex_sell;
+						$tendered = $cor + $dol;
+						$tax_rate = floatval($spa->tax_rate ?? 0);
+
+						$data['sales_total_pos'] += round($tendered * (1 - $tax_rate / 100), 2);
+						$_sale_total -= $tendered;
+
 					}else{
 						$cor = $spa->cordoba ?? 0;
 						$dol = $spa->dolar ?? 0;

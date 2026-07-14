@@ -1121,10 +1121,6 @@
 				cordobas.add( dollar.value() );
 
 			subtotal = cordobas.value();
-
-			if( method === "pos" )
-				cordobas.add( cordobas.value() * (6.75/100)  );
-
 			total = cordobas.value();
 		}
 
