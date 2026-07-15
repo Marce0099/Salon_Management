@@ -180,9 +180,12 @@ class Sales extends Admin_Controller{
 					$services_total_cordobas += $subtotal_cordobas;
 			}
 
-			/* coupon uniqueness + sequential coverage + aggregate non-cash overpay rejection (mirrors the JS check) */
+			/* coupon uniqueness + sequential coverage + aggregate non-cash overpay rejection (mirrors the JS check);
+			   also gathers the raw cash tendered while we're already looping payment methods */
 			$seen_codes = array();
 			$non_cash_total = 0;
+			$cash_cordoba_raw = 0;
+			$cash_dolar_raw = 0;
 			$coupon_remaining = $services_total_cordobas; // coupons may only be redeemed against the services portion of the invoice, not products
 
 			for( $i=0; $i < count($payment_methods); $i++ ){
@@ -231,7 +234,12 @@ class Sales extends Admin_Controller{
 
 					$non_cash_total += $amount;
 
-				}else if( $method !== 'cash' ){
+				}else if( $method === 'cash' ){
+
+					$cash_cordoba_raw += floatval(str_replace(',', '', $cordobas_inputs[$i]));
+					$cash_dolar_raw += floatval(str_replace(',', '', $dolar_inputs[$i]));
+
+				}else{
 
 					$amt = floatval(str_replace(',', '', $cordobas_inputs[$i]));
 
@@ -265,52 +273,54 @@ class Sales extends Admin_Controller{
 				}
 			}
 
-			/* check cash available */
+			/* check cash available + validate/persist the cashier's change-given split */
 
-			//if( !$sale['pos_paid'] ){
 			$has_cash = in_array('cash', $payment_methods);
+			$debt_after_non_cash = $total_cordobas - $non_cash_total;
 
-			if( $has_cash ){
+			$overpayment_cordobas = $has_cash
+				? cashOverpaymentCordobas( $debt_after_non_cash, $cash_cordoba_raw, $cash_dolar_raw, $exchange->sell_price )
+				: 0;
 
-				$_total_cordobas = $total_cordobas;
-				$cash_cordoba_raw = 0;
-				$cash_dolar_raw = 0;
+			$change_cordoba_given = null;
+			$change_dollar_given = null;
+			$change_rounding_cordoba = null;
 
-				for( $i=0; $i < count($payment_methods); $i++ ){
+			if( $overpayment_cordobas > 0.01 ){
 
-					$method = $payment_methods[$i];
+				$change_cordoba_given = floatval(str_replace(',', '', $this->input->post('change_cordoba_given')));
+				$change_dollar_given = floatval(str_replace(',', '', $this->input->post('change_dollar_given')));
 
-					if( $method === 'cash' ){
+				if( $change_cordoba_given < 0 || $change_dollar_given < 0 ){
 
-						$cash_cordoba_raw += floatval(str_replace(',', '', $cordobas_inputs[$i]));
-						$cash_dolar_raw += floatval(str_replace(',', '', $dolar_inputs[$i]));
-					}else{
-
-						if( $method === 'cupon' ){
-							$amt = floatval(str_replace(',', '', $cupon_amounts[$i]));
-						}else{
-							$amt = floatval(str_replace(',', '', $cordobas_inputs[$i]));
-
-							if( $dolar_inputs[$i] )
-								$amt += floatval(str_replace(',', '', $dolar_inputs[$i])) * floatval($exchange->sell_price);
-						}
-
-						$_total_cordobas -= $amt;
-					}
+					$response['type'] = 'error';
+					$response['message'] = 'El cambio entregado no puede ser negativo';
+					echo json_encode($response);
+					exit();
 				}
 
-				/*$cash_cordobas = floatval($sale['cash_cordobas']);
+				/* the cashier may split change across either currency regardless of what the
+				   customer tendered in; only a fractional (cents-level) mismatch against the
+				   owed amount is tolerated, a whole-unit gain/loss is rejected */
+				$given_cordoba_equiv = $change_cordoba_given + ( $change_dollar_given * $exchange->sell_price );
+				$change_rounding_cordoba = round( $overpayment_cordobas - $given_cordoba_equiv, 2 );
 
-				if( $sale['cash_dollar'] )
-					$cash_cordobas += round( floatval($sale['cash_dollar']) * floatval($exchange->buy_price ));*/
+				if( abs($change_rounding_cordoba) >= 1 ){
 
-				$split = splitCashChange( $_total_cordobas, $cash_cordoba_raw, $cash_dolar_raw, $exchange->sell_price );
+					$response['type'] = 'error';
+					$response['message'] = 'El cambio entregado no cuadra con el vuelto de C$'.number_format($overpayment_cordobas,2).'. Solo se permite una diferencia de centavos.';
+					echo json_encode($response);
+					exit();
+				}
+			}
+
+			if( $has_cash ){
 
 				$current_cash = $this->cash_mdl->getCashMovements();
 				$current_cordobas = $current_cash['sales_total_cordobas'] + $current_cash['current']->open_quantity - $current_cash['outcomes_total'];
 				$current_dollars = $current_cash['sales_total_dollar'] + $current_cash['current']->open_quantity_dollar;
 
-				if( $split['change_cordoba'] > $current_cordobas || $split['change_dollar'] > $current_dollars ){
+				if( floatval($change_cordoba_given) > $current_cordobas || floatval($change_dollar_given) > $current_dollars ){
 
 					$response['type'] = 'warning';
 					$response['message'] = 'No hay suficiente efectivo en caja para el cambio';
@@ -355,6 +365,9 @@ class Sales extends Admin_Controller{
 						"cordoba" => floatval(str_replace(',', '', $cupon_amounts[$i])),
 						"dolar" => null,
 						"tax_rate" => null,
+						"change_cordoba_given" => null,
+						"change_dollar_given" => null,
+						"change_rounding_cordoba" => null,
 					));
 
 				}else{
@@ -368,6 +381,9 @@ class Sales extends Admin_Controller{
 						"cordoba" => str_replace(',', '', $cordobas_inputs[$i]),
 						"dolar" => str_replace(',', '', $dolar_inputs[$i]),
 						"tax_rate" => $method === 'pos' ? 6.75 : null,
+						"change_cordoba_given" => $method === 'cash' ? $change_cordoba_given : null,
+						"change_dollar_given" => $method === 'cash' ? $change_dollar_given : null,
+						"change_rounding_cordoba" => $method === 'cash' ? $change_rounding_cordoba : null,
 					));
 				}
 			}
@@ -474,22 +490,8 @@ class Sales extends Admin_Controller{
 
 			$message = '<p>Venta registrada</p>';
 
-			$residual_cordobas = $total_cordobas;
-			foreach ($payment as $p) {
-				if ($p["payment_method"] !== "cash") {
-					$residual_cordobas -= floatval($p["cordoba"]) + floatval($p["dolar"]) * floatval($exchange->sell_price);
-				}
-			}
-
-			foreach ($payment as $p) {
-				if($p["payment_method"] === "cash"){
-					$cash_cordobas = floatval($p["cordoba"]);
-
-					if( $p['dolar'] )
-					$cash_cordobas += floatval($p['dolar']) * floatval($exchange->sell_price);
-
-					$message .= '<p>Cambio: C$'.number_format($cash_cordobas - $residual_cordobas, 2 ).'</p>';
-				}
+			if( $overpayment_cordobas > 0.01 ){
+				$message .= '<p>Cambio entregado: C$'.number_format($change_cordoba_given,2).' / $'.number_format($change_dollar_given,2).'</p>';
 			}
 
 			/*if( !$sale['pos_paid'] ){
@@ -646,10 +648,24 @@ class Sales extends Admin_Controller{
 				$dol_to_cor = $dol * $sale->dollar_ex_sell;
 				$total_cordobas = $cor + $dol_to_cor;
 
-				$change_cordobas = $total_cordobas - $_total_cor;
-				$change_dollars = $change_cordobas / $sale->dollar_ex_buy;
+				/* sales recorded after change_cordoba_given/change_dollar_given were added print the
+				   cashier's actual disbursed split; older sales fall back to the theoretical
+				   córdoba-vs-dollar-equivalent figure computed the old way */
+				if( $pay->change_cordoba_given !== null || $pay->change_dollar_given !== null ){
 
-				$printer->text("Cambio: ".str_pad("$".number_format($change_dollars,2)." (C$".number_format($change_cordobas,2).")\n",15,' ',STR_PAD_LEFT) );
+					$change_cordobas = floatval($pay->change_cordoba_given);
+					$change_dollars = floatval($pay->change_dollar_given);
+
+					if( $change_cordobas > 0 || $change_dollars > 0 ){
+						$printer->text("Cambio: ".str_pad("C$".number_format($change_cordobas,2)." + $".number_format($change_dollars,2)."\n",15,' ',STR_PAD_LEFT) );
+					}
+				}else{
+
+					$change_cordobas = $total_cordobas - $_total_cor;
+					$change_dollars = $change_cordobas / $sale->dollar_ex_buy;
+
+					$printer->text("Cambio: ".str_pad("$".number_format($change_dollars,2)." (C$".number_format($change_cordobas,2).")\n",15,' ',STR_PAD_LEFT) );
+				}
 			}
 
 			/*if( $sale->pos_paid )

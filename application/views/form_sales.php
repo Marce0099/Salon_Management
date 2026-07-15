@@ -153,6 +153,31 @@
 		</div>
 	</div>
 
+	<div class="form-group hide" id="change-given-section">
+		<label class="control-label col-md-2 col-sm-3 col-xs-12" for="">Cambio a entregar:</label>
+		<div class="col-md-9 col-sm-9">
+			<div class="row" style="margin-top: 8px;">
+				<div class="col-md-2">
+					<label for="">Córdobas:</label>
+					<input type="text" name="change_cordoba_given" id="change_cordoba_given" class="form-control numeric-input" data-parsley-type="number">
+				</div>
+				<div class="col-md-2">
+					<label for="">Dólares:</label>
+					<input type="text" name="change_dollar_given" id="change_dollar_given" class="form-control numeric-input" data-parsley-type="number">
+				</div>
+				<div class="col-md-3">
+					<label for="">Vuelto:</label>
+					<input type="text" readonly="true" class="form-control" id="change-owed-display">
+				</div>
+				<div class="col-md-3">
+					<label for="">Restante:</label>
+					<input type="text" readonly="true" class="form-control" id="change-remaining-display">
+				</div>
+			</div>
+			<p class="help-block">El vuelto puede entregarse en cualquier combinación de córdobas y dólares. Solo se permite una diferencia de centavos entre el vuelto y lo entregado.</p>
+		</div>
+	</div>
+
 	<!--<div class="form-group">
 		<label class="control-label col-md-2 col-sm-3 col-xs-12" for="">Efectivo:</label>
 		<div class="col-md-9 col-sm-9">
@@ -936,6 +961,18 @@
 		    return false;
 		}
 
+		if( changeOwedCordobas > 0 && Math.abs( computeChangeLeftover() ) >= 1 ){
+			new PNotify({
+		            title: 'Notificación',
+		            text: 'El cambio entregado no cuadra con el vuelto de C$' + numeral(changeOwedCordobas).format('0,0.00') + '. Solo se permite una diferencia de centavos.',
+		            type : 'error',
+		            styling : 'bootstrap3',
+		            delay : 4000
+		    });
+
+		    return false;
+		}
+
 		/*if( !$('#pos_paid').is(':checked') ){
 
 			var cash = numeral( $('#cash_total_cordobas').val() );
@@ -1081,6 +1118,7 @@
 		        	$('#payment-blocks .payment_container').eq(0).find('.cash-input, .cupon-code-input, .cupon-amount-input, .cupon-discount-input').val('');
 
 		        	updateDueAmount();
+		        	updateChangeGivenSection(0);
 		        }
 
 		        btn.removeAttr('disabled');
@@ -1196,10 +1234,51 @@
 			var overpaidCordobas = due.value() * -1;
 			var overpaidDollars = numeral(overpaidCordobas / dollarBuyRate);
 			$overpaymentBadge.text('Vuelto: $' + overpaidDollars.format('0,0.00') + ' (C$' + numeral(overpaidCordobas).format('0,0.00') + ')').show();
+			updateChangeGivenSection(overpaidCordobas);
 		}else{
 			$overpaymentBadge.hide().text('');
+			updateChangeGivenSection(0);
 		}
 	}
+
+	var changeOwedCordobas = 0; // tracked outside the DOM so re-reading it never depends on parsing a formatted "C$..." display string
+
+	function computeChangeLeftover(){
+		var givenCordoba = numeral( $('#change_cordoba_given').val() || 0 ).value();
+		var givenDollar = numeral( $('#change_dollar_given').val() || 0 ).value();
+		var givenTotal = givenCordoba + ( givenDollar * dollarSellRate );
+
+		return changeOwedCordobas - givenTotal;
+	}
+
+	function refreshChangeRemaining(){
+		var remaining = computeChangeLeftover();
+		var $remaining = $('#change-remaining-display');
+		$remaining.val( 'C$' + numeral(remaining).format('0,0.00') );
+		$remaining.toggleClass('change-remaining-invalid', Math.abs(remaining) >= 1);
+	}
+
+	function updateChangeGivenSection(overpaidCordobas){
+		var hasCash = false;
+		$.each(system.payments, function(idx, p){ if( p.method === 'cash' ) hasCash = true; });
+
+		var $section = $('#change-given-section');
+		changeOwedCordobas = ( hasCash && overpaidCordobas > 0.009 ) ? overpaidCordobas : 0;
+
+		if( !changeOwedCordobas ){
+			$section.addClass('hide');
+			$('#change_cordoba_given, #change_dollar_given').val('');
+			$('#change-owed-display, #change-remaining-display').val('');
+			$('#change-remaining-display').removeClass('change-remaining-invalid');
+			return;
+		}
+
+		$section.removeClass('hide');
+		$('#change-owed-display').val( 'C$' + numeral(changeOwedCordobas).format('0,0.00') );
+		refreshChangeRemaining();
+	}
+
+	$(document).on('keyup', '#change_cordoba_given, #change_dollar_given', refreshChangeRemaining);
 
 	$(document).on('keyup', '#products-sale .p-discount', function(){
 

@@ -36,6 +36,7 @@
 						<?php 
 							$_total_sale = $s->sale_total * $s->dollar_ex_sell;
 							$total_cordobas = $_total_sale;
+							$sales_global_total += $_total_sale;
 
 							$query = "SELECT 
 							sp.payment_method,
@@ -143,7 +144,7 @@
 		</tr>
 		<?php endif; ?>
 		<tr>
-		<td style="<?php echo $bor; ?>">Ventas realizadas: <?php echo $sales_num_total; ?> ( $<?php echo number_format($sales_global_total,2); ?>)</td>
+		<td style="<?php echo $bor; ?>">Ventas realizadas: <?php echo $sales_num_total; ?> ( C$<?php echo number_format($sales_global_total,2); ?>)</td>
 		<td style="<?php echo $bor; ?>">POS(<?php echo $sales_pos_num; ?>): C$<?php echo number_format($sales_total_pos,2); ?></td>
 		<td style="<?php echo $bor; ?>">Transferencia(<?php echo $sales_transfer_num; ?>): C$<?php echo number_format($sales_total_transfer,2); ?></td>
 		<td style="<?php echo $bor; ?>">Cupón(<?php echo $sales_cupon_num; ?>): C$<?php echo number_format($sales_total_cupon,2); ?></td>

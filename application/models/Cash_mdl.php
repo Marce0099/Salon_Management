@@ -33,6 +33,7 @@ class Cash_mdl extends CI_Model{
 		$data['sales_total_pos'] = 0;
 		$data['sales_total_transfer'] = 0;
 		$data['sales_total_cupon'] = 0;
+		$data['sales_total_change_rounding'] = 0;
 		$data['sales_num_total'] = 0;
 
 		$query = "SELECT 
@@ -77,12 +78,12 @@ class Cash_mdl extends CI_Model{
 				$sales_products = $this->db->query($sql)->result();
 				$sale_total = 0;
 
-				foreach( $sales_products as $s ){
+				foreach( $sales_products as $sp ){
 
-					$subtotal = $s->quantity * $s->price;
+					$subtotal = $sp->quantity * $sp->price;
 
-					if( $s->discount )
-						$subtotal -= $subtotal * $s->discount / 100;
+					if( $sp->discount )
+						$subtotal -= $subtotal * $sp->discount / 100;
 
 					$sale_total += $subtotal;
 				}
@@ -99,6 +100,8 @@ class Cash_mdl extends CI_Model{
 				$cash_cordoba = 0;
 				$cash_dolar = 0;
 				$has_cash = FALSE;
+				$change_cordoba_given = NULL;
+				$change_dollar_given = NULL;
 
 				foreach( $sales_payment as $spa){
 
@@ -107,6 +110,9 @@ class Cash_mdl extends CI_Model{
 						$has_cash = TRUE;
 						$cash_cordoba += floatval($spa->cordoba);
 						$cash_dolar += floatval($spa->dolar);
+						$change_cordoba_given = $spa->change_cordoba_given;
+						$change_dollar_given = $spa->change_dollar_given;
+						$data['sales_total_change_rounding'] += floatval($spa->change_rounding_cordoba ?? 0);
 
 					}else if( $spa->payment_method === 'cupon' ){
 
@@ -144,10 +150,10 @@ class Cash_mdl extends CI_Model{
 
 				if( $has_cash ){
 
-					$split = splitCashChange( $_sale_total, $cash_cordoba, $cash_dolar, $s->dollar_ex_sell );
+					$applied = resolveCashApplied( $_sale_total, $cash_cordoba, $cash_dolar, $s->dollar_ex_sell, $change_cordoba_given, $change_dollar_given );
 
-					$data['sales_total_dollar'] += $split['applied_dollar'];
-					$data['sales_total_cordobas'] += $split['applied_cordoba'];
+					$data['sales_total_dollar'] += $applied['applied_dollar'];
+					$data['sales_total_cordobas'] += $applied['applied_cordoba'];
 				}
 
 				/*if( !$s->pos_paid ){
