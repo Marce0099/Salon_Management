@@ -68,6 +68,7 @@ class Products extends Admin_Controller{
 				if( $this->form_validation->run() ){
 
 					$data = $this->input->post();
+					unset($data['tk']);
 
 					if (empty($data['barcode'])) {
 						$data['barcode'] = NULL;
@@ -81,6 +82,8 @@ class Products extends Admin_Controller{
 						$data['id_provider'] = NULL;
 
 					$this->products_mdl->save( $data );
+
+					$this->session->set_userdata('tk', '');
 
 					$response = array( 'type' => 'success', 'message' => 'Producto agregado al inventario' );
 

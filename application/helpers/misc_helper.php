@@ -4,14 +4,7 @@
 
 		$CI =& get_instance();
 
-		$submitted = $CI->input->post() != NULL && $CI->input->post('tk') == $CI->session->userdata('tk');
-
-		if( $submitted ){
-
-			$CI->session->set_userdata('tk','');
-		}
-
-		return $submitted;
+		return $CI->input->post() != NULL && $CI->input->post('tk') == $CI->session->userdata('tk');
 	}
 
 	function toAscii($url = NULL){
