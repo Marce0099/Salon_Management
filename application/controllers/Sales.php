@@ -766,7 +766,7 @@ class Sales extends Admin_Controller{
 	}
 
 	public function goal(){
-		if($this->get_userID() !== 1){
+		if(!$this->is_admin()){
 			echo "No se encontro resultado para esta pagina";
 			exit;
 		}

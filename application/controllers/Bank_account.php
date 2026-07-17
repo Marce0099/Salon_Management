@@ -11,7 +11,7 @@ class Bank_account extends Admin_Controller{
 	public function index(){
 		$view_data = load_data($this->session);
 		$this->content_data['accounts'] = $this->bank_account_mdl->getAccounts();
-		$this->content_data['privilege'] = $this->get_userID() == 1? true : false;
+		$this->content_data['privilege'] = $this->is_admin();
 		$this->content_data = array_merge($this->content_data, $view_data);
 		$this->renderPanel('form_bank_account');
 	}

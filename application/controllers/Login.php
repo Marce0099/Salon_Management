@@ -40,6 +40,7 @@
 				
 				$this->session->set_userdata('id_admin', $result->id_admin);
 				$this->session->set_userdata('admin_name', $result->name);
+				$this->session->set_userdata('role', $result->role);
 
 				redirect('panel');
 			}
@@ -53,6 +54,7 @@
 
 			$this->session->set_userdata('id_admin','');
 			$this->session->set_userdata('admin_name','');
+			$this->session->set_userdata('role','');
 			redirect('login');
 		}
 	}

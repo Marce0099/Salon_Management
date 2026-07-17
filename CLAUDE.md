@@ -56,7 +56,7 @@ Check these files when working in the relevant area:
 
 | Table | PK | Key columns | Purpose |
 |---|---|---|---|
-| `admins` | `id_admin` | `username`, `password` (varchar 40 — MD5/SHA1), `name` | System login accounts |
+| `admins` | `id_admin` | `username`, `password` (varchar 40 — SHA1), `role` ENUM('administrador','trabajador') NOT NULL DEFAULT 'trabajador' (gates admin-only pages/actions via `Admin_Controller::is_admin()`), `active` TINYINT(1) NOT NULL DEFAULT 1 (soft-delete; 0 = hidden from `/admins/list` and rejected at login), `name` | System login accounts |
 | `employees` | `id_employee` | `name`, `phone`, `active` TINYINT(1) DEFAULT 1 (soft-delete; 0 = hidden from lists) | Sales staff assigned to sales |
 | `clients` | `id_client` | `id_card_client` VARCHAR(50) DEFAULT NULL UNIQUE (national ID — nullable; multiple NULLs allowed by MySQL UNIQUE), `name_client`, `surname_client`, `birth_client`, `is_vip_client` TINYINT, `active` TINYINT(1) DEFAULT 1 (soft-delete; 0 = hidden from lists) | Customer profiles |
 | `products` | `id_product` | `barcode` (UNIQUE), `name`, `description` TEXT, `price_cost` VARCHAR, `price_sell` VARCHAR, `stock`, `is_service` TINYINT (1 = no stock deducted on sale), `commisssion_rate` DECIMAL, `id_provider`->`providers.id_provider`, `active` TINYINT(1) DEFAULT 1 (soft-delete; 0 = hidden from lists) | Product catalog + live stock levels |

@@ -16,11 +16,13 @@ class Admin_Controller extends MX_Controller{
 	protected $content_data = array();
 	protected $footer_data = array();
 	protected $id_admin = 0;
+	protected $role = '';
 
 	public function __construct(){
-		
+
 		parent::__construct();
 		$this->id_admin = $this->session->userdata('id_admin');
+		$this->role = $this->session->userdata('role');
 
 		if( !$this->id_admin ){
 
@@ -40,6 +42,10 @@ class Admin_Controller extends MX_Controller{
 
 	public function get_userID(){
 		return $this->id_admin;
+	}
+
+	public function is_admin(){
+		return $this->role === 'administrador';
 	}
 
 }

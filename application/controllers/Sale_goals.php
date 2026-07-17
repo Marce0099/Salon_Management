@@ -10,7 +10,7 @@ class Sale_goals extends Admin_Controller{
 
 	public function index(){
 
-		if($this->get_userID() !== 1){
+		if(!$this->is_admin()){
 			echo "No se encontro resultado para esta pagina";
 			exit;
 		}

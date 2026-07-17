@@ -72,7 +72,7 @@
                       <li><a href="<?php echo base_url('sales/historial'); ?>">Historial</a></li>
                       <li><a href="<?php echo base_url('sales/register'); ?>">Registrar</a></li>
 
-                      <?php if($this->controller->get_userID() == 1){ ?>
+                      <?php if($this->controller->is_admin()){ ?>
                       <li><a href="<?php echo base_url('sale_goals'); ?>">Meta Mensual</a></li>
                       <?php } ?>
                       <!--<li><a href="<?php //echo base_url('sales/returns'); ?>">Devoluciones</a></li>-->
@@ -120,6 +120,9 @@
                     <ul class="nav child_menu">
                       <li><a href="<?php echo base_url('dollar_exchange'); ?>">Tipo de cambio</a></li>
                       <li><a href="<?php echo base_url('bank_account'); ?>">Cuentas Bancarias</a></li>
+                      <?php if($this->controller->is_admin()){ ?>
+                      <li><a href="<?php echo base_url('admins/list'); ?>">Administradores</a></li>
+                      <?php } ?>
                     </ul>
                   </li>
                   <!--<li><a href="<?php //echo base_url('dollar_exchange'); ?>"><i class="fa fa-cog"></i> Tipo de cambio</a></li>-->
