@@ -46,4 +46,9 @@
 		return !empty($_POST);
 	}
 
+	function generateToken(){
+
+		return md5(uniqid(mt_rand(), true));
+	}
+
 ?>

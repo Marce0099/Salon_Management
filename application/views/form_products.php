@@ -52,6 +52,7 @@
             <input type="text" data-parsley-type="integer" name="stock" id="stock" class="form-control" value="<?php if($product){ echo $product->stock; }else{ echo '0'; } ?>">
         </div>
 	</div>
+	<input type="hidden" name="tk" value="<?php echo $tk; ?>">
 	<?php endif; ?>
 	<div class="form-group">
 		<label class="control-label col-md-3 col-sm-3 col-xs-12" for="id_provider">Proveedor:

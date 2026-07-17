@@ -46,14 +46,6 @@ class Products_mdl extends CI_Model{
 		$this->db->update('products',$data,array( 'id_product' => $id_product ));
 	}
 
-	public function edit_barcode( $data ){
-
-		$data['last_update'] = NULL;
-		$barcode = $data['barcode'];
-		unset($data['barcode']);
-		$this->db->update('products',$data,array( 'barcode' => $barcode ));
-	}
-
 	public function delete( $id_product ){
 
 		$this->db->where('id_product', $id_product);

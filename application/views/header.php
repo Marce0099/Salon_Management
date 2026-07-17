@@ -81,7 +81,9 @@
                   <li><a><i class="fa fa-list"></i> Inventario <span class="fa fa-chevron-down"></span></a>
                     <ul class="nav child_menu">
                       <li><a href="<?php echo base_url('products'); ?>">Productos</a></li>
+                      <?php if($this->controller->is_admin()){ ?>
                       <li><a href="<?php echo base_url('products/register'); ?>">Registrar producto</a></li>
+                      <?php } ?>
                     </ul>
                   </li>
                   <li><a><i class="fa fa-truck"></i> Proveedores <span class="fa fa-chevron-down"></span></a>
