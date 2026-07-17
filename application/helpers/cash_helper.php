@@ -59,4 +59,45 @@
 		);
 	}
 
+	/* Ratio of a sale's real (bank/coupon-absorption-netted) córdoba revenue to its gross,
+	   post-manual-discount invoice total. Mirrors the pos/cupon netting math in
+	   Cash_mdl::getCashMovements() exactly, so the two can't diverge in intent. Cash and
+	   transfer payments never reduce revenue relative to the invoice, so only 'pos' and
+	   'cupon' rows contribute a loss. */
+	function saleRealProfitRatio( $sale_payments, $sell_rate, $gross_cordobas ){
+
+		if( $gross_cordobas <= 0 )
+			return 1;
+
+		$loss = 0;
+
+		foreach( $sale_payments as $spa ){
+
+			if( $spa->payment_method === 'pos' ){
+
+				$cor = floatval($spa->cordoba ?? 0);
+				$dol = floatval($spa->dolar ?? 0) * $sell_rate;
+				$tendered = $cor + $dol;
+				$tax_rate = floatval($spa->tax_rate ?? 0);
+
+				$loss += $tendered * ( $tax_rate / 100 );
+
+			}else if( $spa->payment_method === 'cupon' ){
+
+				$cor = floatval($spa->cordoba ?? 0);
+				$discount = floatval($spa->cupon_discount_rate ?? 0);
+
+				$loss += $cor * ( $discount / 100 );
+			}
+			// cash / transfer: full amount recognized, no netting — intentionally ignored
+		}
+
+		$ratio = ( $gross_cordobas - $loss ) / $gross_cordobas;
+
+		if( $ratio < 0 ) $ratio = 0;
+		if( $ratio > 1 ) $ratio = 1;
+
+		return $ratio;
+	}
+
 ?>

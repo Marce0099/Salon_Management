@@ -163,7 +163,6 @@ class Employees extends Admin_Controller{
 			$data['interface'] = $this->employees_mdl;
 			$data['date_start'] = $date_start;
 			$data['date_end'] = $date_end;
-			$data['exchange'] = $this->db->get('dollar_exchange')->row();
 
 			$this->content_data = $data;
 			$this->renderPanel('employee_commissions');
