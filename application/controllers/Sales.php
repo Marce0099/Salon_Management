@@ -92,6 +92,16 @@ class Sales extends Admin_Controller{
 			$commission_rate = $this->input->post('commission_rate');
 			$my_product = $this->input->post('my_product');
 
+			foreach( $discounts as $discount ){
+				if( $discount !== '' && ( !is_numeric($discount) || $discount < 0 || $discount > 100 ) ){
+
+					$response['type'] = 'error';
+					$response['message'] = 'El descuento debe ser un valor numérico entre 0 y 100';
+					echo json_encode($response);
+					exit();
+				}
+			}
+
 			$sale['client'] = $this->input->post('id_client');
 			$sale['id_employee'] = $this->input->post('id_employee') ? $this->input->post('id_employee') : NULL;
 			//$sale['pos_paid'] = $this->input->post('pos_paid') ? 1 : 0;

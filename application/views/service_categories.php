@@ -24,12 +24,20 @@
 	<thead>
 		<tr>
 			<th>Categoría</th>
+			<th>Descuento</th>
+			<?php if( $this->controller->is_admin() ) : ?>
+			<th>Acciones</th>
+			<?php endif; ?>
 		</tr>
 	</thead>
 	<tbody>
 		<?php foreach( $categorias as $c ) : ?>
 		<tr>
 			<td><?php echo $c->name_category; ?></td>
+			<td><?php echo $c->discount_rate !== NULL ? $c->discount_rate.'%' : '—'; ?></td>
+			<?php if( $this->controller->is_admin() ) : ?>
+			<td><a href="<?php echo base_url('service_categories/edit/'.$c->id_service_category); ?>" class="btn btn-default btn-xs">Editar</a></td>
+			<?php endif; ?>
 		</tr>
 		<?php endforeach; ?>
 	</tbody>

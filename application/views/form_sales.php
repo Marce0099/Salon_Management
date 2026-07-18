@@ -599,6 +599,10 @@
 		row.find('.form-ids').val(p.id_product);
 		row.find('.p-commission_rate').val(p.commisssion_rate);
 
+		if( p.is_service == '1' && p.category_discount_rate !== null && p.category_discount_rate !== '' ){
+			row.find('.p-discount').val( p.category_discount_rate );
+		}
+
 		$('#sales-list').append(row);
 		$('#barcode').val('');
 

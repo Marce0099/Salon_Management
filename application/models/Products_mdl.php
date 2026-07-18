@@ -113,25 +113,28 @@ class Products_mdl extends CI_Model{
 
 	public function searchAvailable($barcode = '', $name = '', $type = 'all'){
 
-		$sql = 'SELECT id_product, barcode, name, price_sell, is_service, commisssion_rate
-		        FROM products WHERE active = 1 AND (is_service = 1 OR stock > 0)';
+		$sql = 'SELECT products.id_product, products.barcode, products.name, products.price_sell,
+		               products.is_service, products.commisssion_rate, service_category.discount_rate AS category_discount_rate
+		        FROM products
+		        LEFT JOIN service_category USING(id_service_category)
+		        WHERE products.active = 1 AND (products.is_service = 1 OR products.stock > 0)';
 
 		if( !empty($barcode) ){
 			$safe = $this->db->escape_like_str($barcode);
-			$sql .= ' AND barcode LIKE "%'.$safe.'%"';
+			$sql .= ' AND products.barcode LIKE "%'.$safe.'%"';
 		}
 		if( !empty($name) ){
 			$safe = $this->db->escape_like_str($name);
-			$sql .= ' AND name LIKE "%'.$safe.'%"';
+			$sql .= ' AND products.name LIKE "%'.$safe.'%"';
 		}
 		if( $type === 'products' ){
-			$sql .= ' AND is_service = 0';
+			$sql .= ' AND products.is_service = 0';
 		}
 		elseif( $type === 'services' ){
-			$sql .= ' AND is_service = 1';
+			$sql .= ' AND products.is_service = 1';
 		}
 
-		$sql .= ' ORDER BY name ASC LIMIT 50';
+		$sql .= ' ORDER BY products.name ASC LIMIT 50';
 
 		return $this->db->query($sql)->result();
 	}
