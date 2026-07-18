@@ -143,6 +143,16 @@ class Easysearch{
 			}
 		}
 
+		if( !empty($where) ){
+
+			$last_and = strrpos($where,'and');
+
+			if( $last_and ){
+
+				$where = substr_replace($where,'',$last_and,strlen('and'));
+			}
+		}
+
 		if( !empty($this->initial_where) ){
 
 			if( !empty($where) ){
@@ -158,13 +168,6 @@ class Easysearch{
 		if( !empty($where) ){
 
 			$where = ' where ' . $where;
-			$last_and = strrpos($where,'and');
-
-			if( $last_and ){
-
-				$where = substr_replace($where,'',$last_and,strlen('and'));
-			}
-			
 		}
 
 		$this->query = $this->config['query'] . $where;

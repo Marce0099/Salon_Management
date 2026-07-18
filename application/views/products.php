@@ -115,7 +115,7 @@
 		<?php foreach( $products as $p ) : ?>
 		<tr>
 			<td><?php echo $p->barcode; ?><span class="hide p-id_product"><?php echo $p->id_product; ?></span></td>
-			<td><?php echo $p->name; if($p->is_service) echo ' (servicio)'; ?></td>
+			<td><?php echo $p->name; ?></td>
 			<td>
 			<?php echo $p->provider; ?>
 			</td>

@@ -35,7 +35,11 @@ class Products_mdl extends CI_Model{
 
 	public function getProduct( $id_product ){
 
-		$sql = 'select P.*,PV.provider from products P left outer join providers PV on P.id_provider = PV.id_provider where id_product = '.$id_product;
+		$sql = 'select P.*, PV.provider, SC.name_category
+		        from products P
+		        left outer join providers PV on P.id_provider = PV.id_provider
+		        left outer join service_category SC on P.id_service_category = SC.id_service_category
+		        where id_product = '.$id_product;
 
 		return $this->db->query( $sql )->row();
 	}

@@ -30,7 +30,7 @@ class Products extends Admin_Controller{
 			'price_sell' => array( 'column' => 'price_sell', 'type' => 'numeric' )
 		);
 
-		$this->easysearch->setInitialWhere('products.active=1');
+		$this->easysearch->setInitialWhere('products.active=1 and products.is_service=0');
 		$data = $this->easysearch->search($search);
 
 		$data['total_inventory'] = $this->products_mdl->getTotalInventory(array_filter($_GET),$data['query_no_limit']);
@@ -50,6 +50,19 @@ class Products extends Admin_Controller{
 		$this->form_validation->set_rules('price_sell','required|numeric');
 		$this->form_validation->set_rules('price_cost','required|numeric');
 		$this->form_validation->set_rules('commisssion_rate','numeric');
+		$this->form_validation->set_rules('id_service_category','numeric');
+	}
+
+	private function resolveServiceCategory( $data ){
+
+		if( empty($data['id_service_category']) ){
+
+			return NULL;
+		}
+
+		$exists = $this->db->get_where('service_category', array( 'id_service_category' => $data['id_service_category'] ))->row();
+
+		return $exists ? $data['id_service_category'] : NULL;
 	}
 
 	public function register(){
@@ -81,11 +94,14 @@ class Products extends Admin_Controller{
 					if(!$data['id_provider'])
 						$data['id_provider'] = NULL;
 
+					$data['id_service_category'] = $this->resolveServiceCategory( $data );
+
 					$this->products_mdl->save( $data );
 
-					$this->session->set_userdata('tk', '');
+					$new_tk = generateToken();
+					$this->session->set_userdata('tk', $new_tk);
 
-					$response = array( 'type' => 'success', 'message' => 'Producto agregado al inventario' );
+					$response = array( 'type' => 'success', 'message' => 'Producto agregado al inventario', 'tk' => $new_tk );
 
 					echo json_encode( $response );
 				}
@@ -162,6 +178,8 @@ class Products extends Admin_Controller{
 
 					if(!$data['id_provider'])
 						$data['id_provider'] = NULL;
+
+					$data['id_service_category'] = $this->resolveServiceCategory( $data );
 
 					$this->products_mdl->edit( $id_product, $data );
 

@@ -86,6 +86,15 @@
                       <?php } ?>
                     </ul>
                   </li>
+                  <li><a><i class="fa fa-cut"></i> Servicios <span class="fa fa-chevron-down"></span></a>
+                    <ul class="nav child_menu">
+                      <li><a href="<?php echo base_url('services'); ?>">Lista</a></li>
+                      <?php if($this->controller->is_admin()){ ?>
+                      <li><a href="<?php echo base_url('products/register?is_service=1'); ?>">Crear Servicio</a></li>
+                      <?php } ?>
+                      <li><a href="<?php echo base_url('service_categories'); ?>">Categorias</a></li>
+                    </ul>
+                  </li>
                   <li><a><i class="fa fa-truck"></i> Proveedores <span class="fa fa-chevron-down"></span></a>
                     <ul class="nav child_menu">
                       <li><a href="<?php echo base_url('providers'); ?>">Listado</a></li>
