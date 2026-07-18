@@ -507,8 +507,12 @@ class Sales extends Admin_Controller{
 			if( !$prnt )
 				$message .= '<p>No ha sido posible imprimir la factura</p>';
 
+			$new_tk = generateToken();
+			$this->session->set_userdata('tk', $new_tk);
+
 			$response['message'] = $message;
 			$response['type'] = 'success';
+			$response['tk'] = $new_tk;
 			echo json_encode($response);
 		}
 		else{
@@ -716,6 +720,8 @@ class Sales extends Admin_Controller{
 
 		$data['employees'] = $this->db->query('select * from employees')->result();
 		$data['exchange'] = $this->db->get('dollar_exchange')->row();
+		$data['tk'] = generateToken();
+		$this->session->set_userdata('tk', $data['tk']);
 		$this->content_data = $data;
 		$this->content_data['accounts'] = $this->bank_account_mdl->getAccounts();
 		$this->renderPanel('form_sales');

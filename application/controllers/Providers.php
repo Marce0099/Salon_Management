@@ -63,7 +63,10 @@ class Providers extends Admin_Controller{
 				return;
 			}
 
-			echo json_encode(array('message'=>'Proveedor registrado correctamente','type'=>'success'));
+			$new_tk = generateToken();
+			$this->session->set_userdata('tk', $new_tk);
+
+			echo json_encode(array('message'=>'Proveedor registrado correctamente','type'=>'success','tk'=>$new_tk));
 		}
 		else{
 
@@ -107,7 +110,10 @@ class Providers extends Admin_Controller{
 				return;
 			}
 
-			echo json_encode(array('message'=>'Proveedor editado correctamente','type'=>'success','edit'=>true));
+			$new_tk = generateToken();
+			$this->session->set_userdata('tk', $new_tk);
+
+			echo json_encode(array('message'=>'Proveedor editado correctamente','type'=>'success','edit'=>true,'tk'=>$new_tk));
 		}
 		else{
 
@@ -117,8 +123,10 @@ class Providers extends Admin_Controller{
 
 	private function form_providers( $view_data = array() ){
 
+		$view_data['tk'] = generateToken();
+		$this->session->set_userdata('tk', $view_data['tk']);
 		$this->content_data = $view_data;
-		$this->renderPanel('form_providers');	
+		$this->renderPanel('form_providers');
 	}
 
 	public function delete( $id_provider = 0 ){

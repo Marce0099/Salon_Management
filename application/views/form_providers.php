@@ -15,6 +15,7 @@
 
 <div class="col-md-4">
 	<form action="<?php echo $url; ?>" class="form-horizontal" data-parsley-validate autocomplete="off" onsubmit="return false;" spellcheck="false" id="form">
+		<input type="hidden" name="tk" value="<?php echo $tk; ?>">
 		<div class="form-group">
 			<label for="provider">Empresa:</label>
 			<input type="text" name="provider" id="provider" class="form-control" value="<?php if($provider) echo $provider->provider; ?>">
@@ -52,7 +53,8 @@
 	  		provider       : $('#provider').val(),
 	  		representative : $('#representative').val(),
 	  		phone_provider : $('#phone_provider').val(),
-	  		email_provider : $('#email_provider').val()
+	  		email_provider : $('#email_provider').val(),
+	  		tk             : $('input[name="tk"]').val()
 	  	};
 
 	  	btn.attr('disabled','true');
@@ -80,6 +82,10 @@
 		        	$('#representative').val('');
 		        	$('#phone_provider').val('');
 		        	$('#email_provider').val('');
+		        }
+
+		        if( data.tk ){
+		        	$('input[name="tk"]').val(data.tk);
 		        }
 	  		},
 	  		error : function(){

@@ -1,6 +1,7 @@
 <h4 class="section-title">Apertura de caja</h4>
 
 <form action="<?php echo base_url('cash/open') ?>" method="post" class="form-horizontal col-md-3" autocomplete="off" spellcheck="false" id="form">
+	<input type="hidden" name="tk" value="<?php echo $tk; ?>">
 	<div class="form-group">
 		<div>
 			<label for="quantity">Monto de apertura (Córdobas):

@@ -133,6 +133,8 @@ class Cash extends Admin_Controller{
 		else{
 
 			$this->content_data = load_data($this->session);
+			$this->content_data['tk'] = generateToken();
+			$this->session->set_userdata('tk', $this->content_data['tk']);
 			$this->renderPanel('form_open_cash');
 		}
 	}
@@ -183,6 +185,8 @@ class Cash extends Admin_Controller{
 		else{
 
 			$this->content_data = load_data($this->session);
+			$this->content_data['tk'] = generateToken();
+			$this->session->set_userdata('tk', $this->content_data['tk']);
 			$this->renderPanel('form_outcomes');
 		}
 	}
@@ -275,6 +279,8 @@ class Cash extends Admin_Controller{
 	private function close_form( $view_data = array() ){
 
 		$view_data['cash'] = $this->cash_mdl->getCashMovements();
+		$view_data['tk'] = generateToken();
+		$this->session->set_userdata('tk', $view_data['tk']);
 		$this->content_data = $view_data;
 
 		$this->renderPanel('form_close_cash');

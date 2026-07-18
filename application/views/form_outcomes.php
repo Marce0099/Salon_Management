@@ -1,6 +1,7 @@
 <h4 class="section-title">Formulario de Egresos</h4>
 
 <form action="<?php echo base_url('cash/register_outcome') ?>" method="post" class="form-horizontal col-md-3" autocomplete="off" spellcheck="false" id="form">
+	<input type="hidden" name="tk" value="<?php echo $tk; ?>">
 	<div class="form-group">
 		<div>
 			<label for="quantity">Monto:

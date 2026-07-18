@@ -1,6 +1,7 @@
 <h4 class="section-title">Formulario de ventas</h4>
 
 <form action="<?php echo base_url('sales/register'); ?>" method="post" class="form-horizontal form-label-left" autocomplete="off" spellcheck="false" id="form" onsubmit="return false;">
+	<input type="hidden" name="tk" value="<?php echo $tk; ?>">
 	<table class="table table-hover table-bordered" id="products-sale">
 		<thead>
 			<tr>
@@ -1097,6 +1098,10 @@
 		            styling : 'bootstrap3',
 		            delay : data.type == 'success' ? 10000 : 3500
 		        });
+
+		        if( data.tk ){
+		        	$('input[name="tk"]').val(data.tk);
+		        }
 
 		        if( data.type == 'success' ){
 

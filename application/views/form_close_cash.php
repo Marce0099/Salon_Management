@@ -5,6 +5,7 @@
 </div>
 
 <form action="<?php echo base_url('cash/close') ?>" method="post" class="form-horizontal" autocomplete="off" spellcheck="false" id="form">
+	<input type="hidden" name="tk" value="<?php echo $tk; ?>">
 	<h4>Ingrese las denominaciones del efectivo en caja</h4>
 	<table class="table table-bordered currencies currencies-cordobas">
 		<thead>
