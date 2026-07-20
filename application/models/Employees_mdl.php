@@ -38,6 +38,13 @@ class Employees_mdl extends CI_Model{
 		return $this->db->get('employees')->result();
 	}
 
+	public function getActiveEmployees(){
+
+		$sql = 'select id_employee, name from employees where active = 1 order by name asc';
+
+		return $this->db->query( $sql )->result();
+	}
+
 	public function getSales( $id_employee, $date_start, $date_end ){
 
 		$date_start = date('Y-m-d',strtotime($date_start));

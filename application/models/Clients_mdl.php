@@ -84,4 +84,18 @@ class Clients_mdl extends CI_Model{
 
 		return $this->db->query($sql)->result();
 	}
+
+	public function searchActiveByTerm($term){
+
+		$safe = $this->db->escape_like_str($term);
+
+		$sql = 'SELECT id_client, id_card_client, name_client, surname_client, phone_client, email_client
+		        FROM clients WHERE active = 1
+		        AND (name_client LIKE "%'.$safe.'%"
+		             OR surname_client LIKE "%'.$safe.'%"
+		             OR CONCAT(name_client, " ", surname_client) LIKE "%'.$safe.'%")
+		        ORDER BY name_client ASC LIMIT 50';
+
+		return $this->db->query($sql)->result();
+	}
 }

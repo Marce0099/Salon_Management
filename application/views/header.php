@@ -137,6 +137,7 @@
                     </ul>
                   </li>
                   <!--<li><a href="<?php //echo base_url('dollar_exchange'); ?>"><i class="fa fa-cog"></i> Tipo de cambio</a></li>-->
+                  <li><a href="<?php echo base_url('appointments'); ?>"><i class="fa fa-calendar"></i> Reservas</a></li>
                 </ul>
               </div>
 

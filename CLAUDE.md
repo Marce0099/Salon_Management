@@ -63,6 +63,13 @@ Check these files when working in the relevant area:
 | `providers` | `id_provider` | `provider` VARCHAR(150) DEFAULT NULL (company name — optional), `representative` VARCHAR(150) NOT NULL DEFAULT '' (contact person — required on new records), `phone_provider` VARCHAR(20) DEFAULT NULL, `email_provider` VARCHAR(100) DEFAULT NULL, `active` TINYINT(1) DEFAULT 1 (soft-delete; 0 = hidden from lists and invoice form) | Supplier/brand names |
 | `service_category` | `id_service_category` | `name_category` VARCHAR(150) UNIQUE NOT NULL, `discount_rate` DECIMAL(5,2) NULL DEFAULT NULL (percentage 0–100; auto-fills the invoice line discount when a service in this category is added to a sale in `form_sales.php`, still editable per line at sale time; NULL = no default discount) | Optional categories for service-type products; managed via `/service_categories` (admin-only create/edit), no soft-delete |
 
+### Appointments
+
+| Table | PK | Key columns | Purpose |
+|---|---|---|---|
+| `appointments` | `id_appointment` | `id_client`->`clients.id_client` (`ON DELETE CASCADE`), `id_admin`->`admins.id_admin` (`ON DELETE CASCADE`; who booked it, audit only), `id_employee`->`employees.id_employee` (`ON DELETE SET NULL`; nullable; which employee performs the appointment — live-only column, not yet in the checked-in SQL dump, same as `products.active`), `start_datetime`/`end_datetime` DATETIME NOT NULL, `notes` TEXT NULL | Client service reservation, independent of the sales/billing flow; viewable via `/appointments` (month calendar, day cells show only a reservation-count badge) and booked/viewed in detail via `/appointments/schedule/:date` (a per-employee hourly grid, 24 one-hour columns starting 01:00 through 00:00 the next day), deletable only by admins (`Appointments::delete()` gates on `is_admin()`) |
+| `appointment_services` | `id_appointment_service` | `id_appointment`->`appointments.id_appointment` (`ON DELETE CASCADE`), `id_product`->`products.id_product` (`ON DELETE CASCADE`; product where `is_service=1`) | Junction table — one or more services requested per appointment |
+
 ### Sales flow
 
 | Table | PK | Key columns | Links |

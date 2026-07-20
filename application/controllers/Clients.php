@@ -265,6 +265,14 @@ class Clients extends Admin_Controller{
 
 	public function searchClients(){
 
+		$term = $this->input->post('term');
+
+		if( !empty($term) ){
+			$data['clients'] = $this->clients_mdl->searchActiveByTerm($term);
+			echo json_encode($data);
+			return;
+		}
+
 		$id_card_client = $this->input->post('id_card_client');
 		$name_client    = $this->input->post('name_client');
 		$surname_client = $this->input->post('surname_client');
