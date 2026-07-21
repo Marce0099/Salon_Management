@@ -187,6 +187,30 @@ class Cash_mdl extends CI_Model{
 
 		$data['sales'] = $sales;
 
+		//cancelled appointments' forfeited deposits (no-refund policy; never became a sale)
+		$exchange = $this->db->get('dollar_exchange')->row();
+
+		$data['cancelled_deposits'] = $this->db->query(
+			'select a.id_appointment, a.cancelled_at, c.name_client, c.surname_client,
+			        ap.account, ba.name_account, ap.cordoba, ap.dolar
+			 from appointments a
+			 inner join appointment_payments ap on ap.id_appointment = a.id_appointment
+			 inner join clients c on c.id_client = a.id_client
+			 left join bank_account ba on ba.id_account = ap.account
+			 where a.active = 0
+			 and date(a.cancelled_at) = date('.$date.')'
+		)->result();
+
+		$data['cancelled_deposits_total'] = 0;
+
+		foreach( $data['cancelled_deposits'] as $cd ){
+
+			$total_cor = floatval($cd->cordoba) + ( floatval($cd->dolar) * $exchange->sell_price );
+			$cd->total_cordobas = $total_cor;
+
+			$data['cancelled_deposits_total'] += $total_cor;
+		}
+
 		//outcomes
 		$data['outcomes'] = $this->db->query('select O.*,A.name from outcomes O inner join admins A on O.id_admin = A.id_admin where date(O.date_time) = date('.$date.')')->result();
 

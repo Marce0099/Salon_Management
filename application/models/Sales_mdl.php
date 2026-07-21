@@ -48,6 +48,11 @@ class Sales_mdl extends CI_Model{
 		return $this->db->query($sql)->result();
 	}
 
+	public function getByAppointment( $id_appointment ){
+
+		return $this->db->get_where( 'sales', array( 'id_appointment' => $id_appointment ) )->row();
+	}
+
 	public function getSale($id_sale){
 
 		/*$sql = 'select S.*,E.* from sales S left outer join employees E on

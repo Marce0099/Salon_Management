@@ -17,6 +17,8 @@ class Sales extends Admin_Controller{
 		$this->load->model('cash_mdl');
 		$this->load->model('payments_mdl');
 		$this->load->model('bank_account_mdl');
+		$this->load->model('appointments_mdl');
+		$this->load->model('appointment_payments_mdl');
 	}
 
 	private function format_columns( $col_1, $col_2, $col_3 ){
@@ -73,7 +75,7 @@ class Sales extends Admin_Controller{
 		$this->renderPanel('sales',$data);
 	}
 
-	public function register(){
+	public function register( $id_appointment = 0 ){
 
 		if( !$this->cash_mdl->getOpenedCash() ){
 
@@ -122,13 +124,36 @@ class Sales extends Admin_Controller{
 				exit();
 			}
 
-			$payment_methods = $this->input->post('payment_method');
-			$cordobas_inputs = $this->input->post('cordobas_input');
-			$dolar_inputs = $this->input->post('dolar_input');
-			$account_numbers = $this->input->post('account_number');
-			$cupon_codes = $this->input->post('cupon_code');
-			$cupon_amounts = $this->input->post('cupon_amount');
-			$cupon_discounts = $this->input->post('cupon_discount_rate');
+			/* continuation of an appointment's booking deposit into a full sale, if posted */
+			$posted_id_appointment = (int) $this->input->post('id_appointment');
+			$appointment_deposit = null;
+
+			if( $posted_id_appointment > 0 ){
+
+				if( $this->sales_mdl->getByAppointment( $posted_id_appointment ) ){
+
+					$response['type'] = 'error';
+					$response['message'] = 'Esta reserva ya fue facturada';
+					echo json_encode($response);
+					exit();
+				}
+
+				$posted_appointment = $this->appointments_mdl->getAppointment( $posted_id_appointment );
+
+				if( $posted_appointment ){
+					$sale['client'] = $posted_appointment->id_client;
+				}
+
+				$appointment_deposit = $this->appointment_payments_mdl->getForAppointment( $posted_id_appointment );
+			}
+
+			$payment_methods = $this->input->post('payment_method') ?: array();
+			$cordobas_inputs = $this->input->post('cordobas_input') ?: array();
+			$dolar_inputs = $this->input->post('dolar_input') ?: array();
+			$account_numbers = $this->input->post('account_number') ?: array();
+			$cupon_codes = $this->input->post('cupon_code') ?: array();
+			$cupon_amounts = $this->input->post('cupon_amount') ?: array();
+			$cupon_discounts = $this->input->post('cupon_discount_rate') ?: array();
 
 			foreach( $payment_methods as $pm ){
 				if( !in_array($pm, array('cash','pos','transfer','cupon')) ){
@@ -188,6 +213,18 @@ class Sales extends Admin_Controller{
 
 				if( $product && $product->is_service )
 					$services_total_cordobas += $subtotal_cordobas;
+			}
+
+			/* an appointment's frozen booking deposit is credited against the invoice total before any
+			   payment-sufficiency math runs below; it was fixed at booking time and never re-validated
+			   against overpay rules here since it's already-collected money, not a new payment decision */
+			$deposit_cordoba_equivalent = 0;
+			$remaining_cordobas = $total_cordobas;
+
+			if( $appointment_deposit ){
+
+				$deposit_cordoba_equivalent = floatval($appointment_deposit->cordoba) + ( floatval($appointment_deposit->dolar) * $exchange->sell_price );
+				$remaining_cordobas = max( $total_cordobas - $deposit_cordoba_equivalent, 0 );
 			}
 
 			/* coupon uniqueness + sequential coverage + aggregate non-cash overpay rejection (mirrors the JS check);
@@ -261,7 +298,7 @@ class Sales extends Admin_Controller{
 			}
 
 			/* only cash may cover an overpayment (it gives change); POS/transfer/cupon combined can't exceed the total */
-			if( $non_cash_total - $total_cordobas > 0.01 ){
+			if( $non_cash_total - $remaining_cordobas > 0.01 ){
 
 				$response['type'] = 'error';
 				$response['message'] = 'El total de pagos con POS, transferencia y/o cupón no puede exceder el total de la factura. El efectivo debe cubrir cualquier excedente.';
@@ -286,7 +323,7 @@ class Sales extends Admin_Controller{
 			/* check cash available + validate/persist the cashier's change-given split */
 
 			$has_cash = in_array('cash', $payment_methods);
-			$debt_after_non_cash = $total_cordobas - $non_cash_total;
+			$debt_after_non_cash = $remaining_cordobas - $non_cash_total;
 
 			$overpayment_cordobas = $has_cash
 				? cashOverpaymentCordobas( $debt_after_non_cash, $cash_cordoba_raw, $cash_dolar_raw, $exchange->sell_price )
@@ -354,6 +391,8 @@ class Sales extends Admin_Controller{
 					exit();
 				}
 			}
+
+			$sale['id_appointment'] = $posted_id_appointment > 0 ? $posted_id_appointment : NULL;
 
 			$this->db->trans_start();
 			$id_sale = $this->sales_mdl->saveSale( $sale );
@@ -455,6 +494,23 @@ class Sales extends Admin_Controller{
 				}
 			}unset($pay);
 
+			if( $appointment_deposit ){
+
+				$payment_to_save[] = array(
+					"id_sale" => $id_sale,
+					"payment_method" => "transfer",
+					"account" => $appointment_deposit->account,
+					"cupon_code" => null,
+					"cupon_discount_rate" => null,
+					"cordoba" => $appointment_deposit->cordoba,
+					"dolar" => $appointment_deposit->dolar,
+					"tax_rate" => null,
+					"change_cordoba_given" => null,
+					"change_dollar_given" => null,
+					"change_rounding_cordoba" => null,
+				);
+			}
+
 			$this->payments_mdl->savePayment( $payment_to_save );
 			
 			$total_cordobas = 0;
@@ -526,7 +582,7 @@ class Sales extends Admin_Controller{
 			echo json_encode($response);
 		}
 		else{
-			$this->sale_form();
+			$this->sale_form( (int) $id_appointment );
 		}
 	}
 
@@ -726,7 +782,7 @@ class Sales extends Admin_Controller{
 		}
 	}
 
-	public function sale_form(){
+	public function sale_form( $id_appointment = 0 ){
 
 		$data['employees'] = $this->db->query('select * from employees')->result();
 		$data['exchange'] = $this->db->get('dollar_exchange')->row();
@@ -734,7 +790,52 @@ class Sales extends Admin_Controller{
 		$this->session->set_userdata('tk', $data['tk']);
 		$this->content_data = $data;
 		$this->content_data['accounts'] = $this->bank_account_mdl->getAccounts();
+		$this->content_data['prefill'] = $this->buildAppointmentPrefill( (int) $id_appointment, $data['exchange'] );
 		$this->renderPanel('form_sales');
+	}
+
+	private function buildAppointmentPrefill( $id_appointment, $exchange ){
+
+		if( $id_appointment <= 0 ){
+
+			return NULL;
+		}
+
+		$appointment = $this->appointments_mdl->getAppointment( $id_appointment );
+
+		if( !$appointment || $this->appointments_mdl->isInvoiced( $id_appointment ) ){
+
+			return NULL;
+		}
+
+		$client = $this->db->get_where('clients', array( 'id_client' => $appointment->id_client ))->row();
+
+		$sql = 'select p.id_product, p.barcode, p.name, p.price_sell, p.is_service, p.commisssion_rate,
+		               sc.discount_rate as category_discount_rate
+		        from appointment_services aps
+		        join products p on p.id_product = aps.id_product
+		        left join service_category sc on sc.id_service_category = p.id_service_category
+		        where aps.id_appointment = '.(int) $id_appointment;
+
+		$products = $this->db->query( $sql )->result();
+
+		$deposit = $this->appointment_payments_mdl->getForAppointment( $id_appointment );
+		$deposit_credit_cordobas = 0;
+		$deposit_display = NULL;
+
+		if( $deposit ){
+
+			$deposit_credit_cordobas = floatval($deposit->cordoba) + ( floatval($deposit->dolar) * $exchange->sell_price );
+			$deposit_display = 'C$'.number_format($deposit->cordoba,2).' / $'.number_format($deposit->dolar,2);
+		}
+
+		return array(
+			'id_appointment' => $id_appointment,
+			'client' => $client,
+			'products' => $products,
+			'deposit_display' => $deposit_display,
+			'deposit_credit_cordobas' => $deposit_credit_cordobas,
+		);
 	}
 
 	public function returns(){

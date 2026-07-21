@@ -155,6 +155,36 @@
 		</td>
 		</tr>
 	</tr>
+	<?php if( !empty($cancelled_deposits) ) : ?>
+	<tr>
+		<td colspan="5" class="bg-orange2" style="<?php echo $bor; ?>">Depósitos de reservas canceladas</td>
+	</tr>
+	<tr>
+		<td colspan="5" style="padding: 0;border:0;">
+			<table class="table table-bordered" style="margin-bottom: 0;background-color: initial;<?php echo $coll; ?>">
+				<thead>
+					<tr>
+						<th style="<?php echo $bor; ?>">Cliente</th>
+						<th style="<?php echo $bor; ?>">Cuenta</th>
+						<th style="<?php echo $bor; ?>">Monto</th>
+					</tr>
+				</thead>
+				<tbody>
+					<?php foreach($cancelled_deposits as $cd) : ?>
+					<tr>
+						<td style="<?php echo $bor; ?>"><?php echo $cd->name_client.' '.$cd->surname_client; ?></td>
+						<td style="<?php echo $bor; ?>"><?php echo $cd->name_account ?? '—'; ?></td>
+						<td style="<?php echo $bor; ?>">C$<?php echo number_format($cd->total_cordobas,2); ?></td>
+					</tr>
+					<?php endforeach; ?>
+				</tbody>
+			</table>
+		</td>
+	</tr>
+	<tr>
+		<td colspan="5" class="text-right">Total depósitos retenidos: C$<?php echo number_format($cancelled_deposits_total,2); ?></td>
+	</tr>
+	<?php endif; ?>
 	<?php $total_outcomes = 0; if( !empty($outcomes) ) : ?>
 	<tr>
 		<td colspan="5" class="bg-red2">Egresos</td>
@@ -241,6 +271,11 @@
 	.bg-blue2 {
 	    background: #e3edf7 !important;
 	    border: 1px solid #cbdcec !important;
+	}
+	.bg-orange2 {
+	    background: #f7ecde !important;
+	    font-weight: 600;
+	    border: 1px solid #ecd2a8 !important;
 	}
 	.equal{
 		background: #e0f3d4;

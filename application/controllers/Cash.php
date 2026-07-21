@@ -215,6 +215,7 @@ class Cash extends Admin_Controller{
 				$data['close_quantity_pos'] = $cash['sales_total_pos'];
 				$data['close_quantity_transfer'] = $cash['sales_total_transfer'];
 				$data['close_quantity_cupon'] = $cash['sales_total_cupon'];
+				$data['close_quantity_cancelled_deposits'] = $cash['cancelled_deposits_total'];
 				$data['close_quantity_dollar'] = $cash['sales_total_dollar'] + $cash['current']->open_quantity_dollar;
 				$data['close_user_quantity_cordobas'] = str_replace(',', '', $this->input->post('user_cordobas'));
 				$data['close_user_quantity_dollar'] = str_replace(',', '', $this->input->post('user_dolares'));

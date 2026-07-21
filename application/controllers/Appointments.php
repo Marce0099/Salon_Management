@@ -8,6 +8,8 @@ class Appointments extends Admin_Controller{
 		$this->load->model('appointments_mdl');
 		$this->load->model('clients_mdl');
 		$this->load->model('employees_mdl');
+		$this->load->model('cash_mdl');
+		$this->load->model('bank_account_mdl');
 	}
 
 	public function index(){
@@ -48,6 +50,10 @@ class Appointments extends Admin_Controller{
 		$view_data['service_categories'] = $this->groupServicesByCategory( $services );
 		$view_data['has_services'] = !empty( $services );
 		$view_data['is_admin'] = $this->is_admin();
+
+		$exchange = $this->db->get('dollar_exchange')->row();
+		$view_data['sell_rate'] = $exchange->sell_price;
+		$view_data['accounts'] = $this->bank_account_mdl->getAccounts();
 
 		$employees = $this->employees_mdl->getActiveEmployees();
 		$appointments = $this->appointments_mdl->getForDay( $date );
@@ -206,9 +212,71 @@ class Appointments extends Admin_Controller{
 		}
 	}
 
+	private function resolveDeposit( array $id_products ){
+
+		$exchange = $this->db->get('dollar_exchange')->row();
+
+		$services_total = $this->appointments_mdl->sumServicePrices( $id_products );
+		$required_cordobas = round( $services_total * $exchange->sell_price * 0.10, 2 );
+
+		$token_account = $this->input->post('account');
+		$cordoba = floatval( str_replace(',', '', $this->input->post('deposit_cordoba')) );
+		$dolar = floatval( str_replace(',', '', $this->input->post('deposit_dolar')) );
+
+		$account = $this->bank_account_mdl->getAccount( $token_account );
+
+		if( !$account ){
+
+			throw new Exception('Cuenta bancaria no existe');
+		}
+
+		if( (int) $account->active !== 1 ){
+
+			throw new Exception('Cuenta bancaria ya no está disponible');
+		}
+
+		$entered_cordobas_equivalent = $cordoba + ( $dolar * $exchange->sell_price );
+
+		if( abs( $entered_cordobas_equivalent - $required_cordobas ) > 0.01 ){
+
+			throw new Exception('El depósito debe ser exactamente el 10% del total de servicios (C$'.number_format($required_cordobas,2).')');
+		}
+
+		if( $account->type === 'dolares' && $cordoba > 0 && (float) $account->sell_rate <= 0 ){
+
+			throw new Exception('La cuenta no tiene una tasa de venta válida configurada');
+		}
+
+		if( $account->type === 'cordobas' && $dolar > 0 && (float) $account->buy_rate <= 0 ){
+
+			throw new Exception('La cuenta no tiene una tasa de compra válida configurada');
+		}
+
+		if( $account->type === 'dolares' ){
+
+			$converted = $cordoba > 0 ? ($cordoba / $account->sell_rate) : 0;
+			$final_dolar = $dolar + $converted;
+			$final_cordoba = 0;
+		}
+		else{
+
+			$converted = $dolar > 0 ? ($dolar * $account->buy_rate) : 0;
+			$final_cordoba = $cordoba + $converted;
+			$final_dolar = 0;
+		}
+
+		return array( 'account' => $account->id_account, 'cordoba' => $final_cordoba, 'dolar' => $final_dolar );
+	}
+
 	public function register(){
 
 		if( formSubmited() ){
+
+			if( !$this->cash_mdl->getOpenedCash() ){
+
+				echo json_encode( array( 'type' => 'warning', 'message' => 'Para registrar reservas con depósito debe primero abrir la caja del día' ) );
+				exit();
+			}
 
 			$this->form_validation->set_rules('id_client','','required|integer');
 			$this->form_validation->set_rules('id_employee','','required|integer');
@@ -233,7 +301,9 @@ class Appointments extends Admin_Controller{
 						throw new Exception('Este empleado ya tiene una reserva en ese horario');
 					}
 
-					$id_appointment = $this->appointments_mdl->save( $id_client, $this->get_userID(), $id_employee, $start_datetime, $end_datetime, $notes !== '' ? $notes : NULL, $id_products );
+					$deposit = $this->resolveDeposit( $id_products );
+
+					$id_appointment = $this->appointments_mdl->save( $id_client, $this->get_userID(), $id_employee, $start_datetime, $end_datetime, $notes !== '' ? $notes : NULL, $id_products, $deposit['account'], $deposit['cordoba'], $deposit['dolar'] );
 
 					if( !$id_appointment ){
 
@@ -291,6 +361,11 @@ class Appointments extends Admin_Controller{
 				throw new Exception('Reserva inválida');
 			}
 
+			if( $this->appointments_mdl->isInvoiced( $id_appointment ) ){
+
+				throw new Exception('Esta reserva ya fue facturada y no puede modificarse');
+			}
+
 			$id_client = (int) $this->input->post('id_client');
 			$id_employee = (int) $this->input->post('id_employee');
 			$start_datetime = $this->input->post('start_datetime');
@@ -298,6 +373,7 @@ class Appointments extends Admin_Controller{
 			$notes = trim( $this->input->post('notes') );
 			$id_products = $this->input->post('id_products');
 			$schedule_date = $this->input->post('schedule_date');
+			$validate_only = (bool) $this->input->post('validate_only');
 
 			$this->validateAppointmentInput( $id_client, $id_products, $start_datetime, $end_datetime );
 
@@ -359,7 +435,22 @@ class Appointments extends Admin_Controller{
 				}
 			}
 
-			$ok = $this->appointments_mdl->updateWithShifts( $id_appointment, $id_client, $id_employee, $start_datetime, $end_datetime, $notes !== '' ? $notes : NULL, $id_products, $shifts );
+			if( $validate_only ){
+
+				$message = count($shifts) > 0 ? count($shifts).' reserva(s) serán reprogramada(s)' : 'OK';
+
+				echo json_encode( array( 'type' => 'success', 'message' => $message ) );
+				return;
+			}
+
+			$edit_reason = trim( $this->input->post('edit_reason') );
+
+			if( $edit_reason === '' ){
+
+				throw new Exception('Debe indicar el motivo del cambio');
+			}
+
+			$ok = $this->appointments_mdl->updateWithShifts( $id_appointment, $id_client, $id_employee, $start_datetime, $end_datetime, $notes !== '' ? $notes : NULL, $id_products, $shifts, $this->get_userID(), $edit_reason );
 
 			if( !$ok ){
 
@@ -400,8 +491,22 @@ class Appointments extends Admin_Controller{
 			exit;
 		}
 
-		$this->appointments_mdl->delete( $id_appointment );
+		if( $this->appointments_mdl->isInvoiced( $id_appointment ) ){
 
-		echo json_encode( array( 'type' => 'success', 'message' => 'Reserva eliminada' ) );
+			echo json_encode( array( 'type' => 'error', 'message' => 'Esta reserva ya fue facturada y no puede eliminarse' ) );
+			exit;
+		}
+
+		try{
+
+			$this->appointments_mdl->delete( $id_appointment );
+		}
+		catch( \Throwable $e ){
+
+			echo json_encode( array( 'type' => 'error', 'message' => 'Ha ocurrido un error cancelando la reserva' ) );
+			exit;
+		}
+
+		echo json_encode( array( 'type' => 'success', 'message' => 'Reserva cancelada' ) );
 	}
 }

@@ -141,6 +141,36 @@
 		</td>
 		</tr>
 	</tr>
+	<?php if( !empty($cancelled_deposits) ) : ?>
+	<tr>
+		<td colspan="5" class="bg-orange2">Depósitos de reservas canceladas</td>
+	</tr>
+	<tr>
+		<td colspan="5" style="padding: 0;border:0;">
+			<table class="table table-bordered" style="margin-bottom: 0;background-color: initial;">
+				<thead>
+					<tr>
+						<th>Cliente</th>
+						<th>Cuenta</th>
+						<th>Monto</th>
+					</tr>
+				</thead>
+				<tbody>
+					<?php foreach($cancelled_deposits as $cd) : ?>
+					<tr>
+						<td><?php echo $cd->name_client.' '.$cd->surname_client; ?></td>
+						<td><?php echo $cd->name_account ?? '—'; ?></td>
+						<td>C$<?php echo number_format($cd->total_cordobas,2); ?></td>
+					</tr>
+					<?php endforeach; ?>
+				</tbody>
+			</table>
+		</td>
+	</tr>
+	<tr>
+		<td colspan="5" class="text-right">Total depósitos retenidos: C$<?php echo number_format($cancelled_deposits_total,2); ?></td>
+	</tr>
+	<?php endif; ?>
 	<?php $total_outcomes = 0; if( !empty($outcomes) ) : ?>
 	<tr>
 		<td colspan="5" class="bg-red2">Egresos</td>
@@ -192,5 +222,10 @@
 	.bg-blue2 {
 	    background: #e3edf7;
 	    border: 1px solid #cbdcec !important;
+	}
+	.bg-orange2 {
+	    background: #f7ecde;
+	    font-weight: 600;
+	    border: 1px solid #ecd2a8 !important;
 	}
 </style>

@@ -2,6 +2,7 @@
 
 <form action="<?php echo base_url('sales/register'); ?>" method="post" class="form-horizontal form-label-left" autocomplete="off" spellcheck="false" id="form" onsubmit="return false;">
 	<input type="hidden" name="tk" value="<?php echo $tk; ?>">
+	<input type="hidden" name="id_appointment" id="id_appointment" value="">
 	<table class="table table-hover table-bordered" id="products-sale">
 		<thead>
 			<tr>
@@ -74,6 +75,7 @@
 			<button type="button" class="btn btn-warning" id="add_payment" style="white-space: nowrap;">Agregar mas forma de pago</button>
 			<span id="payment-due-badge" class="label label-warning" style="font-size: 100%; white-space: nowrap;"></span>
 			<span id="payment-overpayment-badge" class="label label-info" style="font-size: 100%; white-space: nowrap; display: none;"></span>
+			<span id="deposit-applied-badge" class="label label-success" style="font-size: 100%; white-space: nowrap; display: none;"></span>
 			<span class="label label-info" style="font-size: 100%; white-space: nowrap;">Tasa venta:C$<?php echo $exchange->sell_price; ?></span>
 			<span class="label label-info" style="font-size: 100%; white-space: nowrap;">Tasa compra:C$<?php echo $exchange->buy_price; ?></span>
 		</div>
@@ -448,6 +450,7 @@
 	var system = {
 		total_invoice : 0,
 		total_services : 0,
+		deposit_credit_cordobas : 0,
 		payments : {
 			'0' : { method : 'cash', subtotal : 0, total : 0 }
 		}
@@ -457,6 +460,8 @@
 
 	var dollarBuyRate = <?php echo $exchange->buy_price; ?>;
 	var dollarSellRate = <?php echo $exchange->sell_price; ?>;
+
+	var appointmentPrefill = <?php echo json_encode($prefill); ?>;
 
 	// ----- Product picker modal (#barcode) -----
 
@@ -561,18 +566,51 @@
 		$('#prod-picker-ok').prop('disabled', false);
 	});
 
-	// OK: populate a new #sales-list row directly from the picker's data
-	$('#prod-picker-ok').on('click', function(){
-
-		if( !_prodPickerSelected ) return;
-
-		var p = _prodPickerSelected;
+	// Builds and appends a #sales-list row from a product-shaped object (picker result or
+	// appointment-continuation prefill); returns false if the product is already in the sale.
+	function addProductRow(p){
 
 		var alreadyAdded = $('#sales-list .form-ids').filter(function(){
 			return $(this).val() == p.id_product;
 		}).length > 0;
 
 		if( alreadyAdded ){
+			return false;
+		}
+
+		var row = $('#product-mdl tr').eq(0).clone();
+
+		if( p.is_service == '1' || p.is_service == 1 ){
+			row.addClass('p-service');
+		}
+		else{
+			row.find('.p-my_product').addClass('hide');
+		}
+
+		row.find('.p-name').html( p.barcode ? (p.barcode+' : '+p.name) : p.name );
+		row.find('.p-price').val(p.price_sell);
+		row.find('.form-ids').val(p.id_product);
+		row.find('.p-commission_rate').val(p.commisssion_rate);
+
+		if( (p.is_service == '1' || p.is_service == 1) && p.category_discount_rate !== null && p.category_discount_rate !== undefined && p.category_discount_rate !== '' ){
+			row.find('.p-discount').val( p.category_discount_rate );
+		}
+
+		$('#sales-list').append(row);
+
+		updateTotal(row);
+
+		return row;
+	}
+
+	// OK: populate a new #sales-list row directly from the picker's data
+	$('#prod-picker-ok').on('click', function(){
+
+		if( !_prodPickerSelected ) return;
+
+		var added = addProductRow(_prodPickerSelected);
+
+		if( added === false ){
 
 			new PNotify({
 				title: 'Notificación',
@@ -585,28 +623,7 @@
 			return;
 		}
 
-		var row = $('#product-mdl tr').eq(0).clone();
-
-		if( p.is_service == '1' ){
-			row.addClass('p-service');
-		}
-		else{
-			row.find('.p-my_product').addClass('hide');
-		}
-
-		row.find('.p-name').html( p.barcode ? (p.barcode+' : '+p.name) : p.name );
-		row.find('.p-price').val(p.price_sell);
-		row.find('.form-ids').val(p.id_product);
-		row.find('.p-commission_rate').val(p.commisssion_rate);
-
-		if( p.is_service == '1' && p.category_discount_rate !== null && p.category_discount_rate !== '' ){
-			row.find('.p-discount').val( p.category_discount_rate );
-		}
-
-		$('#sales-list').append(row);
 		$('#barcode').val('');
-
-		updateTotal(row);
 
 		$('#product-picker-modal').modal('hide');
 	});
@@ -764,7 +781,7 @@
 		});
 
 		total_cordobas = numeral(total_cordobas);
-		system.total_invoice = total_cordobas.value();
+		system.total_invoice = Math.max( total_cordobas.value() - system.deposit_credit_cordobas, 0 );
 		$('#total-cordobas').html(total_cordobas.format('0,0.00'));
 
 		//services-only subtotal, used to cap coupon redemption
@@ -793,7 +810,7 @@
 		$('#total-dollar').html( numeral( total_dollar.value() - subtotal_dollar.value() ).format('0,0.00') );
 
 		var tot_cord = numeral( total_cordobas.value() - subtotal_cordobas.value());
-		system.total_invoice = tot_cord.value();
+		system.total_invoice = Math.max( tot_cord.value() - system.deposit_credit_cordobas, 0 );
 		$('#total-cordobas').html( tot_cord.format('0,0.00') );
 
 		if( row.hasClass('p-service') ){
@@ -843,6 +860,41 @@
 	});
 
 	$('#form').parsley();
+
+	// Continuation of an appointment's booking deposit: prefill the client + its current-priced
+	// services (reusing the same row-building path as the product picker), then credit the frozen
+	// deposit against the invoice total before anything else runs.
+	if( appointmentPrefill ){
+
+		$('#id_appointment').val(appointmentPrefill.id_appointment);
+
+		if( appointmentPrefill.client ){
+			var c = appointmentPrefill.client;
+			$('#client_name').val(c.name_client+' '+c.surname_client);
+			$('#id_client').val(c.id_client);
+			$('#cedula_cliente').val(c.id_card_client || '')
+				.prop('disabled', true)
+				.attr('title', 'Cliente de la reserva — no se puede modificar');
+		}
+
+		$.each(appointmentPrefill.products || [], function(i, p){
+			addProductRow(p);
+		});
+
+		system.deposit_credit_cordobas = appointmentPrefill.deposit_credit_cordobas || 0;
+
+		var currentTotalCordobas = numeral($('#total-cordobas').html()).value();
+		system.total_invoice = Math.max(currentTotalCordobas - system.deposit_credit_cordobas, 0);
+
+		if( system.total_invoice <= 0 ){
+
+			// the deposit alone already covers (or exceeds) the invoice total; no payment row required by default
+			$('#payment-blocks').empty();
+			system.payments = {};
+		}
+
+		updateDueAmount();
+	}
 
 	$('#btn-submit').on('click',function(e){
 
@@ -1118,6 +1170,18 @@
 		        	$('#total-cordobas').html('');
 		        	$('#total-dollar').html('');
 
+		        	$('#id_appointment').val('');
+		        	system.deposit_credit_cordobas = 0;
+		        	$('#deposit-applied-badge').hide().text('');
+
+		        	// a completed continuation may have emptied #payment-blocks entirely (zero remaining
+		        	// balance owed); restore the default block so the form is usable for a fresh sale
+		        	if( $('#payment-blocks').children('.payment_container').length === 0 ){
+		        		var $defaultBlock = $('#payment-mdl .payment_container').eq(0).clone();
+		        		$defaultBlock.attr('data-idx', 0).removeClass('hide');
+		        		$('#payment-blocks').append($defaultBlock);
+		        	}
+
 		        	$('#payment-blocks').children('.payment_container').not(':eq(0)').remove();
 
 		        	system.payments = { '0' : { method : 'cash', subtotal : 0, total : 0 } };
@@ -1227,6 +1291,13 @@
 		var due = numeral(system.total_invoice - paid);
 		var $badge = $('#payment-due-badge');
 		var $overpaymentBadge = $('#payment-overpayment-badge');
+		var $depositBadge = $('#deposit-applied-badge');
+
+		if( system.deposit_credit_cordobas > 0 ){
+			$depositBadge.text('Depósito aplicado: C$' + numeral(system.deposit_credit_cordobas).format('0,0.00')).show();
+		}else{
+			$depositBadge.hide().text('');
+		}
 
 		if( system.total_invoice > 0 && due.value() > 0 ){
 			var dueDollars = numeral(due.value() / dollarSellRate);

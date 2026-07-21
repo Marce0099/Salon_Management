@@ -18,6 +18,8 @@
 	.schedule-grid td.cell-occupied .services{ color: #666; list-style: disc; margin: 0; padding-left: 16px; }
 	.schedule-grid td.cell-occupied .services li{ line-height: 1.2; }
 	.schedule-grid td.cell-occupied .btn-delete-appt{ margin-top: 4px; }
+	.schedule-grid td.cell-locked{ background: #f2f2f2; color: #888; cursor: pointer; }
+	.schedule-grid td.cell-locked .services{ color: #999; }
 	.schedule-grid .hour-col{
 		position: sticky;
 		left: 0;
@@ -68,6 +70,11 @@
 	}
 	#day-panel-overlay.open{ display: block; }
 	body.panel-open{ overflow: hidden; }
+	/* #edit-reason-modal is only ever opened while #day-panel (z-index 2000) is
+	   showing, so Bootstrap's default modal/backdrop z-index (1050/1040) leaves
+	   it stacked behind the panel — push both above it. */
+	body.panel-open .modal{ z-index: 2100; }
+	body.panel-open .modal-backdrop{ z-index: 2050; }
 	.service-list{ max-height: 220px; overflow-y: auto; border: 1px solid #e6e9ed; border-radius: 4px; padding: 8px; }
 	.category-box{ border: 1px solid #e6e9ed; border-radius: 4px; margin-bottom: 6px; overflow: hidden; }
 	.category-box:last-child{ margin-bottom: 0; }
@@ -89,6 +96,10 @@
 	}
 	#client-results-list a{ display: block; padding: 5px 10px; color: #333; }
 	#client-results-list a:hover{ background: #f5f5f5; text-decoration: none; }
+	#deposit-section{ border: 1px solid #e6e9ed; border-radius: 4px; padding: 10px; margin-bottom: 15px; background: #f9f9f9; }
+	#deposit-summary{ border: 1px solid #e6e9ed; border-radius: 4px; padding: 10px; margin-bottom: 15px; background: #f2f9f2; }
+	#required-deposit-badge{ font-size: 100%; }
+	.deposit-mismatch{ border-color: #e74c3c !important; }
 </style>
 
 <div id="schedule-nav">
@@ -114,8 +125,12 @@
 			<?php foreach( $columns as $col ) : ?>
 				<?php if( $col['skip'][$hour_index] ) : ?>
 					<?php // covered by an earlier row's rowspan — no <td> here ?>
-				<?php elseif( isset($col['hour_map'][$hour_index]) ) : $a = $col['hour_map'][$hour_index]['appt']; ?>
-				<td rowspan="<?php echo $col['hour_map'][$hour_index]['rowspan']; ?>" class="cell-occupied"
+				<?php elseif( isset($col['hour_map'][$hour_index]) ) :
+					$a = $col['hour_map'][$hour_index]['appt'];
+					$is_invoiced = !empty( $a->is_invoiced );
+					$has_deposit = $a->deposit_cordoba !== NULL;
+				?>
+				<td rowspan="<?php echo $col['hour_map'][$hour_index]['rowspan']; ?>" class="<?php echo $is_invoiced ? 'cell-locked' : 'cell-occupied'; ?>"
 					data-id="<?php echo (int) $a->id_appointment; ?>"
 					data-employee="<?php echo $col['id_employee'] ? (int) $col['id_employee'] : ''; ?>"
 					data-employee-label="<?php echo htmlspecialchars($col['label']); ?>"
@@ -126,7 +141,12 @@
 					data-date-end="<?php echo substr($a->end_datetime, 0, 10); ?>"
 					data-time-end="<?php echo substr($a->end_datetime, 11, 5); ?>"
 					data-notes="<?php echo htmlspecialchars((string) $a->notes); ?>"
-					data-service-ids="<?php echo htmlspecialchars((string) $a->service_ids); ?>">
+					data-service-ids="<?php echo htmlspecialchars((string) $a->service_ids); ?>"
+					data-invoiced="<?php echo $is_invoiced ? 1 : 0; ?>"
+					data-has-deposit="<?php echo $has_deposit ? 1 : 0; ?>"
+					data-deposit-cordoba="<?php echo $has_deposit ? htmlspecialchars((string) $a->deposit_cordoba) : ''; ?>"
+					data-deposit-dolar="<?php echo $has_deposit ? htmlspecialchars((string) $a->deposit_dolar) : ''; ?>"
+					data-deposit-date="<?php echo $has_deposit ? htmlspecialchars((string) $a->deposit_date_time) : ''; ?>">
 					<span class="time"><?php echo date('h:i a', strtotime($a->start_datetime)); ?> - <?php echo date('h:i a', strtotime($a->end_datetime)); ?></span>
 					<span class="client"><?php echo $a->client_name; ?></span>
 					<?php if( $a->services ) : ?>
@@ -138,8 +158,11 @@
 					<?php else : ?>
 					<span class="services">Sin servicios</span>
 					<?php endif; ?>
-					<?php if( $is_admin ) : ?>
-					<button type="button" class="btn btn-danger btn-xs btn-delete-appt" data-id="<?php echo $a->id_appointment; ?>">Eliminar</button>
+					<?php if( $is_invoiced ) : ?>
+					<span class="label label-default">Facturada</span>
+					<?php endif; ?>
+					<?php if( $is_admin && !$is_invoiced ) : ?>
+					<button type="button" class="btn btn-danger btn-xs btn-delete-appt" data-id="<?php echo $a->id_appointment; ?>">Cancelar</button>
 					<?php endif; ?>
 				</td>
 				<?php else :
@@ -189,7 +212,7 @@
 					<div class="category-body">
 						<?php foreach( $cat['services'] as $s ) : ?>
 						<label class="checkbox-inline" style="display:block;">
-							<input type="checkbox" name="id_products[]" value="<?php echo $s->id_product; ?>"> <?php echo $s->name; ?>
+							<input type="checkbox" name="id_products[]" value="<?php echo $s->id_product; ?>" data-price="<?php echo $s->price_sell; ?>"> <?php echo $s->name; ?>
 						</label>
 						<?php endforeach; ?>
 					</div>
@@ -200,6 +223,35 @@
 				<?php endif; ?>
 			</div>
 		</div>
+
+		<div id="deposit-section">
+			<label>Depósito (transferencia): <span id="required-deposit-badge" class="label label-warning">C$0.00 ($0.00)</span></label>
+			<div class="form-group">
+				<label>Cuenta bancaria:</label>
+				<select class="form-control" id="deposit-account">
+					<?php foreach( $accounts as $account ) : ?>
+					<option value="<?php echo $account->token_account; ?>" data-type="<?php echo $account->type; ?>"><?php echo $account->name_account; ?></option>
+					<?php endforeach; ?>
+				</select>
+			</div>
+			<div class="row">
+				<div class="col-xs-6">
+					<label>Córdobas:</label>
+					<input type="text" class="form-control" id="deposit-cordoba">
+				</div>
+				<div class="col-xs-6">
+					<label>Dólares:</label>
+					<input type="text" class="form-control" id="deposit-dolar">
+				</div>
+			</div>
+			<span class="help-block" id="deposit-mismatch-notice" style="color:#e74c3c;"></span>
+		</div>
+
+		<div id="deposit-summary" class="hide">
+			<strong>Depósito ya cobrado:</strong>
+			<div id="deposit-summary-text"></div>
+		</div>
+
 		<div class="row">
 			<div class="col-xs-6">
 				<label>Desde:</label>
@@ -209,6 +261,10 @@
 				<label>Hasta:</label>
 				<input type="time" class="form-control" id="end_time">
 			</div>
+		</div>
+		<div class="form-group hide" id="schedule-date-group">
+			<label>Fecha de la reserva:</label>
+			<input type="date" class="form-control" id="schedule_date_input">
 		</div>
 		<div class="form-group">
 			<label>Notas:</label>
@@ -221,11 +277,35 @@
 		<input type="hidden" id="schedule_date" value="<?php echo $date; ?>">
 		<input type="hidden" name="tk" id="tk" value="<?php echo $tk; ?>">
 		<button type="submit" class="btn btn-primary" id="btn-save-appointment">Guardar reserva</button>
+		<button type="button" class="btn btn-success hide" id="btn-continue-to-sale">Continuar a venta</button>
 	</form>
+</div>
+
+<div class="modal fade" id="edit-reason-modal" tabindex="-1" role="dialog">
+	<div class="modal-dialog" role="document">
+		<div class="modal-content">
+			<div class="modal-header">
+				<button type="button" class="close" data-dismiss="modal"><span>&times;</span></button>
+				<h4 class="modal-title">Motivo del cambio</h4>
+			</div>
+			<div class="modal-body">
+				<div class="form-group">
+					<label>Describa por qué se está modificando esta reserva:</label>
+					<textarea class="form-control" id="edit-reason-input" rows="3"></textarea>
+				</div>
+			</div>
+			<div class="modal-footer">
+				<button type="button" class="btn btn-default" data-dismiss="modal">Cancelar</button>
+				<button type="button" class="btn btn-primary" id="edit-reason-save">Guardar</button>
+			</div>
+		</div>
+	</div>
 </div>
 
 <script>
 var baseUrl = '<?php echo base_url(); ?>';
+var sellRate = <?php echo $sell_rate; ?>;
+var requiredDepositCordobas = 0;
 
 function notify(text, type){
 	new PNotify({
@@ -235,6 +315,45 @@ function notify(text, type){
 		styling: 'bootstrap3',
 		delay: 3500
 	});
+}
+
+function numericVal(id){
+	return parseFloat( ($(id).val() || '0').replace(',', '') ) || 0;
+}
+
+function updateRequiredDeposit(){
+
+	var total = 0;
+
+	$('input[name="id_products[]"]:checked').each(function(){
+		total += parseFloat( $(this).data('price') ) || 0;
+	});
+
+	requiredDepositCordobas = Math.round( total * sellRate * 0.10 * 100 ) / 100;
+
+	var requiredDepositDolars = sellRate > 0 ? requiredDepositCordobas / sellRate : 0;
+
+	$('#required-deposit-badge').text('C$' + requiredDepositCordobas.toFixed(2) + ' ($' + requiredDepositDolars.toFixed(2) + ')');
+
+	checkDepositMismatch();
+}
+
+function checkDepositMismatch(){
+
+	var cordoba = numericVal('#deposit-cordoba');
+	var dolar = numericVal('#deposit-dolar');
+	var entered = cordoba + ( dolar * sellRate );
+	var diff = Math.abs( entered - requiredDepositCordobas );
+
+	if( diff > 0.01 ){
+		$('#deposit-cordoba, #deposit-dolar').addClass('deposit-mismatch');
+		$('#deposit-mismatch-notice').text('El depósito debe ser exactamente C$' + requiredDepositCordobas.toFixed(2) + ' (ingresado: C$' + entered.toFixed(2) + ')');
+		return false;
+	}
+
+	$('#deposit-cordoba, #deposit-dolar').removeClass('deposit-mismatch');
+	$('#deposit-mismatch-notice').text('');
+	return true;
 }
 
 function collapseAllCategories(){
@@ -248,7 +367,16 @@ function expandCategoriesWithChecked(){
 	});
 }
 
+function resetPanelInputsState(){
+
+	$('#form-appointment :input').prop('disabled', false);
+	$('#btn-save-appointment').show();
+	$('#btn-continue-to-sale').addClass('hide');
+}
+
 function openBooking(cell){
+
+	resetPanelInputsState();
 
 	$('#panel-title').text('Nueva reserva — ' + cell.data('employee-label') + ', ' + cell.data('time-start') + ' - ' + cell.data('time-end'));
 	$('#btn-save-appointment').text('Guardar reserva');
@@ -267,11 +395,20 @@ function openBooking(cell){
 	$('#notes').val('');
 	collapseAllCategories();
 
+	$('#deposit-section').removeClass('hide');
+	$('#deposit-summary').addClass('hide');
+	$('#schedule-date-group').addClass('hide');
+	$('#deposit-account').prop('selectedIndex', 0);
+	$('#deposit-cordoba, #deposit-dolar').val('');
+	updateRequiredDeposit();
+
 	$('#day-panel, #day-panel-overlay').addClass('open');
 	$('body').addClass('panel-open');
 }
 
 function openEditBooking(cell){
+
+	resetPanelInputsState();
 
 	$('#panel-title').text('Editar reserva — ' + cell.data('employee-label') + ', ' + cell.data('time-start') + ' - ' + cell.data('time-end'));
 	$('#btn-save-appointment').text('Actualizar reserva');
@@ -299,15 +436,47 @@ function openEditBooking(cell){
 
 	$('#notes').val(cell.data('notes') || '');
 
+	$('#deposit-section').addClass('hide');
+	$('#schedule-date-group').removeClass('hide');
+	$('#schedule_date_input').val(cell.data('date-start'));
+	$('#schedule_date').val(cell.data('date-start'));
+
+	if( cell.data('has-deposit') ){
+		$('#deposit-summary').removeClass('hide');
+		$('#deposit-summary-text').text(
+			'C$' + parseFloat(cell.data('deposit-cordoba') || 0).toFixed(2) +
+			' / $' + parseFloat(cell.data('deposit-dolar') || 0).toFixed(2) +
+			(cell.data('deposit-date') ? ' — ' + cell.data('deposit-date') : '')
+		);
+	}else{
+		$('#deposit-summary').addClass('hide');
+	}
+
+	if( cell.data('has-deposit') && !cell.data('invoiced') ){
+		$('#btn-continue-to-sale').removeClass('hide').data('id', cell.data('id'));
+	}else{
+		$('#btn-continue-to-sale').addClass('hide');
+	}
+
 	$('#day-panel, #day-panel-overlay').addClass('open');
 	$('body').addClass('panel-open');
+}
+
+function openReadOnlyBooking(cell){
+
+	openEditBooking(cell);
+
+	$('#panel-title').text('Reserva facturada — ' + cell.data('employee-label') + ', ' + cell.data('time-start') + ' - ' + cell.data('time-end'));
+	$('#form-appointment :input').prop('disabled', true);
+	$('#btn-save-appointment').hide();
+	$('#btn-continue-to-sale').addClass('hide');
 }
 
 function confirmDelete(id_appointment){
 
 	(new PNotify({
 		title: 'Confirmación',
-		text: '¿Desea eliminar esta reserva?',
+		text: '¿Desea cancelar esta reserva? El depósito del 10% no será reembolsado.',
 		icon: 'glyphicon glyphicon-question-sign',
 		hide: false,
 		confirm: {
@@ -342,6 +511,10 @@ $(function(){
 		openEditBooking( $(this) );
 	});
 
+	$('.cell-locked').on('click', function(){
+		openReadOnlyBooking( $(this) );
+	});
+
 	$('.btn-delete-appt').on('click', function(e){
 		e.stopPropagation();
 		confirmDelete( $(this).data('id') );
@@ -354,6 +527,29 @@ $(function(){
 	$('#btn-close-panel, #day-panel-overlay').on('click', function(){
 		$('#day-panel, #day-panel-overlay').removeClass('open');
 		$('body').removeClass('panel-open');
+	});
+
+	$(document).on('change', 'input[name="id_products[]"]', updateRequiredDeposit);
+	$(document).on('keyup', '#deposit-cordoba, #deposit-dolar', checkDepositMismatch);
+
+	$('#schedule_date_input').on('change', function(){
+
+		var newDate = $(this).val();
+
+		if( !newDate ) return;
+
+		$('#date_start').val(newDate);
+		$('#date_end').val(newDate);
+		$('#schedule_date').val(newDate);
+	});
+
+	$('#btn-continue-to-sale').on('click', function(){
+
+		var id = $(this).data('id');
+
+		if( id ){
+			window.location.href = baseUrl + 'sales/register/' + id;
+		}
 	});
 
 	$('#client-search').on('keyup', function(){
@@ -390,6 +586,28 @@ $(function(){
 		}, 'json');
 	});
 
+	var pendingUpdate = null;
+
+	function submitAppointment(url, payload){
+
+		var btn = $('#btn-save-appointment').attr('disabled', 'true');
+
+		$.post(url, payload, function(data){
+
+			notify(data.message, data.type);
+			btn.removeAttr('disabled');
+
+			if( data.type === 'success' ){
+				window.location.reload();
+			}
+
+		}, 'json').fail(function(){
+
+			notify('Ha ocurrido un error guardando la reserva', 'error');
+			btn.removeAttr('disabled');
+		});
+	}
+
 	$('#form-appointment').on('submit', function(){
 
 		var id_client = $('#id_client').val();
@@ -412,15 +630,17 @@ $(function(){
 			return false;
 		}
 
+		var id_appointment = $('#id_appointment').val();
+
+		if( !id_appointment && !checkDepositMismatch() ){
+			notify('El depósito debe ser exactamente el 10% del total de servicios', 'error');
+			return false;
+		}
+
 		var start_datetime = $('#date_start').val() + ' ' + $('#start_time').val() + ':00';
 		var end_datetime = $('#date_end').val() + ' ' + $('#end_time').val() + ':00';
 
-		var id_appointment = $('#id_appointment').val();
-		var url = id_appointment ? (baseUrl + 'appointments/update/' + id_appointment) : (baseUrl + 'appointments/register');
-
-		var btn = $('#btn-save-appointment').attr('disabled', 'true');
-
-		$.post(url, {
+		var payload = {
 			id_client: id_client,
 			id_employee: id_employee,
 			start_datetime: start_datetime,
@@ -429,22 +649,61 @@ $(function(){
 			id_products: id_products,
 			schedule_date: $('#schedule_date').val(),
 			tk: $('#tk').val()
-		}, function(data){
+		};
 
-			notify(data.message, data.type);
-			btn.removeAttr('disabled');
+		if( !id_appointment ){
 
-			if( data.type === 'success' ){
-				window.location.reload();
+			payload.account = $('#deposit-account').val();
+			payload.deposit_cordoba = $('#deposit-cordoba').val();
+			payload.deposit_dolar = $('#deposit-dolar').val();
+
+			submitAppointment(baseUrl + 'appointments/register', payload);
+
+			return false;
+		}
+
+		var updateUrl = baseUrl + 'appointments/update/' + id_appointment;
+		var checkBtn = $('#btn-save-appointment').attr('disabled', 'true');
+
+		$.post(updateUrl, $.extend({}, payload, { validate_only: 1 }), function(data){
+
+			checkBtn.removeAttr('disabled');
+
+			if( data.type !== 'success' ){
+				notify(data.message, data.type);
+				return;
 			}
+
+			pendingUpdate = { url: updateUrl, payload: payload };
+			$('#edit-reason-input').val('');
+			$('#edit-reason-modal').modal('show');
 
 		}, 'json').fail(function(){
 
-			notify('Ha ocurrido un error guardando la reserva', 'error');
-			btn.removeAttr('disabled');
+			checkBtn.removeAttr('disabled');
+			notify('Ha ocurrido un error validando la reserva', 'error');
 		});
 
 		return false;
+	});
+
+	$('#edit-reason-save').on('click', function(){
+
+		var reason = $.trim( $('#edit-reason-input').val() );
+
+		if( !reason ){
+			notify('Debe indicar el motivo del cambio', 'error');
+			return;
+		}
+
+		if( !pendingUpdate ) return;
+
+		pendingUpdate.payload.edit_reason = reason;
+		$('#edit-reason-modal').modal('hide');
+
+		submitAppointment(pendingUpdate.url, pendingUpdate.payload);
+
+		pendingUpdate = null;
 	});
 });
 </script>
