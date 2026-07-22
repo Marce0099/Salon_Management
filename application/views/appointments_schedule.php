@@ -1,5 +1,9 @@
 <h3 class="section-title">Agenda &mdash; <?php echo date('d/m/Y', strtotime($date)); ?></h3>
 
+<?php if( $date < date('Y-m-d') ) : ?>
+<div class="alert alert-warning">Estás viendo una fecha pasada. No se pueden crear nuevas reservas ni reprogramar otras a esta fecha.</div>
+<?php endif; ?>
+
 <style>
 	#schedule-nav{ margin-bottom: 15px; }
 
@@ -13,13 +17,18 @@
 	.table-responsive .schedule-grid tbody tr td{ white-space: normal !important; }
 	.schedule-grid td.cell-empty{ min-width: 70px; cursor: pointer; }
 	.schedule-grid td.cell-empty:hover{ background: #f5f5f5; }
-	.schedule-grid td.cell-occupied{ background: #eaf3ff; text-align: left; cursor: pointer; line-height: 1.2; }
-	.schedule-grid td.cell-occupied .time{ font-weight: bold; display: block; }
-	.schedule-grid td.cell-occupied .services{ color: #666; list-style: disc; margin: 0; padding-left: 16px; }
-	.schedule-grid td.cell-occupied .services li{ line-height: 1.2; }
-	.schedule-grid td.cell-occupied .btn-delete-appt{ margin-top: 4px; }
-	.schedule-grid td.cell-locked{ background: #f2f2f2; color: #888; cursor: pointer; }
-	.schedule-grid td.cell-locked .services{ color: #999; }
+	.schedule-grid td.cell-empty.cell-past{ cursor: not-allowed; background: #f7f7f7; color: #bbb; }
+	.schedule-grid td.cell-empty.cell-past:hover{ background: #f7f7f7; }
+	.schedule-grid td.cell-multi{ padding: 0; text-align: left; }
+	.schedule-grid .appt-block{ padding: 4px; cursor: pointer; line-height: 1.2; }
+	.schedule-grid .appt-block-divider{ border-top: 1px solid #c9c9c9; }
+	.schedule-grid .appt-block.cell-occupied{ background: #eaf3ff; }
+	.schedule-grid .appt-block.cell-occupied .time{ font-weight: bold; display: block; }
+	.schedule-grid .appt-block.cell-occupied .services{ color: #666; list-style: disc; margin: 0; padding-left: 16px; }
+	.schedule-grid .appt-block.cell-occupied .services li{ line-height: 1.2; }
+	.schedule-grid .appt-block.cell-occupied .btn-delete-appt{ margin-top: 4px; }
+	.schedule-grid .appt-block.cell-locked{ background: #f2f2f2; color: #888; }
+	.schedule-grid .appt-block.cell-locked .services{ color: #999; }
 	.schedule-grid .hour-col{
 		position: sticky;
 		left: 0;
@@ -126,52 +135,59 @@
 				<?php if( $col['skip'][$hour_index] ) : ?>
 					<?php // covered by an earlier row's rowspan — no <td> here ?>
 				<?php elseif( isset($col['hour_map'][$hour_index]) ) :
-					$a = $col['hour_map'][$hour_index]['appt'];
-					$is_invoiced = !empty( $a->is_invoiced );
-					$has_deposit = $a->deposit_cordoba !== NULL;
+					$bucket = $col['hour_map'][$hour_index];
 				?>
-				<td rowspan="<?php echo $col['hour_map'][$hour_index]['rowspan']; ?>" class="<?php echo $is_invoiced ? 'cell-locked' : 'cell-occupied'; ?>"
-					data-id="<?php echo (int) $a->id_appointment; ?>"
-					data-employee="<?php echo $col['id_employee'] ? (int) $col['id_employee'] : ''; ?>"
-					data-employee-label="<?php echo htmlspecialchars($col['label']); ?>"
-					data-client-id="<?php echo (int) $a->id_client; ?>"
-					data-client-name="<?php echo htmlspecialchars($a->client_name); ?>"
-					data-date-start="<?php echo substr($a->start_datetime, 0, 10); ?>"
-					data-time-start="<?php echo substr($a->start_datetime, 11, 5); ?>"
-					data-date-end="<?php echo substr($a->end_datetime, 0, 10); ?>"
-					data-time-end="<?php echo substr($a->end_datetime, 11, 5); ?>"
-					data-notes="<?php echo htmlspecialchars((string) $a->notes); ?>"
-					data-service-ids="<?php echo htmlspecialchars((string) $a->service_ids); ?>"
-					data-invoiced="<?php echo $is_invoiced ? 1 : 0; ?>"
-					data-has-deposit="<?php echo $has_deposit ? 1 : 0; ?>"
-					data-deposit-cordoba="<?php echo $has_deposit ? htmlspecialchars((string) $a->deposit_cordoba) : ''; ?>"
-					data-deposit-dolar="<?php echo $has_deposit ? htmlspecialchars((string) $a->deposit_dolar) : ''; ?>"
-					data-deposit-date="<?php echo $has_deposit ? htmlspecialchars((string) $a->deposit_date_time) : ''; ?>">
-					<span class="time"><?php echo date('h:i a', strtotime($a->start_datetime)); ?> - <?php echo date('h:i a', strtotime($a->end_datetime)); ?></span>
-					<span class="client"><?php echo $a->client_name; ?></span>
-					<?php if( $a->services ) : ?>
-					<ul class="services">
-						<?php foreach( explode(', ', $a->services) as $service_name ) : ?>
-						<li><?php echo $service_name; ?></li>
-						<?php endforeach; ?>
-					</ul>
-					<?php else : ?>
-					<span class="services">Sin servicios</span>
-					<?php endif; ?>
-					<?php if( $is_invoiced ) : ?>
-					<span class="label label-default">Facturada</span>
-					<?php endif; ?>
-					<?php if( $is_admin && !$is_invoiced ) : ?>
-					<button type="button" class="btn btn-danger btn-xs btn-delete-appt" data-id="<?php echo $a->id_appointment; ?>">Cancelar</button>
-					<?php endif; ?>
+				<td rowspan="<?php echo $bucket['rowspan']; ?>" class="cell-multi">
+					<?php foreach( $bucket['entries'] as $i => $entry ) :
+						$a = $entry['appt'];
+						$is_invoiced = !empty( $a->is_invoiced );
+						$has_deposit = $a->deposit_cordoba !== NULL;
+					?>
+					<div class="appt-block <?php echo $is_invoiced ? 'cell-locked' : 'cell-occupied'; ?><?php echo $i > 0 ? ' appt-block-divider' : ''; ?>"
+						data-id="<?php echo (int) $a->id_appointment; ?>"
+						data-employee="<?php echo $col['id_employee'] ? (int) $col['id_employee'] : ''; ?>"
+						data-employee-label="<?php echo htmlspecialchars($col['label']); ?>"
+						data-client-id="<?php echo (int) $a->id_client; ?>"
+						data-client-name="<?php echo htmlspecialchars($a->client_name); ?>"
+						data-date-start="<?php echo substr($a->start_datetime, 0, 10); ?>"
+						data-time-start="<?php echo substr($a->start_datetime, 11, 5); ?>"
+						data-date-end="<?php echo substr($a->end_datetime, 0, 10); ?>"
+						data-time-end="<?php echo substr($a->end_datetime, 11, 5); ?>"
+						data-notes="<?php echo htmlspecialchars((string) $a->notes); ?>"
+						data-service-ids="<?php echo htmlspecialchars((string) $a->service_ids); ?>"
+						data-invoiced="<?php echo $is_invoiced ? 1 : 0; ?>"
+						data-has-deposit="<?php echo $has_deposit ? 1 : 0; ?>"
+						data-deposit-cordoba="<?php echo $has_deposit ? htmlspecialchars((string) $a->deposit_cordoba) : ''; ?>"
+						data-deposit-dolar="<?php echo $has_deposit ? htmlspecialchars((string) $a->deposit_dolar) : ''; ?>"
+						data-deposit-date="<?php echo $has_deposit ? htmlspecialchars((string) $a->deposit_date_time) : ''; ?>">
+						<span class="time"><?php echo date('h:i a', strtotime($a->start_datetime)); ?> - <?php echo date('h:i a', strtotime($a->end_datetime)); ?></span>
+						<span class="client"><?php echo $a->client_name; ?></span>
+						<?php if( $a->services ) : ?>
+						<ul class="services">
+							<?php foreach( explode(', ', $a->services) as $service_name ) : ?>
+							<li><?php echo $service_name; ?></li>
+							<?php endforeach; ?>
+						</ul>
+						<?php else : ?>
+						<span class="services">Sin servicios</span>
+						<?php endif; ?>
+						<?php if( $is_invoiced ) : ?>
+						<span class="label label-default">Facturada</span>
+						<?php endif; ?>
+						<?php if( $is_admin && !$is_invoiced ) : ?>
+						<button type="button" class="btn btn-danger btn-xs btn-delete-appt" data-id="<?php echo $a->id_appointment; ?>">Cancelar</button>
+						<?php endif; ?>
+					</div>
+					<?php endforeach; ?>
 				</td>
 				<?php else :
 					$date_start = substr( $hour['start'], 0, 10 );
 					$time_start = substr( $hour['start'], 11, 5 );
 					$date_end = substr( $hour['end'], 0, 10 );
 					$time_end = substr( $hour['end'], 11, 5 );
+					$is_cell_past = strtotime( $hour['end'] ) <= time();
 				?>
-				<td class="cell-empty"
+				<td class="cell-empty<?php echo $is_cell_past ? ' cell-past' : ''; ?>"
 					data-employee="<?php echo $col['id_employee'] ? (int) $col['id_employee'] : ''; ?>"
 					data-employee-label="<?php echo htmlspecialchars($col['label']); ?>"
 					data-date-start="<?php echo $date_start; ?>"
@@ -306,6 +322,7 @@
 var baseUrl = '<?php echo base_url(); ?>';
 var sellRate = <?php echo $sell_rate; ?>;
 var requiredDepositCordobas = 0;
+var todayStr = '<?php echo date('Y-m-d'); ?>';
 
 function notify(text, type){
 	new PNotify({
@@ -504,14 +521,20 @@ function confirmDelete(id_appointment){
 $(function(){
 
 	$('.cell-empty').on('click', function(){
+
+		if( $(this).hasClass('cell-past') ){
+			notify('No se pueden reservar citas en el pasado', 'error');
+			return;
+		}
+
 		openBooking( $(this) );
 	});
 
-	$('.cell-occupied').on('click', function(){
+	$('.appt-block.cell-occupied').on('click', function(){
 		openEditBooking( $(this) );
 	});
 
-	$('.cell-locked').on('click', function(){
+	$('.appt-block.cell-locked').on('click', function(){
 		openReadOnlyBooking( $(this) );
 	});
 
@@ -532,11 +555,19 @@ $(function(){
 	$(document).on('change', 'input[name="id_products[]"]', updateRequiredDeposit);
 	$(document).on('keyup', '#deposit-cordoba, #deposit-dolar', checkDepositMismatch);
 
+	$('#schedule_date_input').attr('min', todayStr);
+
 	$('#schedule_date_input').on('change', function(){
 
 		var newDate = $(this).val();
 
 		if( !newDate ) return;
+
+		if( newDate < todayStr ){
+			notify('No se pueden reprogramar reservas a fechas pasadas', 'error');
+			$(this).val( $('#schedule_date').val() );
+			return;
+		}
 
 		$('#date_start').val(newDate);
 		$('#date_end').val(newDate);
@@ -639,6 +670,13 @@ $(function(){
 
 		var start_datetime = $('#date_start').val() + ' ' + $('#start_time').val() + ':00';
 		var end_datetime = $('#date_end').val() + ' ' + $('#end_time').val() + ':00';
+
+		var startDt = new Date( $('#date_start').val() + 'T' + $('#start_time').val() + ':00' );
+
+		if( isNaN(startDt.getTime()) || startDt < new Date() ){
+			notify('No se pueden reservar citas en el pasado', 'error');
+			return false;
+		}
 
 		var payload = {
 			id_client: id_client,

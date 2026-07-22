@@ -150,7 +150,11 @@ class Appointments extends Admin_Controller{
 				$by_employee[$key] = array();
 			}
 
-			$by_employee[$key][$first_hour] = array( 'appt' => $a, 'rowspan' => $rowspan );
+			if( !isset($by_employee[$key][$first_hour]) ){
+				$by_employee[$key][$first_hour] = array();
+			}
+
+			$by_employee[$key][$first_hour][] = array( 'appt' => $a, 'rowspan' => $rowspan );
 		}
 
 		$columns = array();
@@ -175,14 +179,24 @@ class Appointments extends Admin_Controller{
 		// hours covered by an earlier row's rowspan — must not emit a <td> for these
 		$skip = array_fill( 0, 24, FALSE );
 
-		foreach( $hour_map as $first_hour => $info ){
+		$buckets = array();
 
-			for( $k = $first_hour + 1; $k < $first_hour + $info['rowspan']; $k++ ){
+		foreach( $hour_map as $first_hour => $entries ){
+
+			$max_rowspan = 0;
+
+			foreach( $entries as $entry ){
+				$max_rowspan = max( $max_rowspan, $entry['rowspan'] );
+			}
+
+			$buckets[$first_hour] = array( 'entries' => $entries, 'rowspan' => $max_rowspan );
+
+			for( $k = $first_hour + 1; $k < $first_hour + $max_rowspan; $k++ ){
 				$skip[$k] = TRUE;
 			}
 		}
 
-		return array( 'id_employee' => $id_employee, 'label' => $label, 'hour_map' => $hour_map, 'skip' => $skip );
+		return array( 'id_employee' => $id_employee, 'label' => $label, 'hour_map' => $buckets, 'skip' => $skip );
 	}
 
 	private function validateAppointmentInput( $id_client, $id_products, $start_datetime, $end_datetime ){
@@ -190,6 +204,18 @@ class Appointments extends Admin_Controller{
 		if( empty($id_products) || !is_array($id_products) ){
 
 			throw new Exception('Debe seleccionar al menos un servicio');
+		}
+
+		$start_ts = strtotime( $start_datetime );
+
+		if( !$start_ts ){
+
+			throw new Exception('Fecha/hora de inicio inválida');
+		}
+
+		if( $start_ts < time() ){
+
+			throw new Exception('No se pueden registrar reservas en fechas u horas pasadas');
 		}
 
 		if( strtotime($end_datetime) <= strtotime($start_datetime) ){
@@ -380,6 +406,11 @@ class Appointments extends Admin_Controller{
 			if( empty($schedule_date) || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $schedule_date) || !strtotime($schedule_date) ){
 
 				throw new Exception('Fecha de agenda inválida');
+			}
+
+			if( strtotime($schedule_date) < strtotime(date('Y-m-d')) ){
+
+				throw new Exception('No se pueden reprogramar reservas a fechas pasadas');
 			}
 
 			$shifts = array();
