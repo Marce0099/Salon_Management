@@ -413,6 +413,13 @@ class Appointments extends Admin_Controller{
 				throw new Exception('No se pueden reprogramar reservas a fechas pasadas');
 			}
 
+			$grid_window_end_ts = strtotime( $schedule_date.' +1 day 01:00:00' );
+
+			if( strtotime($end_datetime) > $grid_window_end_ts ){
+
+				throw new Exception('La reserva no cabe en el horario del día: la duración excede el cierre de la agenda');
+			}
+
 			$shifts = array();
 
 			if( $this->appointments_mdl->hasOverlap( $id_employee, $start_datetime, $end_datetime, $id_appointment ) ){

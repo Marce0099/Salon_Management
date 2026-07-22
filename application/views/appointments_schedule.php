@@ -29,6 +29,10 @@
 	.schedule-grid .appt-block.cell-occupied .btn-delete-appt{ margin-top: 4px; }
 	.schedule-grid .appt-block.cell-locked{ background: #f2f2f2; color: #888; }
 	.schedule-grid .appt-block.cell-locked .services{ color: #999; }
+	.schedule-grid .appt-block.cell-occupied{ cursor: grab; }
+	.schedule-grid .appt-block.dragging{ opacity: 0.4; }
+	.schedule-grid td.cell-empty.drag-over,
+	.schedule-grid td.cell-multi.drag-over{ outline: 2px dashed #3498db; outline-offset: -2px; background: #eef7ff; }
 	.schedule-grid .hour-col{
 		position: sticky;
 		left: 0;
@@ -128,7 +132,13 @@
 		</tr>
 	</thead>
 	<tbody>
-		<?php foreach( $hours as $hour_index => $hour ) : ?>
+		<?php foreach( $hours as $hour_index => $hour ) :
+			$date_start = substr( $hour['start'], 0, 10 );
+			$time_start = substr( $hour['start'], 11, 5 );
+			$date_end = substr( $hour['end'], 0, 10 );
+			$time_end = substr( $hour['end'], 11, 5 );
+			$is_cell_past = strtotime( $hour['end'] ) <= time();
+		?>
 		<tr>
 			<td class="hour-col"><?php echo $hour['label']; ?></td>
 			<?php foreach( $columns as $col ) : ?>
@@ -137,13 +147,17 @@
 				<?php elseif( isset($col['hour_map'][$hour_index]) ) :
 					$bucket = $col['hour_map'][$hour_index];
 				?>
-				<td rowspan="<?php echo $bucket['rowspan']; ?>" class="cell-multi">
+				<td rowspan="<?php echo $bucket['rowspan']; ?>" class="cell-multi"
+					data-employee="<?php echo $col['id_employee'] ? (int) $col['id_employee'] : ''; ?>"
+					data-date-start="<?php echo $date_start; ?>"
+					data-time-start="<?php echo $time_start; ?>">
 					<?php foreach( $bucket['entries'] as $i => $entry ) :
 						$a = $entry['appt'];
 						$is_invoiced = !empty( $a->is_invoiced );
 						$has_deposit = $a->deposit_cordoba !== NULL;
 					?>
 					<div class="appt-block <?php echo $is_invoiced ? 'cell-locked' : 'cell-occupied'; ?><?php echo $i > 0 ? ' appt-block-divider' : ''; ?>"
+						draggable="<?php echo $is_invoiced ? 'false' : 'true'; ?>"
 						data-id="<?php echo (int) $a->id_appointment; ?>"
 						data-employee="<?php echo $col['id_employee'] ? (int) $col['id_employee'] : ''; ?>"
 						data-employee-label="<?php echo htmlspecialchars($col['label']); ?>"
@@ -175,18 +189,12 @@
 						<span class="label label-default">Facturada</span>
 						<?php endif; ?>
 						<?php if( $is_admin && !$is_invoiced ) : ?>
-						<button type="button" class="btn btn-danger btn-xs btn-delete-appt" data-id="<?php echo $a->id_appointment; ?>">Cancelar</button>
+						<button type="button" class="btn btn-danger btn-xs btn-delete-appt" draggable="false" data-id="<?php echo $a->id_appointment; ?>">Cancelar</button>
 						<?php endif; ?>
 					</div>
 					<?php endforeach; ?>
 				</td>
-				<?php else :
-					$date_start = substr( $hour['start'], 0, 10 );
-					$time_start = substr( $hour['start'], 11, 5 );
-					$date_end = substr( $hour['end'], 0, 10 );
-					$time_end = substr( $hour['end'], 11, 5 );
-					$is_cell_past = strtotime( $hour['end'] ) <= time();
-				?>
+				<?php else : ?>
 				<td class="cell-empty<?php echo $is_cell_past ? ' cell-past' : ''; ?>"
 					data-employee="<?php echo $col['id_employee'] ? (int) $col['id_employee'] : ''; ?>"
 					data-employee-label="<?php echo htmlspecialchars($col['label']); ?>"
@@ -323,6 +331,13 @@ var baseUrl = '<?php echo base_url(); ?>';
 var sellRate = <?php echo $sell_rate; ?>;
 var requiredDepositCordobas = 0;
 var todayStr = '<?php echo date('Y-m-d'); ?>';
+var pageDate = '<?php echo $date; ?>';
+
+function pad2(n){ return (n < 10 ? '0' : '') + n; }
+function fmtDateTime(d){
+	return d.getFullYear() + '-' + pad2(d.getMonth()+1) + '-' + pad2(d.getDate())
+		+ ' ' + pad2(d.getHours()) + ':' + pad2(d.getMinutes()) + ':00';
+}
 
 function notify(text, type){
 	new PNotify({
@@ -518,6 +533,90 @@ function confirmDelete(id_appointment){
 	});
 }
 
+var $dragBlock = null;
+var pendingUpdate = null;
+
+function requestEditConfirmation(updateUrl, payload){
+
+	var checkBtn = $('#btn-save-appointment').attr('disabled', 'true');
+
+	$.post(updateUrl, $.extend({}, payload, { validate_only: 1 }), function(data){
+
+		checkBtn.removeAttr('disabled');
+
+		if( data.type !== 'success' ){
+			notify(data.message, data.type);
+			return;
+		}
+
+		pendingUpdate = { url: updateUrl, payload: payload };
+		$('#edit-reason-input').val('');
+		$('#edit-reason-modal').modal('show');
+
+	}, 'json').fail(function(){
+
+		checkBtn.removeAttr('disabled');
+		notify('Ha ocurrido un error validando la reserva', 'error');
+	});
+}
+
+function handleAppointmentDrop(block, targetCell){
+
+	if( !block ) return;
+
+	var targetEmployee = targetCell.data('employee');
+
+	if( targetEmployee === '' || targetEmployee === undefined || targetEmployee === null ){
+		notify('Este horario no tiene un empleado asignado', 'error');
+		return;
+	}
+
+	var origStart = new Date( block.data('date-start') + 'T' + block.data('time-start') + ':00' );
+	var origEnd   = new Date( block.data('date-end')   + 'T' + block.data('time-end')   + ':00' );
+	var durationMs = origEnd - origStart;
+
+	if( isNaN(durationMs) || durationMs <= 0 ){
+		notify('Ha ocurrido un error leyendo la duración de la reserva', 'error');
+		return;
+	}
+
+	var newStart = new Date( targetCell.data('date-start') + 'T' + targetCell.data('time-start') + ':00' );
+
+	if( String(targetEmployee) === String(block.data('employee')) && newStart.getTime() === origStart.getTime() ){
+		return;
+	}
+
+	if( isNaN(newStart.getTime()) || newStart < new Date() ){
+		notify('No se pueden reservar citas en el pasado', 'error');
+		return;
+	}
+
+	var newEnd = new Date( newStart.getTime() + durationMs );
+
+	var gridWindowEnd = new Date( pageDate + 'T01:00:00' );
+	gridWindowEnd.setDate( gridWindowEnd.getDate() + 1 );
+
+	if( newEnd > gridWindowEnd ){
+		notify('La reserva no cabe en el horario del día: la duración excede el cierre de la agenda', 'error');
+		return;
+	}
+
+	var serviceIds = (block.data('service-ids') || '').toString().split(',').filter(function(v){ return v !== ''; });
+
+	var payload = {
+		id_client: block.data('client-id'),
+		id_employee: targetEmployee,
+		start_datetime: fmtDateTime(newStart),
+		end_datetime: fmtDateTime(newEnd),
+		notes: block.data('notes') || '',
+		id_products: serviceIds,
+		schedule_date: pageDate,
+		tk: $('#tk').val()
+	};
+
+	requestEditConfirmation( baseUrl + 'appointments/update/' + block.data('id'), payload );
+}
+
 $(function(){
 
 	$('.cell-empty').on('click', function(){
@@ -541,6 +640,37 @@ $(function(){
 	$('.btn-delete-appt').on('click', function(e){
 		e.stopPropagation();
 		confirmDelete( $(this).data('id') );
+	});
+
+	$('.appt-block.cell-occupied').on('dragstart', function(e){
+
+		$dragBlock = $(this);
+		$(this).addClass('dragging');
+		e.originalEvent.dataTransfer.effectAllowed = 'move';
+		e.originalEvent.dataTransfer.setData('text/plain', String($(this).data('id')));
+	});
+
+	$('.appt-block.cell-occupied').on('dragend', function(){
+
+		$(this).removeClass('dragging');
+		$('.cell-empty.drag-over, .cell-multi.drag-over').removeClass('drag-over');
+		$dragBlock = null;
+	});
+
+	$('.cell-empty, .cell-multi').on('dragover', function(e){
+		e.preventDefault();
+		e.originalEvent.dataTransfer.dropEffect = 'move';
+		$(this).addClass('drag-over');
+	});
+
+	$('.cell-empty, .cell-multi').on('dragleave', function(){
+		$(this).removeClass('drag-over');
+	});
+
+	$('.cell-empty, .cell-multi').on('drop', function(e){
+		e.preventDefault();
+		$(this).removeClass('drag-over');
+		handleAppointmentDrop( $dragBlock, $(this) );
 	});
 
 	$('.category-header').on('click', function(){
@@ -616,8 +746,6 @@ $(function(){
 
 		}, 'json');
 	});
-
-	var pendingUpdate = null;
 
 	function submitAppointment(url, payload){
 
@@ -701,26 +829,8 @@ $(function(){
 		}
 
 		var updateUrl = baseUrl + 'appointments/update/' + id_appointment;
-		var checkBtn = $('#btn-save-appointment').attr('disabled', 'true');
 
-		$.post(updateUrl, $.extend({}, payload, { validate_only: 1 }), function(data){
-
-			checkBtn.removeAttr('disabled');
-
-			if( data.type !== 'success' ){
-				notify(data.message, data.type);
-				return;
-			}
-
-			pendingUpdate = { url: updateUrl, payload: payload };
-			$('#edit-reason-input').val('');
-			$('#edit-reason-modal').modal('show');
-
-		}, 'json').fail(function(){
-
-			checkBtn.removeAttr('disabled');
-			notify('Ha ocurrido un error validando la reserva', 'error');
-		});
+		requestEditConfirmation( updateUrl, payload );
 
 		return false;
 	});
