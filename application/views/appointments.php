@@ -12,7 +12,7 @@
 	.appt-badge{
 		position: absolute;
 		top: 2px;
-		right: 2px;
+		left: 2px;
 		background: #e08e0b;
 		color: #fff;
 		border-radius: 10px;
