@@ -61,6 +61,7 @@
 
     <!-- Custom Theme Scripts -->
     <script src="<?php echo base_url("assets/gentelella/build/js/custom.js"); ?>"></script>
+    <script src="<?php echo base_url("assets/js/sidebar_scroll.js"); ?>"></script>
 
     <?php if( isset($status) ) : ?>
     <script>

@@ -54,6 +54,7 @@
     <div class="container body">
       <div class="main_container">
         <div class="col-md-3 left_col menu_fixed">
+          <span id="sidebar-scroll-up" class="sidebar-scroll-arrow sidebar-scroll-up"><i class="fa fa-chevron-up"></i></span>
           <div class="left_col scroll-view">
             <div class="navbar nav_title" style="border: 0;">
               <a href="<?php echo base_url(); ?>" class="site_title"><img src="<?php echo base_url('assets/img/logo.png'); ?>" alt=""></a>
@@ -145,6 +146,7 @@
             </div>
             <!-- /sidebar menu -->
           </div>
+          <span id="sidebar-scroll-down" class="sidebar-scroll-arrow sidebar-scroll-down"><i class="fa fa-chevron-down"></i></span>
         </div>
 
         <!-- top navigation -->
