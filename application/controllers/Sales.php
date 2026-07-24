@@ -19,6 +19,7 @@ class Sales extends Admin_Controller{
 		$this->load->model('bank_account_mdl');
 		$this->load->model('appointments_mdl');
 		$this->load->model('appointment_payments_mdl');
+		$this->load->model('loyalty_points_mdl');
 	}
 
 	private function format_columns( $col_1, $col_2, $col_3 ){
@@ -215,6 +216,37 @@ class Sales extends Admin_Controller{
 					$services_total_cordobas += $subtotal_cordobas;
 			}
 
+			/* loyalty program: if the client marked "claim reward" and currently qualifies, burn the
+			   threshold for the highest tier they qualify for and discount this sale's services by that
+			   tier's rate; balance/eligibility are always re-validated server-side, never trusted from the client */
+			$loyalty_settings = $this->loyalty_points_mdl->getSettings();
+			$claim_tier = (int) $this->input->post('claim_loyalty_tier');
+			$loyalty_balance_before = 0;
+			$loyalty_tier_threshold = 0;
+			$loyalty_tier_rate = null;
+			$loyalty_discount_cordobas = 0;
+
+			if( $loyalty_settings && $loyalty_settings->enabled ){
+
+				// always the client's true current balance — needed unconditionally as the accrual's
+				// ceiling-capping base below, not just when a reward is being claimed
+				$loyalty_balance_before = $this->loyalty_points_mdl->getClientBalance( $sale['client'] );
+
+				if( $claim_tier >= 1 && $claim_tier <= 4 ){
+
+					$threshold = round( $loyalty_settings->points_ceiling * $claim_tier / 4, 2 );
+
+					if( $loyalty_balance_before >= $threshold ){
+
+						$loyalty_tier_threshold = $threshold;
+						$loyalty_tier_rate = $loyalty_settings->{"tier{$claim_tier}_discount_rate"};
+						$loyalty_discount_cordobas = round( $services_total_cordobas * $loyalty_tier_rate / 100, 2 );
+					}
+				}
+			}
+
+			if( $loyalty_discount_cordobas <= 0 ) $claim_tier = 0; // nothing eligible/claimed — silently ignored, no error
+
 			/* an appointment's frozen booking deposit is credited against the invoice total before any
 			   payment-sufficiency math runs below; it was fixed at booking time and never re-validated
 			   against overpay rules here since it's already-collected money, not a new payment decision */
@@ -227,13 +259,18 @@ class Sales extends Admin_Controller{
 				$remaining_cordobas = max( $total_cordobas - $deposit_cordoba_equivalent, 0 );
 			}
 
+			$remaining_cordobas = max( $remaining_cordobas - $loyalty_discount_cordobas, 0 );
+
 			/* coupon uniqueness + sequential coverage + aggregate non-cash overpay rejection (mirrors the JS check);
 			   also gathers the raw cash tendered while we're already looping payment methods */
 			$seen_codes = array();
 			$non_cash_total = 0;
 			$cash_cordoba_raw = 0;
 			$cash_dolar_raw = 0;
-			$coupon_remaining = $services_total_cordobas; // coupons may only be redeemed against the services portion of the invoice, not products
+			// coupons may only be redeemed against the services portion of the invoice, not products; the
+			// loyalty discount is subtracted first so a coupon can't validate against services value already
+			// given away as a loyalty reward
+			$coupon_remaining = max( $services_total_cordobas - $loyalty_discount_cordobas, 0 );
 
 			for( $i=0; $i < count($payment_methods); $i++ ){
 
@@ -396,6 +433,14 @@ class Sales extends Admin_Controller{
 
 			$this->db->trans_start();
 			$id_sale = $this->sales_mdl->saveSale( $sale );
+
+			$accrual_basis_cordobas = max( $services_total_cordobas - $loyalty_discount_cordobas, 0 );
+
+			$this->loyalty_points_mdl->recordSaleMovements(
+				$id_sale, $sale['client'], $this->id_admin,
+				$claim_tier, $loyalty_tier_threshold, $loyalty_tier_rate,
+				$loyalty_balance_before, $accrual_basis_cordobas
+			);
 
 			$payment = array();
 

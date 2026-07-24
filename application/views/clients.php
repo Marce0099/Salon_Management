@@ -72,6 +72,10 @@
 						</li>
 						<li class="divider"></li>
 						<li>
+							<a href="<?php echo base_url("loyalty_points/registry/{$e->id_client }"); ?>"><i class="fa fa-star"></i> Registro de puntos</a>
+						</li>
+						<li class="divider"></li>
+						<li>
 							<a class="confirm-action" data-msg="Confirma eliminar el cliente?" href="<?php echo base_url("clients/delete/{$e->id_client }"); ?>"><i class="fa fa-times"></i> Eliminar</a>
 						</li>
 					</ul>

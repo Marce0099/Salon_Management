@@ -50,6 +50,14 @@
             <input type="text" disabled id="client_name" class="form-control col-md-7 col-xs-12">
         </div>
 	</div>
+	<div class="form-group" id="loyalty-block" style="display:none;">
+		<label class="control-label col-md-2 col-sm-3 col-xs-12">Puntos de fidelidad:</label>
+		<div class="col-md-6 col-sm-6 col-xs-12">
+            <span id="loyalty-balance-display" class="label label-info"></span>
+            <div id="loyalty-claim-options" style="margin-top:5px;"></div>
+        </div>
+		<input type="hidden" name="claim_loyalty_tier" id="claim_loyalty_tier" value="0">
+	</div>
 	<div class="form-group">
 		<label class="control-label col-md-2 col-sm-3 col-xs-12" for="">Vendedor:</label>
 		<div class="col-md-6 col-sm-6 col-xs-12">
@@ -76,6 +84,7 @@
 			<span id="payment-due-badge" class="label label-warning" style="font-size: 100%; white-space: nowrap;"></span>
 			<span id="payment-overpayment-badge" class="label label-info" style="font-size: 100%; white-space: nowrap; display: none;"></span>
 			<span id="deposit-applied-badge" class="label label-success" style="font-size: 100%; white-space: nowrap; display: none;"></span>
+			<span id="loyalty-applied-badge" class="label label-success" style="font-size: 100%; white-space: nowrap; display: none;"></span>
 			<span class="label label-info" style="font-size: 100%; white-space: nowrap;">Tasa venta:C$<?php echo $exchange->sell_price; ?></span>
 			<span class="label label-info" style="font-size: 100%; white-space: nowrap;">Tasa compra:C$<?php echo $exchange->buy_price; ?></span>
 		</div>
@@ -451,6 +460,7 @@
 		total_invoice : 0,
 		total_services : 0,
 		deposit_credit_cordobas : 0,
+		loyalty_discount_cordobas : 0,
 		payments : {
 			'0' : { method : 'cash', subtotal : 0, total : 0 }
 		}
@@ -628,6 +638,63 @@
 		$('#product-picker-modal').modal('hide');
 	});
 
+	// Fetches the selected client's loyalty balance and, if they qualify for a reward, shows a single
+	// "claim" checkbox for the maximum tier they're eligible for (claiming always applies the highest
+	// qualifying tier — there is no picking a lower one). Called from both places a client gets set:
+	// the picker's OK handler and the appointment-continuation prefill.
+	function fetchLoyaltyBalance( id_client ){
+
+		$('#claim_loyalty_tier').val(0);
+		system.loyalty_discount_cordobas = 0;
+		$('#loyalty-block').hide();
+		$('#loyalty-claim-options').empty();
+		$('#loyalty-balance-display').text('');
+
+		if( !id_client ) return;
+
+		$.post( '<?php echo base_url('loyalty_points/getClientBalance'); ?>', { id_client : id_client }, function(data){
+
+			if( !data || !data.enabled ) return;
+
+			$('#loyalty-block').show();
+			$('#loyalty-balance-display').text('Saldo: ' + numeral(data.balance).format('0,0.[00]') + ' / ' + data.ceiling + ' pts');
+
+			if( data.max_eligible_tier > 0 ){
+
+				var tier = null;
+				$.each(data.tiers, function(i, t){
+					if( t.tier == data.max_eligible_tier ) tier = t;
+				});
+
+				if( tier ){
+
+					var label = 'Aplicar recompensa de fidelidad — Etapa ' + tier.tier + ' (' + numeral(tier.rate).format('0,0.[00]') + '% descuento en servicios, quema ' + numeral(tier.threshold).format('0,0.[00]') + ' pts)';
+
+					var $chk = $('<label class="checkbox-inline">')
+						.append($('<input type="checkbox" id="loyalty-claim-checkbox">').data('tier', tier))
+						.append(' ' + label);
+
+					$('#loyalty-claim-options').append($chk);
+
+					$('#loyalty-claim-checkbox').on('change', function(){
+
+						if( $(this).is(':checked') ){
+							$('#claim_loyalty_tier').val(tier.tier);
+							system.loyalty_discount_cordobas = system.total_services * tier.rate / 100;
+						}else{
+							$('#claim_loyalty_tier').val(0);
+							system.loyalty_discount_cordobas = 0;
+						}
+
+						var $row = $('#sales-list tr').eq(0);
+						if( $row.length ) updateTotal($row); else updateDueAmount();
+					});
+				}
+			}
+
+		}, 'json');
+	}
+
 	// ----- Client picker modal (#cedula_cliente) -----
 
 	var _clientPickerSelected   = null;
@@ -734,6 +801,7 @@
 		$('#client_name').val(c.name_client+' '+c.surname_client);
 		$('#id_client').val(c.id_client);
 		$('#cedula_cliente').val(c.id_card_client || '');
+		fetchLoyaltyBalance(c.id_client);
 
 		$('#client-picker-modal').modal('hide');
 	});
@@ -781,7 +849,6 @@
 		});
 
 		total_cordobas = numeral(total_cordobas);
-		system.total_invoice = Math.max( total_cordobas.value() - system.deposit_credit_cordobas, 0 );
 		$('#total-cordobas').html(total_cordobas.format('0,0.00'));
 
 		//services-only subtotal, used to cap coupon redemption
@@ -792,6 +859,15 @@
 
 		});
 		system.total_services = total_services;
+
+		//keep an already-claimed loyalty reward in sync with the current services subtotal
+		var $loyaltyChk = $('#loyalty-claim-checkbox');
+		if( $loyaltyChk.length && $loyaltyChk.is(':checked') ){
+			var claimedTier = $loyaltyChk.data('tier');
+			system.loyalty_discount_cordobas = system.total_services * claimedTier.rate / 100;
+		}
+
+		system.total_invoice = Math.max( total_cordobas.value() - system.deposit_credit_cordobas - system.loyalty_discount_cordobas, 0 );
 
 		updateDueAmount();
 	}
@@ -810,12 +886,20 @@
 		$('#total-dollar').html( numeral( total_dollar.value() - subtotal_dollar.value() ).format('0,0.00') );
 
 		var tot_cord = numeral( total_cordobas.value() - subtotal_cordobas.value());
-		system.total_invoice = Math.max( tot_cord.value() - system.deposit_credit_cordobas, 0 );
 		$('#total-cordobas').html( tot_cord.format('0,0.00') );
 
 		if( row.hasClass('p-service') ){
 			system.total_services = numeral( system.total_services - subtotal_cordobas.value() ).value();
 		}
+
+		//keep an already-claimed loyalty reward in sync with the current services subtotal
+		var $loyaltyChk = $('#loyalty-claim-checkbox');
+		if( $loyaltyChk.length && $loyaltyChk.is(':checked') ){
+			var claimedTier = $loyaltyChk.data('tier');
+			system.loyalty_discount_cordobas = system.total_services * claimedTier.rate / 100;
+		}
+
+		system.total_invoice = Math.max( tot_cord.value() - system.deposit_credit_cordobas - system.loyalty_discount_cordobas, 0 );
 
 		updateDueAmount();
 
@@ -875,6 +959,7 @@
 			$('#cedula_cliente').val(c.id_card_client || '')
 				.prop('disabled', true)
 				.attr('title', 'Cliente de la reserva — no se puede modificar');
+			fetchLoyaltyBalance(c.id_client);
 		}
 
 		$.each(appointmentPrefill.products || [], function(i, p){
@@ -884,7 +969,7 @@
 		system.deposit_credit_cordobas = appointmentPrefill.deposit_credit_cordobas || 0;
 
 		var currentTotalCordobas = numeral($('#total-cordobas').html()).value();
-		system.total_invoice = Math.max(currentTotalCordobas - system.deposit_credit_cordobas, 0);
+		system.total_invoice = Math.max(currentTotalCordobas - system.deposit_credit_cordobas - system.loyalty_discount_cordobas, 0);
 
 		if( system.total_invoice <= 0 ){
 
@@ -1174,6 +1259,13 @@
 		        	system.deposit_credit_cordobas = 0;
 		        	$('#deposit-applied-badge').hide().text('');
 
+		        	system.loyalty_discount_cordobas = 0;
+		        	$('#claim_loyalty_tier').val(0);
+		        	$('#loyalty-applied-badge').hide().text('');
+		        	$('#loyalty-block').hide();
+		        	$('#loyalty-claim-options').empty();
+		        	$('#loyalty-balance-display').text('');
+
 		        	// a completed continuation may have emptied #payment-blocks entirely (zero remaining
 		        	// balance owed); restore the default block so the form is usable for a fresh sale
 		        	if( $('#payment-blocks').children('.payment_container').length === 0 ){
@@ -1292,11 +1384,18 @@
 		var $badge = $('#payment-due-badge');
 		var $overpaymentBadge = $('#payment-overpayment-badge');
 		var $depositBadge = $('#deposit-applied-badge');
+		var $loyaltyBadge = $('#loyalty-applied-badge');
 
 		if( system.deposit_credit_cordobas > 0 ){
 			$depositBadge.text('Depósito aplicado: C$' + numeral(system.deposit_credit_cordobas).format('0,0.00')).show();
 		}else{
 			$depositBadge.hide().text('');
+		}
+
+		if( system.loyalty_discount_cordobas > 0 ){
+			$loyaltyBadge.text('Descuento por puntos aplicado: C$' + numeral(system.loyalty_discount_cordobas).format('0,0.00')).show();
+		}else{
+			$loyaltyBadge.hide().text('');
 		}
 
 		if( system.total_invoice > 0 && due.value() > 0 ){

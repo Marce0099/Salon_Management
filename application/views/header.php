@@ -133,6 +133,7 @@
                       <li><a href="<?php echo base_url('bank_account'); ?>">Cuentas Bancarias</a></li>
                       <?php if($this->controller->is_admin()){ ?>
                       <li><a href="<?php echo base_url('admins/list'); ?>">Administradores</a></li>
+                      <li><a href="<?php echo base_url('loyalty_points'); ?>">Programa de puntos</a></li>
                       <?php } ?>
                     </ul>
                   </li>
