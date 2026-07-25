@@ -72,6 +72,27 @@ class Products_mdl extends CI_Model{
 		return $this->getStock($id_product);
 	}
 
+	public function getLowStockCount(){
+
+		$sql = 'SELECT COUNT(*) AS total FROM products
+		        WHERE active = 1 AND is_service = 0
+		          AND stock_alert_threshold IS NOT NULL
+		          AND stock <= stock_alert_threshold';
+
+		return (int) $this->db->query($sql)->row('total');
+	}
+
+	public function getLowStockProducts(){
+
+		$sql = 'SELECT id_product, name, stock, stock_alert_threshold FROM products
+		        WHERE active = 1 AND is_service = 0
+		          AND stock_alert_threshold IS NOT NULL
+		          AND stock <= stock_alert_threshold
+		        ORDER BY name ASC';
+
+		return $this->db->query($sql)->result();
+	}
+
 	public function getTotalInventory($get, $query){
 
 		if( $get ){
