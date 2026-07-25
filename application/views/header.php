@@ -36,6 +36,26 @@
     <!-- Custom Theme Style -->
     <link href="<?php echo base_url('assets/gentelella/build/css/custom.css'); ?>" rel="stylesheet">
     <link href="<?php echo base_url('assets/css/admin.css'); ?>" rel="stylesheet">
+    <style>
+        #low-stock-bell i{
+            font-size: 18px;
+            display: inline-block;
+            margin-top: 4px;
+        }
+        .low-stock-badge{
+            position: absolute;
+            top: -6px;
+            right: -10px;
+            background: #e08e0b;
+            color: #fff;
+            border-radius: 10px;
+            font-size: 11px;
+            line-height: 1;
+            padding: 2px 5px;
+            font-weight: bold;
+            z-index: 2;
+        }
+    </style>
     <?php if($_SERVER["PATH_INFO"] == "/panel") { ?>
     <link href="<?php echo base_url('assets/css/chart.css'); ?>" rel="stylesheet">
     <?php } ?>
@@ -155,6 +175,15 @@
                 <a id="menu_toggle"><i class="fa fa-bars"></i></a>
               </div>
 
+              <div class="nav toggle">
+                <a href="javascript:;" id="low-stock-bell">
+                  <span style="position:relative; display:inline-block;">
+                    <i class="fa fa-bell"></i>
+                    <span id="low-stock-badge" class="low-stock-badge hide">0</span>
+                  </span>
+                </a>
+              </div>
+
               <ul class="nav navbar-nav navbar-right">
                 <li class="">
                   <a href="javascript:;" class="user-profile dropdown-toggle" data-toggle="dropdown" aria-expanded="false">
@@ -170,6 +199,30 @@
           </div>
         </div>
         <!-- /top navigation -->
-        
+
+        <div class="modal fade" id="low-stock-modal" tabindex="-1" role="dialog">
+          <div class="modal-dialog modal-lg" role="document">
+            <div class="modal-content">
+              <div class="modal-header">
+                <button type="button" class="close" data-dismiss="modal"><span>&times;</span></button>
+                <h4 class="modal-title">Productos con stock bajo</h4>
+              </div>
+              <div class="modal-body">
+                <div style="max-height:400px;overflow-y:auto;">
+                  <table class="table table-bordered table-hover table-condensed">
+                    <thead>
+                      <tr><th>Producto</th><th>Stock actual</th><th>Umbral</th></tr>
+                    </thead>
+                    <tbody id="low-stock-results"></tbody>
+                  </table>
+                </div>
+              </div>
+              <div class="modal-footer">
+                <button type="button" class="btn btn-default" data-dismiss="modal">Cerrar</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <!-- page content -->
         <div class="right_col" role="main">

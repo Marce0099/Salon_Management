@@ -44,6 +44,13 @@
             <span class="form-control-feedback left">$</span>
         </div>
 	</div>
+	<div class="form-group" id="stock-alert-group">
+		<label class="control-label col-md-3 col-sm-3 col-xs-12" for="stock_alert_threshold">Alerta de stock mínimo:
+        </label>
+		<div class="col-md-2 col-sm-3 col-xs-8">
+            <input type="text" data-parsley-type="integer" name="stock_alert_threshold" id="stock_alert_threshold" class="form-control" value="<?php if($product && $product->stock_alert_threshold !== NULL){ echo $product->stock_alert_threshold; } ?>">
+        </div>
+	</div>
 	<?php if( !$product ) : ?>
 	<div class="form-group">
 		<label class="control-label col-md-3 col-sm-3 col-xs-12" for="stock">Stock:
@@ -128,9 +135,19 @@
 		}
 	}
 
+	function toggleStockAlert(element){
+		if(system.is_service){
+			element.addClass('hide');
+			$('#stock_alert_threshold').val('');
+		}else{
+			element.removeClass('hide');
+		}
+	}
+
 	$(document).ready(function() {
 		toggleCommission($('#commission'));
 		toggleServiceCategory($('#service-category-group'));
+		toggleStockAlert($('#stock-alert-group'));
 
 		var params = new URLSearchParams(window.location.search);
 
@@ -147,6 +164,7 @@
 		system.is_service = $(this).prop('checked');
 		toggleCommission($('#commission'));
 		toggleServiceCategory($('#service-category-group'));
+		toggleStockAlert($('#stock-alert-group'));
 	});
 
 	var _categoryTimer = null;

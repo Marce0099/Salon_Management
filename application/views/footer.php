@@ -62,6 +62,60 @@
     <!-- Custom Theme Scripts -->
     <script src="<?php echo base_url("assets/gentelella/build/js/custom.js"); ?>"></script>
 
+    <script>
+    (function(){
+
+        var baseUrl = '<?php echo base_url(); ?>';
+
+        function refreshLowStockBadge(){
+
+            $.getJSON(baseUrl + 'products/lowStockCount', function(data){
+
+                var $badge = $('#low-stock-badge');
+                var count = data.count || 0;
+
+                if( count > 0 ){
+                    $badge.text(count).removeClass('hide');
+                }else{
+                    $badge.addClass('hide');
+                }
+            });
+        }
+
+        function loadLowStockModal(){
+
+            $.getJSON(baseUrl + 'products/lowStockList', function(data){
+
+                var $tbody = $('#low-stock-results');
+                $tbody.empty();
+
+                if( data.products && data.products.length ){
+
+                    $.each(data.products, function(i, p){
+                        $('<tr>').append(
+                            $('<td>').text(p.name),
+                            $('<td>').text(p.stock),
+                            $('<td>').text(p.stock_alert_threshold)
+                        ).appendTo($tbody);
+                    });
+                }else{
+
+                    $tbody.append('<tr><td colspan="3">No hay productos con stock bajo</td></tr>');
+                }
+            });
+        }
+
+        $('#low-stock-bell').on('click', function(){
+
+            loadLowStockModal();
+            $('#low-stock-modal').modal('show');
+        });
+
+        $(document).ready(refreshLowStockBadge);
+
+    })();
+    </script>
+
     <?php if( isset($status) ) : ?>
     <script>
 

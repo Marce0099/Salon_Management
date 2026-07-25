@@ -51,6 +51,20 @@ class Products extends Admin_Controller{
 		$this->form_validation->set_rules('price_cost','required|numeric');
 		$this->form_validation->set_rules('commisssion_rate','numeric');
 		$this->form_validation->set_rules('id_service_category','numeric');
+		$this->form_validation->set_rules('stock_alert_threshold','trim|is_natural');
+	}
+
+	private function normalizeStockAlertThreshold( &$data ){
+
+		if( !isset($data['stock_alert_threshold']) || $data['stock_alert_threshold'] === '' ){
+
+			$data['stock_alert_threshold'] = NULL;
+		}
+
+		if( !empty($data['is_service']) ){
+
+			$data['stock_alert_threshold'] = NULL;
+		}
 	}
 
 	private function resolveServiceCategory( $data ){
@@ -95,6 +109,7 @@ class Products extends Admin_Controller{
 						$data['id_provider'] = NULL;
 
 					$data['id_service_category'] = $this->resolveServiceCategory( $data );
+					$this->normalizeStockAlertThreshold( $data );
 
 					$this->products_mdl->save( $data );
 
@@ -180,6 +195,7 @@ class Products extends Admin_Controller{
 						$data['id_provider'] = NULL;
 
 					$data['id_service_category'] = $this->resolveServiceCategory( $data );
+					$this->normalizeStockAlertThreshold( $data );
 
 					$this->products_mdl->edit( $id_product, $data );
 
@@ -328,6 +344,16 @@ class Products extends Admin_Controller{
 			echo json_encode($data);
 		}
 		
+	}
+
+	public function lowStockCount(){
+
+		echo json_encode( array( 'count' => $this->products_mdl->getLowStockCount() ) );
+	}
+
+	public function lowStockList(){
+
+		echo json_encode( array( 'products' => $this->products_mdl->getLowStockProducts() ) );
 	}
 
 	public function validateQuantities(){
