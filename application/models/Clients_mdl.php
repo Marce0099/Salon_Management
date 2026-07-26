@@ -54,6 +54,11 @@ class Clients_mdl extends CI_Model{
 		$this->db->where('id_client', $id_client)->update('clients', ['active' => 1]);
 	}
 
+	public function toggleVip($id_client){
+
+		$this->db->where('id_client', $id_client)->set('is_vip_client', '1 - is_vip_client', false)->update('clients');
+	}
+
 	public function searchActive($id_card_client = '', $name = '', $surname = '', $phone = '', $email = ''){
 
 		$sql = 'SELECT id_client, id_card_client, name_client, surname_client, phone_client, email_client, is_vip_client,
