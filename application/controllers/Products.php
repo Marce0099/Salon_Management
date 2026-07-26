@@ -6,6 +6,7 @@ class Products extends Admin_Controller{
 
 		parent::__construct();
 		$this->load->model('products_mdl');
+		$this->load->model('internal_use_mdl');
 	}
 
 	public function index(){
@@ -387,6 +388,121 @@ class Products extends Admin_Controller{
 
 			echo json_encode($data);
 		}
+	}
+
+	public function searchForInternalUse(){
+
+		$search = $this->input->post('search');
+
+		$data['products'] = $this->products_mdl->searchForInternalUse($search);
+		echo json_encode($data);
+	}
+
+	public function internalUse(){
+
+		if( formPosted() ){
+
+			$this->form_validation->set_rules('reason',        '', 'required|trim');
+			$this->form_validation->set_rules('id_products[]', '', 'required|is_natural_no_zero');
+			$this->form_validation->set_rules('quantities[]',  '', 'required|is_natural_no_zero');
+
+			if( $this->form_validation->run() ){
+
+				$data   = $this->input->post();
+				$reason = trim($data['reason']);
+
+				$this->db->trans_begin();
+
+				try{
+
+					$id_internal_use = $this->internal_use_mdl->save( $this->id_admin, $reason );
+					$this->internal_use_mdl->saveProducts(
+						$id_internal_use, $data['id_products'], $data['quantities']
+					);
+
+					if( $this->db->trans_status() === FALSE ){
+						throw new Exception('No se ha podido registrar el uso interno');
+					}
+
+					$this->db->trans_commit();
+
+					$view_data['status'] = array( 'class' => 'success', 'message' => 'Uso interno registrado e inventario actualizado' );
+					$this->session->set_userdata('view_data', $view_data);
+					redirect('products/internal_use_list');
+				}
+				catch( Exception $e ){
+
+					$this->db->trans_rollback();
+					$view_data['status'] = array( 'class' => 'error', 'message' => $e->getMessage() );
+					$this->internalUseForm($view_data);
+				}
+			}
+			else{
+
+				$view_data['status'] = array( 'class' => 'error', 'message' => 'Datos invalidos' );
+				$this->internalUseForm($view_data);
+			}
+		}
+		else{
+
+			$this->internalUseForm();
+		}
+	}
+
+	private function internalUseForm( $view_data = array() ){
+
+		$this->footer_data = $view_data;
+		$this->renderPanel('form_internal_use');
+	}
+
+	public function internal_use_list(){
+
+		$this->load->library('easysearch');
+
+		$search['query'] = 'select IU.*, A.name as admin_name from internal_uses IU
+		left outer join admins A on IU.id_admin = A.id_admin inner join internal_use_products IUP on IU.id_internal_use = IUP.id_internal_use';
+		$search['order_by'] = array( 'IU.id_internal_use' => 'desc' );
+		$search['group_by'] = array( 'IU.id_internal_use' );
+		$search['return_as'] = 'internal_uses';
+		$search['limit'] = 100;
+		$search['fields'] = array(
+
+			'date_start' => array( 'column' => 'IU.date_time', 'type' => 'date' ),
+			'date_end' => array( 'column' => 'IU.date_time', 'type' => 'date' )
+		);
+
+		$data = $this->easysearch->search($search);
+
+		foreach( $data['internal_uses'] as $iu ){
+
+			$sql = 'select sum(IUP.quantity * IUP.price_cost) as total_cost from internal_use_products IUP
+			where IUP.id_internal_use = '.$iu->id_internal_use;
+
+			$iu->total_cost = $this->db->query($sql)->row('total_cost');
+		}
+
+		$data['totals'] = $this->internal_use_mdl->getTotalInternalUse(array_filter($_GET),$data['query_no_limit']);
+
+		$this->content_data = $data;
+		$this->footer_data = load_data($this->session);
+
+		$this->renderPanel('internal_use');
+	}
+
+	public function internal_use_details( $id_internal_use = 0 ){
+
+		$data['internal_use'] = $this->internal_use_mdl->getDetails($id_internal_use);
+
+		if( !$data['internal_use'] ){
+
+			$view_data = array( 'class' => 'error', 'message' => 'Datos invalidos' );
+			$this->session->set_userdata('view_data',$view_data);
+			redirect('products/internal_use_list');
+			exit();
+		}
+
+		$this->content_data = $data;
+		$this->renderPanel('internal_use_details');
 	}
 
 }

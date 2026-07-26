@@ -105,6 +105,8 @@
                       <?php if($this->controller->is_admin()){ ?>
                       <li><a href="<?php echo base_url('products/register'); ?>">Registrar producto</a></li>
                       <?php } ?>
+                      <li><a href="<?php echo base_url('products/internalUse'); ?>">Uso interno</a></li>
+                      <li><a href="<?php echo base_url('products/internal_use_list'); ?>">Historial de uso interno</a></li>
                     </ul>
                   </li>
                   <li><a><i class="fa fa-cut"></i> Servicios <span class="fa fa-chevron-down"></span></a>

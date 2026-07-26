@@ -90,6 +90,13 @@ Check these files when working in the relevant area:
 | `returns` | `id_return` | `id_provider`->`providers.id_provider`, `id_invoice`->`invoices.id_invoice` (nullable, ON DELETE SET NULL), `date_time` | Return-to-supplier header |
 | `returns_products` | `id_return_product` | `id_return`->`returns.id_return`, `id_product`->`products.id_product`, `quantity`, `price_cost` VARCHAR, `price_sell` VARCHAR | Return line items |
 
+### Internal product usage
+
+| Table | PK | Key columns | Links |
+|---|---|---|---|
+| `internal_uses` | `id_internal_use` | `id_admin`->`admins.id_admin` (`ON DELETE CASCADE`; who registered the withdrawal), `date_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, `reason` TEXT NOT NULL (mandatory business justification, e.g. store display, damaged write-off, employee use) | Header for a stock withdrawal used internally by the business rather than sold; reachable via `/products/internalUse` (register) and `/products/internal_use_list` (history), open to any logged-in admin/employee (no `is_admin()` gate) |
+| `internal_use_products` | `id_internal_use_product` | `id_internal_use`->`internal_uses.id_internal_use` (`ON DELETE CASCADE`), `id_product`->`products.id_product` (`ON DELETE CASCADE`; must be `is_service=0`, services are rejected), `quantity` INT NOT NULL, `price_cost` VARCHAR(20) NOT NULL (cost snapshot at withdrawal time, mirrors `returns_products`/`invoice_products`) | Line items; stock decremented per product on save (`Internal_use_mdl::saveProducts()`), validated against current stock inside the same DB transaction as the header insert |
+
 ### Cash & financial
 
 | Table | PK | Key columns | Purpose |

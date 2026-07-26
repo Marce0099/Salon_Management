@@ -159,4 +159,19 @@ class Products_mdl extends CI_Model{
 
 		return $this->db->query($sql)->result();
 	}
+
+	public function searchForInternalUse($search = ''){
+
+		$sql = 'SELECT id_product, barcode, name, stock, price_cost
+		        FROM products WHERE active = 1 AND is_service = 0 AND stock > 0';
+
+		if( !empty($search) ){
+			$safe = $this->db->escape_like_str($search);
+			$sql .= ' AND (barcode LIKE "%'.$safe.'%" OR name LIKE "%'.$safe.'%")';
+		}
+
+		$sql .= ' ORDER BY name ASC LIMIT 50';
+
+		return $this->db->query($sql)->result();
+	}
 }
