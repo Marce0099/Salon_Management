@@ -70,6 +70,13 @@
 						<li>
 							<a href="<?php echo base_url("clients/edit/{$e->id_client }"); ?>"><i class="fa fa-pencil"></i> Editar</a>
 						</li>
+						<li>
+							<?php if( $e->is_vip_client == 1 ) : ?>
+							<a href="<?php echo base_url("clients/toggleVip/{$e->id_client}"); ?>"><i class="fa fa-star-o"></i> Quitar de VIP</a>
+							<?php else : ?>
+							<a href="<?php echo base_url("clients/toggleVip/{$e->id_client}"); ?>"><i class="fa fa-star"></i> Marcar como VIP</a>
+							<?php endif; ?>
+						</li>
 						<li class="divider"></li>
 						<li>
 							<a href="<?php echo base_url("loyalty_points/registry/{$e->id_client }"); ?>"><i class="fa fa-star"></i> Registro de puntos</a>

@@ -246,6 +246,35 @@ class Clients extends Admin_Controller{
 		}
 	}
 
+	public function toggleVip( $id_client = 0 ){
+
+		try{
+
+			$client = $this->clients_mdl->getClient( $id_client );
+
+			if( !$client ){
+
+				throw new Exception('Cliente inválido');
+			}
+
+			$this->clients_mdl->toggleVip($id_client);
+
+			$new_status = $client->is_vip_client == 1 ? 'removido de VIP' : 'marcado como VIP';
+			$view_data['status'] = array( 'class' => 'success', 'message' => "Cliente $new_status" );
+
+			$this->session->set_userdata( 'view_data', $view_data );
+			redirect('clients');
+
+		}
+		catch( Exception $e ){
+
+			$view_data['status'] = array( 'class' => 'error', 'message' => $e->getMessage() );
+
+			$this->session->set_userdata( 'view_data', $view_data );
+			redirect('clients');
+		}
+	}
+
 	//API
 	public function getByIdCard(){
 		if($_SERVER["REQUEST_METHOD"] !== "POST"){
