@@ -56,7 +56,8 @@ class Clients_mdl extends CI_Model{
 
 	public function searchActive($id_card_client = '', $name = '', $surname = '', $phone = '', $email = ''){
 
-		$sql = 'SELECT id_client, id_card_client, name_client, surname_client, phone_client, email_client, is_vip_client
+		$sql = 'SELECT id_client, id_card_client, name_client, surname_client, phone_client, email_client, is_vip_client,
+		        DATE_FORMAT(birth_client, "%m-%d") = DATE_FORMAT(CURDATE(), "%m-%d") AS is_birthday_today
 		        FROM clients WHERE active = 1';
 
 		if( !empty($id_card_client) ){
@@ -89,7 +90,8 @@ class Clients_mdl extends CI_Model{
 
 		$safe = $this->db->escape_like_str($term);
 
-		$sql = 'SELECT id_client, id_card_client, name_client, surname_client, phone_client, email_client, is_vip_client
+		$sql = 'SELECT id_client, id_card_client, name_client, surname_client, phone_client, email_client, is_vip_client,
+		        DATE_FORMAT(birth_client, "%m-%d") = DATE_FORMAT(CURDATE(), "%m-%d") AS is_birthday_today
 		        FROM clients WHERE active = 1
 		        AND (name_client LIKE "%'.$safe.'%"
 		             OR surname_client LIKE "%'.$safe.'%"

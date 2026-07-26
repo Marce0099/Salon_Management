@@ -188,11 +188,14 @@ class Sales extends Admin_Controller{
 			$sale['dollar_ex_buy'] = $exchange->buy_price;
 			$sale['dollar_ex_sell'] = $exchange->sell_price;
 
-			/* VIP discount: resolved once from the now-final sale client, never trusted from the client */
+			/* VIP/birthday discount: resolved once from the now-final sale client, never trusted from the client */
 			$this->load->model('settings_mdl');
 			$vip_discount_rate = (float) $this->settings_mdl->get('vip_discount_rate', 0);
+			$birthday_discount_rate = (float) $this->settings_mdl->get('birthday_discount_rate', 0);
 			$sale_client_row = $this->db->get_where('clients', array( 'id_client' => $sale['client'] ))->row();
 			$sale_client_is_vip = $sale_client_row && $sale_client_row->is_vip_client == 1;
+			$sale_client_is_birthday = $sale_client_row && !empty($sale_client_row->birth_client)
+				&& date('m-d', strtotime($sale_client_row->birth_client)) === date('m-d');
 
 			/* invoice total + services-only subtotal, needed unconditionally for the coupon overpay check below */
 			$total_cordobas = 0;
@@ -205,8 +208,8 @@ class Sales extends Admin_Controller{
 				$sale_products_cache[$i] = $product;
 
 				/* line discount is server-computed, not read from the POST: services get max(category
-				   default, VIP rate); anything else gets 0 — mirrors the auto-fill in form_sales.php,
-				   whose .p-discount inputs are readonly for this exact reason */
+				   default, VIP rate, birthday rate); anything else gets 0 — mirrors the auto-fill in
+				   form_sales.php, whose .p-discount inputs are readonly for this exact reason */
 				$line_discount = 0;
 
 				if( $product && $product->is_service ){
@@ -218,7 +221,7 @@ class Sales extends Admin_Controller{
 						if( $category && $category->discount_rate !== null ) $category_rate = (float) $category->discount_rate;
 					}
 
-					$line_discount = max( $category_rate, $sale_client_is_vip ? $vip_discount_rate : 0 );
+					$line_discount = max( $category_rate, $sale_client_is_vip ? $vip_discount_rate : 0, $sale_client_is_birthday ? $birthday_discount_rate : 0 );
 				}
 
 				$discounts[$i] = $line_discount;
@@ -859,6 +862,7 @@ class Sales extends Admin_Controller{
 		$this->content_data['accounts'] = $this->bank_account_mdl->getAccounts();
 		$this->content_data['prefill'] = $this->buildAppointmentPrefill( (int) $id_appointment, $data['exchange'] );
 		$this->content_data['vip_discount_rate'] = $this->settings_mdl->get('vip_discount_rate', 15);
+		$this->content_data['birthday_discount_rate'] = $this->settings_mdl->get('birthday_discount_rate', 50);
 		$this->renderPanel('form_sales');
 	}
 
@@ -877,6 +881,10 @@ class Sales extends Admin_Controller{
 		}
 
 		$client = $this->db->get_where('clients', array( 'id_client' => $appointment->id_client ))->row();
+
+		if( $client && !empty($client->birth_client) ){
+			$client->is_birthday_today = ( date('m-d', strtotime($client->birth_client)) === date('m-d') ) ? 1 : 0;
+		}
 
 		$sql = 'select p.id_product, p.barcode, p.name, p.price_sell, p.is_service, p.commisssion_rate,
 		               sc.discount_rate as category_discount_rate

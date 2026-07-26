@@ -9,6 +9,13 @@
         </div>
 	</div>
 	<div class="form-group">
+		<label class="control-label col-md-3 col-sm-3 col-xs-12" for="birthday_discount_rate">Descuento cumpleaños cliente (%):
+        </label>
+		<div class="col-md-6 col-sm-6 col-xs-12">
+            <input type="text" data-parsley-type="number" name="birthday_discount_rate" id="birthday_discount_rate" required="required" class="form-control col-md-7 col-xs-12" value="<?php echo $birthday_discount_rate; ?>">
+        </div>
+	</div>
+	<div class="form-group">
 		<div class="col-md-offset-3 col-sm-offset-3 col-md-3 col-sm-3">
 			<button class="btn btn-success" id="btn-submit" type="submit">Guardar</button>
 		</div>

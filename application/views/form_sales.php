@@ -473,10 +473,12 @@
 
 	var appointmentPrefill = <?php echo json_encode($prefill); ?>;
 
-	// VIP client discount (application/settings, admin-configurable via /settings) — auto-fills
+	// VIP/birthday client discounts (application/settings, admin-configurable via /settings) — auto-fill
 	// service line discounts alongside the existing category-default auto-fill (whichever is higher wins)
 	var VIP_DISCOUNT_RATE = <?php echo (float) $vip_discount_rate; ?>;
+	var BIRTHDAY_DISCOUNT_RATE = <?php echo (float) $birthday_discount_rate; ?>;
 	var _selectedClientVip = false;
+	var _selectedClientBirthday = false;
 
 	// ----- Product picker modal (#barcode) -----
 
@@ -613,7 +615,8 @@
 			row.data('category-discount-rate', categoryRate);
 
 			var vipRate = _selectedClientVip ? VIP_DISCOUNT_RATE : 0;
-			var autoRate = Math.max(categoryRate, vipRate);
+			var birthdayRate = _selectedClientBirthday ? BIRTHDAY_DISCOUNT_RATE : 0;
+			var autoRate = Math.max(categoryRate, vipRate, birthdayRate);
 
 			if( autoRate > 0 ){
 				row.find('.p-discount').val( autoRate );
@@ -627,9 +630,9 @@
 		return row;
 	}
 
-	// Re-syncs every service row's discount to max(its category default, current VIP rate) —
-	// called whenever the selected client changes, so rows added before the client was picked
-	// still pick up the VIP discount
+	// Re-syncs every service row's discount to max(its category default, current VIP rate, current
+	// birthday rate) — called whenever the selected client changes, so rows added before the client
+	// was picked still pick up the VIP/birthday discount
 	function applyVipDiscountToServiceRows(){
 
 		$('#sales-list tr.p-service').each(function(){
@@ -637,8 +640,9 @@
 			var row = $(this);
 			var categoryRate = row.data('category-discount-rate') || 0;
 			var vipRate = _selectedClientVip ? VIP_DISCOUNT_RATE : 0;
+			var birthdayRate = _selectedClientBirthday ? BIRTHDAY_DISCOUNT_RATE : 0;
 
-			row.find('.p-discount').val( Math.max(categoryRate, vipRate) );
+			row.find('.p-discount').val( Math.max(categoryRate, vipRate, birthdayRate) );
 
 			updateTotal(row);
 		});
@@ -835,6 +839,7 @@
 		fetchLoyaltyBalance(c.id_client);
 
 		_selectedClientVip = (c.is_vip_client == 1 || c.is_vip_client == '1');
+		_selectedClientBirthday = (c.is_birthday_today == 1 || c.is_birthday_today == '1');
 		applyVipDiscountToServiceRows();
 
 		$('#client-picker-modal').modal('hide');
@@ -996,6 +1001,7 @@
 			fetchLoyaltyBalance(c.id_client);
 
 			_selectedClientVip = (c.is_vip_client == 1 || c.is_vip_client == '1');
+			_selectedClientBirthday = (c.is_birthday_today == 1 || c.is_birthday_today == '1');
 		}
 
 		$.each(appointmentPrefill.products || [], function(i, p){
