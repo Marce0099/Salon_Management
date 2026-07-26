@@ -10,7 +10,7 @@
 				<th width="30%">Producto</th>
 				<th>Precio</th>
 				<th>Cantidad</th>
-				<th><a class="btn btn-primary btn-xs" onclick="setGeneralDiscount();"><i class="fa fa-arrow-down"></i></a> Descuento</th>
+				<th>Descuento</th>
 				<th>Mi Producto</th>
 				<th>Valor C$</th>
 				<th>Valor $</th>
@@ -238,7 +238,7 @@
 		</td>
 		<td>
 			<div class="tr-input">
-				<input type="text" name="discounts[]" class="form-control has-feedback-left p-discount" data-parsley-type="integer">
+				<input type="text" name="discounts[]" class="form-control has-feedback-left p-discount readonly" data-parsley-type="integer" readonly="true">
 	    		<span class="fa fa-percent form-control-feedback left"></span>
 	    	</div>
 	    </td>
@@ -473,6 +473,11 @@
 
 	var appointmentPrefill = <?php echo json_encode($prefill); ?>;
 
+	// VIP client discount (application/settings, admin-configurable via /settings) — auto-fills
+	// service line discounts alongside the existing category-default auto-fill (whichever is higher wins)
+	var VIP_DISCOUNT_RATE = <?php echo (float) $vip_discount_rate; ?>;
+	var _selectedClientVip = false;
+
 	// ----- Product picker modal (#barcode) -----
 
 	var _prodPickerSelected   = null;
@@ -602,8 +607,17 @@
 		row.find('.form-ids').val(p.id_product);
 		row.find('.p-commission_rate').val(p.commisssion_rate);
 
-		if( (p.is_service == '1' || p.is_service == 1) && p.category_discount_rate !== null && p.category_discount_rate !== undefined && p.category_discount_rate !== '' ){
-			row.find('.p-discount').val( p.category_discount_rate );
+		if( p.is_service == '1' || p.is_service == 1 ){
+
+			var categoryRate = (p.category_discount_rate !== null && p.category_discount_rate !== undefined && p.category_discount_rate !== '') ? numeral(p.category_discount_rate).value() : 0;
+			row.data('category-discount-rate', categoryRate);
+
+			var vipRate = _selectedClientVip ? VIP_DISCOUNT_RATE : 0;
+			var autoRate = Math.max(categoryRate, vipRate);
+
+			if( autoRate > 0 ){
+				row.find('.p-discount').val( autoRate );
+			}
 		}
 
 		$('#sales-list').append(row);
@@ -611,6 +625,23 @@
 		updateTotal(row);
 
 		return row;
+	}
+
+	// Re-syncs every service row's discount to max(its category default, current VIP rate) —
+	// called whenever the selected client changes, so rows added before the client was picked
+	// still pick up the VIP discount
+	function applyVipDiscountToServiceRows(){
+
+		$('#sales-list tr.p-service').each(function(){
+
+			var row = $(this);
+			var categoryRate = row.data('category-discount-rate') || 0;
+			var vipRate = _selectedClientVip ? VIP_DISCOUNT_RATE : 0;
+
+			row.find('.p-discount').val( Math.max(categoryRate, vipRate) );
+
+			updateTotal(row);
+		});
 	}
 
 	// OK: populate a new #sales-list row directly from the picker's data
@@ -803,6 +834,9 @@
 		$('#cedula_cliente').val(c.id_card_client || '');
 		fetchLoyaltyBalance(c.id_client);
 
+		_selectedClientVip = (c.is_vip_client == 1 || c.is_vip_client == '1');
+		applyVipDiscountToServiceRows();
+
 		$('#client-picker-modal').modal('hide');
 	});
 
@@ -960,6 +994,8 @@
 				.prop('disabled', true)
 				.attr('title', 'Cliente de la reserva — no se puede modificar');
 			fetchLoyaltyBalance(c.id_client);
+
+			_selectedClientVip = (c.is_vip_client == 1 || c.is_vip_client == '1');
 		}
 
 		$.each(appointmentPrefill.products || [], function(i, p){
@@ -1183,20 +1219,6 @@
 			}
 		});
 	});
-
-	function setGeneralDiscount(){
-
-		var discount = $('#form .p-discount').eq(0);
-
-		if( discount ){
-
-			$('#form .p-discount').each(function(index,element){
-
-				$(element).val(discount.val());
-				updateTotal($(element).parents('tr'));
-			});
-		}
-	}
 
 	function submitForm(){
 
@@ -1458,32 +1480,6 @@
 	}
 
 	$(document).on('keyup', '#change_cordoba_given, #change_dollar_given', refreshChangeRemaining);
-
-	$(document).on('keyup', '#products-sale .p-discount', function(){
-
-		var $input = $(this);
-		var val = $.trim( $input.val() );
-
-		if( val !== '' ){
-
-			var discount = Number(val);
-
-			if( isNaN(discount) || discount < 0 || discount > 100 ){
-
-				$input.val('');
-
-				new PNotify({
-			            title: 'Notificación',
-			            text: 'El descuento debe ser un valor numérico entre 0 y 100',
-			            type : 'error',
-			            styling : 'bootstrap3',
-			            delay : 3000
-			    });
-			}
-		}
-
-		updateTotal( $input.parents('tr') );
-	});
 
 	$(document).on('keyup', '#payment-blocks .cash-input, #payment-blocks .cupon-amount-input', function(){
 		recalcAmountPayment( $(this).closest('.payment_container') );

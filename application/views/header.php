@@ -157,6 +157,7 @@
                       <?php if($this->controller->is_admin()){ ?>
                       <li><a href="<?php echo base_url('admins/list'); ?>">Administradores</a></li>
                       <li><a href="<?php echo base_url('loyalty_points'); ?>">Programa de puntos</a></li>
+                      <li><a href="<?php echo base_url('settings'); ?>">Configuración VIP</a></li>
                       <?php } ?>
                     </ul>
                   </li>

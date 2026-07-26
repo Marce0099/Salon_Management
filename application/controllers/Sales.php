@@ -91,19 +91,14 @@ class Sales extends Admin_Controller{
 			$id_products = $this->input->post('id_products');
 			$quantities = $this->input->post('quantities');
 			$prices = $this->input->post('prices');
-			$discounts = $this->input->post('discounts');
 			$commission_rate = $this->input->post('commission_rate');
 			$my_product = $this->input->post('my_product');
 
-			foreach( $discounts as $discount ){
-				if( $discount !== '' && ( !is_numeric($discount) || $discount < 0 || $discount > 100 ) ){
-
-					$response['type'] = 'error';
-					$response['message'] = 'El descuento debe ser un valor numérico entre 0 y 100';
-					echo json_encode($response);
-					exit();
-				}
-			}
+			// Line discounts are never trusted from the client — a posted value is only ever a UI
+			// convenience the browser happened to compute; the real value is recomputed below from
+			// server-side data (service category default / VIP rate) once the client is resolved,
+			// so a tampered or hand-crafted request can't apply a discount beyond what's legitimate.
+			$discounts = array();
 
 			$sale['client'] = $this->input->post('id_client');
 			$sale['id_employee'] = $this->input->post('id_employee') ? $this->input->post('id_employee') : NULL;
@@ -193,6 +188,12 @@ class Sales extends Admin_Controller{
 			$sale['dollar_ex_buy'] = $exchange->buy_price;
 			$sale['dollar_ex_sell'] = $exchange->sell_price;
 
+			/* VIP discount: resolved once from the now-final sale client, never trusted from the client */
+			$this->load->model('settings_mdl');
+			$vip_discount_rate = (float) $this->settings_mdl->get('vip_discount_rate', 0);
+			$sale_client_row = $this->db->get_where('clients', array( 'id_client' => $sale['client'] ))->row();
+			$sale_client_is_vip = $sale_client_row && $sale_client_row->is_vip_client == 1;
+
 			/* invoice total + services-only subtotal, needed unconditionally for the coupon overpay check below */
 			$total_cordobas = 0;
 			$services_total_cordobas = 0;
@@ -202,6 +203,25 @@ class Sales extends Admin_Controller{
 
 				$product = $this->db->get_where('products', array( 'id_product' => $id_products[$i] ))->row();
 				$sale_products_cache[$i] = $product;
+
+				/* line discount is server-computed, not read from the POST: services get max(category
+				   default, VIP rate); anything else gets 0 — mirrors the auto-fill in form_sales.php,
+				   whose .p-discount inputs are readonly for this exact reason */
+				$line_discount = 0;
+
+				if( $product && $product->is_service ){
+
+					$category_rate = 0;
+
+					if( $product->id_service_category ){
+						$category = $this->db->get_where('service_category', array( 'id_service_category' => $product->id_service_category ))->row();
+						if( $category && $category->discount_rate !== null ) $category_rate = (float) $category->discount_rate;
+					}
+
+					$line_discount = max( $category_rate, $sale_client_is_vip ? $vip_discount_rate : 0 );
+				}
+
+				$discounts[$i] = $line_discount;
 
 				$price = str_replace(',', '', $prices[$i] );
 				$subtotal = $price * $quantities[$i];
@@ -829,6 +849,8 @@ class Sales extends Admin_Controller{
 
 	public function sale_form( $id_appointment = 0 ){
 
+		$this->load->model('settings_mdl');
+
 		$data['employees'] = $this->db->query('select * from employees')->result();
 		$data['exchange'] = $this->db->get('dollar_exchange')->row();
 		$data['tk'] = generateToken();
@@ -836,6 +858,7 @@ class Sales extends Admin_Controller{
 		$this->content_data = $data;
 		$this->content_data['accounts'] = $this->bank_account_mdl->getAccounts();
 		$this->content_data['prefill'] = $this->buildAppointmentPrefill( (int) $id_appointment, $data['exchange'] );
+		$this->content_data['vip_discount_rate'] = $this->settings_mdl->get('vip_discount_rate', 15);
 		$this->renderPanel('form_sales');
 	}
 
