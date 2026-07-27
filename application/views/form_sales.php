@@ -459,6 +459,7 @@
 	var system = {
 		total_invoice : 0,
 		total_services : 0,
+		has_discounted_service_line : false,
 		deposit_credit_cordobas : 0,
 		loyalty_discount_cordobas : 0,
 		payments : {
@@ -898,6 +899,7 @@
 
 		});
 		system.total_services = total_services;
+		refreshCouponAvailability();
 
 		//keep an already-claimed loyalty reward in sync with the current services subtotal
 		var $loyaltyChk = $('#loyalty-claim-checkbox');
@@ -943,6 +945,7 @@
 		updateDueAmount();
 
 		row.remove();
+		refreshCouponAvailability();
 	}
 
 	$(document).on('ready',function(){
@@ -1086,6 +1089,7 @@
 
 		var couponError = null;
 		var seenCoupons = {};
+		var cuponSeenOnce = false;
 		var nonCashTotal = 0;
 		var couponRemaining = system.total_services;
 
@@ -1096,6 +1100,17 @@
 			var amount  = system.payments[$block.data('idx')].subtotal;
 
 			if( method === 'cupon' ){
+
+				if( system.has_discounted_service_line ){
+					couponError = 'No se pueden usar cupones cuando algún servicio de la factura tiene un descuento aplicado';
+					return false;
+				}
+
+				if( cuponSeenOnce ){
+					couponError = 'No se permite más de un método de pago con cupón por venta';
+					return false;
+				}
+				cuponSeenOnce = true;
 
 				var code = $.trim( $block.find('.cupon-code-input').val() );
 
@@ -1110,8 +1125,13 @@
 				}
 				seenCoupons[code] = true;
 
+				if( couponRemaining <= 0.01 ){
+					couponError = 'Los cupones solo se pueden aplicar sobre servicios, y esta factura no tiene servicios';
+					return false;
+				}
+
 				if( amount - couponRemaining > 0.01 ){
-					couponError = 'El cupón "' + code + '" excede el total disponible de servicios en la factura';
+					couponError = 'El cupón "' + code + '" excede el total disponible de servicios en la factura (disponible: C$' + numeral(couponRemaining).format('0,0.00') + ')';
 					return false;
 				}
 				couponRemaining -= amount;
@@ -1404,6 +1424,49 @@
 		return found;
 	}
 
+	function hasCouponPayment(excludeIdx){
+		var found = false;
+		$.each(system.payments, function(idx, p){
+			if( idx != excludeIdx && p.method === 'cupon' ) found = true;
+		});
+		return found;
+	}
+
+	function refreshCouponAvailability(){
+
+		var hasDiscountedService = false;
+		$('#products-sale tr.p-service').each(function(){
+			if( numeral( $(this).find('.p-discount').val() ).value() > 0 ){
+				hasDiscountedService = true;
+			}
+		});
+		system.has_discounted_service_line = hasDiscountedService;
+
+		if( hasDiscountedService ){
+			// a discount appeared after a coupon row was already added (e.g. VIP client picked later) — revert it.
+			// Must run BEFORE the option below gets disabled: once the currently-selected <option> is disabled,
+			// the <select>'s .val() stops reporting it (returns null) even though it's still shown as selected,
+			// so this check would never match if it ran after.
+			$('#payment-blocks .payment_container').each(function(){
+				var $block = $(this);
+				if( $block.find('.payment-method-select').val() === 'cupon' ){
+					$block.find('.payment-method-select').val('pos').trigger('change');
+					new PNotify({
+						title: 'Notificación',
+						text: 'No se pueden usar cupones cuando algún servicio de la factura tiene un descuento aplicado',
+						type : 'error',
+						styling : 'bootstrap3',
+						delay : 4000
+					});
+				}
+			});
+		}
+
+		// gray out the option everywhere a payment-method select exists, including the
+		// hidden #payment-mdl clone template so future rows inherit the disabled state
+		$('.payment-method-select option[value="cupon"]').prop('disabled', hasDiscountedService);
+	}
+
 	function updateDueAmount(){
 		var paid = 0;
 		$.each(system.payments, function(idx, p){ paid += p.subtotal; });
@@ -1581,9 +1644,40 @@
 			$(this).val('pos');
 		}
 
+		if( method === 'cupon' && system.has_discounted_service_line ){
+			new PNotify({
+		            title: 'Notificación',
+		            text: 'No se pueden usar cupones cuando algún servicio de la factura tiene un descuento aplicado',
+		            type : 'error',
+		            styling : 'bootstrap3',
+		            delay : 4000
+		    });
+			method = 'pos';
+			$(this).val('pos');
+		}
+
+		if( method === 'cupon' && hasCouponPayment( $block.data('idx') ) ){
+			new PNotify({
+		            title: 'Notificación',
+		            text: 'No se permite más de un método de pago con cupón por venta',
+		            type : 'error',
+		            styling : 'bootstrap3',
+		            delay : 4000
+		    });
+			method = 'pos';
+			$(this).val('pos');
+		}
+
 		$block.find('.payment-account-container').toggleClass('hide', method !== 'transfer');
 		$block.find('.payment-cash-fields').toggleClass('hide', method === 'cupon');
 		$block.find('.payment-cupon-fields').toggleClass('hide', method !== 'cupon');
+
+		// don't leave stale values in hidden coupon fields — e.g. after a discounted
+		// service forces this row back to 'pos', switching it to 'cupon' again later
+		// should start blank instead of silently resurrecting the old code/amount
+		if( method !== 'cupon' ){
+			$block.find('.cupon-code-input, .cupon-amount-input, .cupon-discount-input').val('');
+		}
 
 		recalcAmountPayment($block);
 		checkCurrencyMismatch($block);

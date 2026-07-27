@@ -174,6 +174,19 @@ class Sales extends Admin_Controller{
 				exit();
 			}
 
+			$cupon_count = 0;
+			foreach( $payment_methods as $pm ){
+				if( $pm === 'cupon' ) $cupon_count++;
+			}
+
+			if( $cupon_count > 1 ){
+
+				$response['type'] = 'error';
+				$response['message'] = 'No se permite más de un método de pago con cupón por venta';
+				echo json_encode($response);
+				exit();
+			}
+
 			/*if( !$sale['pos_paid'] ){
 
 				$sale['cash_cordobas'] = str_replace(',', '',$this->input->post('cash_cordobas'));
@@ -201,6 +214,7 @@ class Sales extends Admin_Controller{
 			$total_cordobas = 0;
 			$services_total_cordobas = 0;
 			$sale_products_cache = array();
+			$has_discounted_service = false;
 
 			for( $i=0; $i < count($id_products); $i++ ){
 
@@ -225,6 +239,8 @@ class Sales extends Admin_Controller{
 				}
 
 				$discounts[$i] = $line_discount;
+
+				if( $discounts[$i] > 0 ) $has_discounted_service = true;
 
 				$price = str_replace(',', '', $prices[$i] );
 				$subtotal = $price * $quantities[$i];
@@ -301,6 +317,14 @@ class Sales extends Admin_Controller{
 
 				if( $method === 'cupon' ){
 
+					if( $has_discounted_service ){
+
+						$response['type'] = 'error';
+						$response['message'] = 'No se pueden aplicar cupones cuando algún servicio de la factura tiene un descuento aplicado';
+						echo json_encode($response);
+						exit();
+					}
+
 					$code = trim($cupon_codes[$i]);
 					$amount = floatval(str_replace(',', '', $cupon_amounts[$i]));
 					$discount_rate = ($cupon_discounts[$i] !== '' && $cupon_discounts[$i] !== null) ? floatval($cupon_discounts[$i]) : 0;
@@ -326,6 +350,14 @@ class Sales extends Admin_Controller{
 
 						$response['type'] = 'error';
 						$response['message'] = 'El descuento del cupón "'.$code.'" debe estar entre 0 y 100';
+						echo json_encode($response);
+						exit();
+					}
+
+					if( $coupon_remaining <= 0.01 ){
+
+						$response['type'] = 'error';
+						$response['message'] = 'Los cupones solo se pueden aplicar sobre servicios, y esta factura no tiene servicios';
 						echo json_encode($response);
 						exit();
 					}
