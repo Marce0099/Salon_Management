@@ -13,7 +13,10 @@
 			<tr>
 				<td><?php echo $a->username; ?></td>
 				<td><?php echo $a->name; ?></td>
-				<td><?php echo $a->role === 'administrador' ? 'Administrador' : 'Trabajador'; ?></td>
+				<td><?php
+					$role_labels = array( 'super' => 'Super', 'administrador' => 'Administrador', 'trabajador' => 'Trabajador' );
+					echo isset($role_labels[$a->role]) ? $role_labels[$a->role] : $a->role;
+				?></td>
 				<td>
 					<div class="btn-group">
 						<a href="#" data-toggle="dropdown" class="dropdown-toggle"><i class="fa fa-cog"></i></a>
@@ -67,6 +70,7 @@
 			<select name="role" id="role" required="required" class="form-control">
 				<option value="trabajador">Trabajador</option>
 				<option value="administrador">Administrador</option>
+				<option value="super">Super</option>
 			</select>
         </div>
 	</div>

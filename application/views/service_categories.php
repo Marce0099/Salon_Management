@@ -9,7 +9,7 @@
 			<button type="submit" class="btn btn-default">Buscar</button>
 			<a href="<?php echo base_url('service_categories'); ?>" class="btn btn-default">Reiniciar</a>
 		</div>
-		<?php if( $this->controller->is_admin() ) : ?>
+		<?php if( $this->controller->is_super() ) : ?>
 		<div class="col-md-3 col-md-offset-3 text-right">
 			<a href="<?php echo base_url('service_categories/register'); ?>" class="btn btn-success">Crear Categoria</a>
 		</div>
@@ -25,7 +25,7 @@
 		<tr>
 			<th>Categoría</th>
 			<th>Descuento</th>
-			<?php if( $this->controller->is_admin() ) : ?>
+			<?php if( $this->controller->is_super() ) : ?>
 			<th>Acciones</th>
 			<?php endif; ?>
 		</tr>
@@ -35,7 +35,7 @@
 		<tr>
 			<td><?php echo $c->name_category; ?></td>
 			<td><?php echo $c->discount_rate !== NULL ? $c->discount_rate.'%' : '—'; ?></td>
-			<?php if( $this->controller->is_admin() ) : ?>
+			<?php if( $this->controller->is_super() ) : ?>
 			<td><a href="<?php echo base_url('service_categories/edit/'.$c->id_service_category); ?>" class="btn btn-default btn-xs">Editar</a></td>
 			<?php endif; ?>
 		</tr>

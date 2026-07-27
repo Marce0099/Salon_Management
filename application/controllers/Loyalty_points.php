@@ -11,7 +11,7 @@ class Loyalty_points extends Admin_Controller{
 
 	public function index(){
 
-		if( !$this->is_admin() ){
+		if( !$this->is_super() ){
 			echo "No se encontro resultado para esta pagina";
 			exit;
 		}
@@ -22,7 +22,7 @@ class Loyalty_points extends Admin_Controller{
 
 	public function save(){
 
-		if( !$this->is_admin() ){
+		if( !$this->is_super() ){
 			echo "No se encontro resultado para esta pagina";
 			exit;
 		}
@@ -131,6 +131,11 @@ class Loyalty_points extends Admin_Controller{
 	}
 
 	public function registry( $id_client = 0 ){
+
+		if( !$this->is_super() ){
+			echo "No se encontro resultado para esta pagina";
+			exit;
+		}
 
 		$client = $this->db->get_where('clients', array( 'id_client' => $id_client ))->row();
 

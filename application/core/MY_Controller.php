@@ -45,7 +45,11 @@ class Admin_Controller extends MX_Controller{
 	}
 
 	public function is_admin(){
-		return $this->role === 'administrador';
+		return $this->role === 'administrador' || $this->role === 'super';
+	}
+
+	public function is_super(){
+		return $this->role === 'super';
 	}
 
 }

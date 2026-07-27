@@ -155,9 +155,11 @@
                       <li><a href="<?php echo base_url('dollar_exchange'); ?>">Tipo de cambio</a></li>
                       <li><a href="<?php echo base_url('bank_account'); ?>">Cuentas Bancarias</a></li>
                       <?php if($this->controller->is_admin()){ ?>
+                      <li><a href="<?php echo base_url('settings'); ?>">Configuración general</a></li>
+                      <?php } ?>
+                      <?php if($this->controller->is_super()){ ?>
                       <li><a href="<?php echo base_url('admins/list'); ?>">Administradores</a></li>
                       <li><a href="<?php echo base_url('loyalty_points'); ?>">Programa de puntos</a></li>
-                      <li><a href="<?php echo base_url('settings'); ?>">Configuración general</a></li>
                       <?php } ?>
                     </ul>
                   </li>

@@ -77,10 +77,12 @@
 							<a href="<?php echo base_url("clients/toggleVip/{$e->id_client}"); ?>"><i class="fa fa-star"></i> Marcar como VIP</a>
 							<?php endif; ?>
 						</li>
+						<?php if( $this->controller->is_super() ) : ?>
 						<li class="divider"></li>
 						<li>
 							<a href="<?php echo base_url("loyalty_points/registry/{$e->id_client }"); ?>"><i class="fa fa-star"></i> Registro de puntos</a>
 						</li>
+						<?php endif; ?>
 						<li class="divider"></li>
 						<li>
 							<a class="confirm-action" data-msg="Confirma eliminar el cliente?" href="<?php echo base_url("clients/delete/{$e->id_client }"); ?>"><i class="fa fa-times"></i> Eliminar</a>

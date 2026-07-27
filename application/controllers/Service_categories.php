@@ -55,7 +55,7 @@ class Service_categories extends Admin_Controller{
 
 	public function register(){
 
-		if( !$this->is_admin() ){
+		if( !$this->is_super() ){
 			echo "No se encontro resultado para esta pagina";
 			exit;
 		}
@@ -105,7 +105,7 @@ class Service_categories extends Admin_Controller{
 
 	public function edit( $id_service_category = 0 ){
 
-		if( !$this->is_admin() ){
+		if( !$this->is_super() ){
 			echo "No se encontro resultado para esta pagina";
 			exit;
 		}
@@ -162,7 +162,7 @@ class Service_categories extends Admin_Controller{
 
 	public function form_service_categories( $id_service_category = 0 ){
 
-		if( !$this->is_admin() ){
+		if( !$this->is_super() ){
 			echo "No se encontro resultado para esta pagina";
 			exit;
 		}

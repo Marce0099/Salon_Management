@@ -7,7 +7,7 @@ class Admins extends Admin_Controller{
 		parent::__construct();
 		$this->load->model('admins_mdl');
 
-		if( !$this->is_admin() ){
+		if( !$this->is_super() ){
 			echo "No se encontro resultado para esta pagina";
 			exit;
 		}
@@ -28,7 +28,7 @@ class Admins extends Admin_Controller{
 		$this->form_validation->set_rules('username','', 'trim|required|max_length[50]');
 		$this->form_validation->set_rules('password','', 'required|min_length[6]');
 		$this->form_validation->set_rules('name','', 'trim|required|max_length[100]');
-		$this->form_validation->set_rules('role','', 'required|in_list[administrador,trabajador]');
+		$this->form_validation->set_rules('role','', 'required|in_list[super,administrador,trabajador]');
 	}
 
 	public function save(){
@@ -87,6 +87,11 @@ class Admins extends Admin_Controller{
 			if( $admin->role === 'administrador' && $this->admins_mdl->countActiveByRole('administrador') <= 1 ){
 
 				throw new \Exception('Debe existir al menos un administrador');
+			}
+
+			if( $admin->role === 'super' && $this->admins_mdl->countActiveByRole('super') <= 1 ){
+
+				throw new \Exception('Debe existir al menos un usuario super');
 			}
 
 			$this->admins_mdl->delete($id_admin);
