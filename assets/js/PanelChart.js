@@ -19,15 +19,19 @@
     };
     const chart = {
         showSalesGraph : {filter: '', source : []},
-        showTopServicesGraph : {filter: '', source : []}
+        showGoalsGraph : {filter: '', source : []},
+        showTopSoldGraph : {filter: '', source : []}
     };
 
-    document.addEventListener("DOMContentLoaded", e => {
+    document.addEventListener("DOMContentLoaded", async e => {
 
         console.log('init_PanelChart');
-        showSalesGraph();
-        showTopServicesGraph();
-        
+        // Loaded sequentially: concurrent requests contend on the app's
+        // DB-backed session lock (GET_LOCK) and can 500 under load.
+        await showSalesGraph();
+        await showGoalsGraph();
+        await showTopSoldGraph();
+
     });
 
     /**
@@ -73,7 +77,7 @@
             const background = system.colorPalette.slice(0, count);
 
             dato.labels = arrange.map(sale => getMonthName( sale['Fecha'] ));
-            dato.datasets[0]['data'] = arrange.map(sale => sale['Ganancias']);
+            dato.datasets[0]['data'] = arrange.map(sale => sale['Ventas']);
             dato.datasets[0]['backgroundColor'] = background
 
             grafico.update();
@@ -115,24 +119,24 @@
     }
 
     /**
-     * Load Top services' graph (data and show)
+     * Load Top sold products/services graph (data and show)
      */
-    async function showTopServicesGraph(){
+    async function showTopSoldGraph(){
         // Local variables
-        const graph = "showTopServicesGraph";
-        const topServices = document.querySelector(`#${graph} canvas`).getContext("2d");
-       
+        const graph = "showTopSoldGraph";
+        const topSold = document.querySelector(`#${graph} canvas`).getContext("2d");
+
         const dato = {
             labels: [],
             datasets : [{
-                label: 'Servicio',
-                showInLegend: true, 
+                label: 'Unidades vendidas',
+                showInLegend: true,
                 data: [],
                 backgroundColor : []
             }]
         };
 
-        const grafico =  new Chart(topServices, {
+        const grafico =  new Chart(topSold, {
             type: 'pie',
             data : dato
         });
@@ -147,12 +151,90 @@
 
         //Creating graph
         dato.labels = chart[graph]['source'].map(freq => freq.name);
-        dato.datasets[0].data = chart[graph]['source'].map(freq => freq.frequency);
+        dato.datasets[0].data = chart[graph]['source'].map(freq => freq.units_sold);
 
         const count = chart[graph]['source'].length;
         dato.datasets[0].backgroundColor = system.colorPalette.slice(0, count);
 
         grafico.update();
     }
-    
+
+    /**
+     * Obtener el nombre del mes en funcion al numero de mes (1-12)
+     * @param {number|string} month
+     * @returns {string}
+     */
+    function getMonthNameFromNumber(month){
+        const date = new Date(2000, Number(month) - 1, 1);
+        return date.toLocaleDateString('es-ES', { month: 'long' });
+    }
+
+    /**
+     * Load Goals vs actual sales' graph (data and show)
+     */
+    async function showGoalsGraph(){
+        // Local variables
+        const graph = "showGoalsGraph";
+        const goals = document.querySelector(`#${graph} canvas`);
+
+        const dato = {
+            labels: [],
+            datasets : [
+                { label: 'Meta', data: [], backgroundColor: system.colorPalette[5] },
+                { label: 'Ventas', data: [], backgroundColor: system.colorPalette[3] }
+            ]
+        };
+        const grafico =  new Chart(goals, {
+            type: 'bar',
+            data : dato
+        });
+
+        // Local functions
+        const uniqueValue = (arr) => [...new Set(arr)];
+
+        const applyFilter = (arr) => {
+            const filter = arr.filter(g => g['Año'] === chart.showGoalsGraph.filter);
+            const arrange = filter.reverse();
+
+            dato.labels = arrange.map(g => getMonthNameFromNumber( g['Mes'] ));
+            dato.datasets[0]['data'] = arrange.map(g => g['Meta']);
+            dato.datasets[1]['data'] = arrange.map(g => g['Ventas']);
+
+            grafico.update();
+        };
+
+        // Calling API
+        const req = await fetch(`${system.path}/${graph}`, {
+            method: 'POST',
+            body : ''
+        });
+        const res = await req.json();
+        chart[graph]['source'] = res;
+
+        // Filling up select's options
+        let years = [];
+        res.forEach(g => years.push(g["Año"]));
+        years = uniqueValue(years);
+        chart[graph]['filter'] = years[0];
+
+        const graphFilterBtn = document.querySelector(`#${graph} select`);
+        graphFilterBtn.addEventListener("change", e => {
+            const selected = e.target.selectedIndex;
+            chart.showGoalsGraph.filter = years[selected];
+
+            applyFilter([...chart.showGoalsGraph.source]);
+        });
+
+        for(let year of years){
+            const option = document.createElement(`OPTION`);
+            option.value = year;
+            option.textContent = year;
+
+            graphFilterBtn.append(option);
+        }
+
+        //Creating graph
+        applyFilter([...chart.showGoalsGraph.source]);
+    }
+
 }())
