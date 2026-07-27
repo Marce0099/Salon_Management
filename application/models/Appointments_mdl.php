@@ -45,6 +45,16 @@ class Appointments_mdl extends CI_Model{
 		return $this->db->query( $sql )->result();
 	}
 
+	public function getUpcomingCount( $days = 7 ){
+
+		$sql = 'select count(*) as total from appointments
+		        where active = 1
+		        and start_datetime >= NOW()
+		        and start_datetime < DATE_ADD(NOW(), INTERVAL '.(int) $days.' DAY)';
+
+		return (int) $this->db->query( $sql )->row('total');
+	}
+
 	public function getAppointment( $id_appointment ){
 
 		return $this->db->get_where( 'appointments', array( 'id_appointment' => $id_appointment, 'active' => 1 ) )->row();
