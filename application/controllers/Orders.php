@@ -131,7 +131,7 @@ class Orders extends Admin_Controller{
 
 		$provider = $this->db->get_where('providers',array('id_provider'=>$id_provider))->row();
 
-		$logo = FCPATH.'assets/img/logo_invoice.jpg';
+		$logo = resolveLogoPath('logo_purchase_order', 'logo_invoice.jpg');
 
 		require_once(FCPATH.'includes/html2pdf/html2pdf.class.php');
 

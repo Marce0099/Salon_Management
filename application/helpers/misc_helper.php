@@ -44,4 +44,30 @@
 		return md5(uniqid(mt_rand(), true));
 	}
 
+	function resolveLogoUrl($setting_key, $default_asset){
+
+		$CI =& get_instance();
+		$CI->load->model('settings_mdl');
+		$filename = $CI->settings_mdl->get($setting_key);
+
+		if( !empty($filename) && file_exists(FCPATH . 'uploads/logos/' . $filename) ){
+			return base_url('uploads/logos/' . $filename);
+		}
+
+		return base_url('assets/img/' . $default_asset);
+	}
+
+	function resolveLogoPath($setting_key, $default_asset){
+
+		$CI =& get_instance();
+		$CI->load->model('settings_mdl');
+		$filename = $CI->settings_mdl->get($setting_key);
+
+		if( !empty($filename) && file_exists(FCPATH . 'uploads/logos/' . $filename) ){
+			return str_replace("\\",'/', FCPATH . 'uploads/logos/' . $filename);
+		}
+
+		return str_replace("\\",'/', FCPATH . 'assets/img/' . $default_asset);
+	}
+
 ?>
