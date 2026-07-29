@@ -28,6 +28,9 @@ class Admin_Controller extends MX_Controller{
 
 			redirect('login');
 		}
+
+		$this->load->model('settings_mdl');
+		$this->header_data['company_name'] = $this->settings_mdl->get('company_name', 'Conceptos');
 	}
 
 	protected function renderPanel( $content_view = '' ){

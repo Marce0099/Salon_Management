@@ -8,6 +8,7 @@
 
 			parent::__construct();
 			$this->load->model('login_mdl');
+			$this->load->model('settings_mdl');
 		}
 
 		public function index(){
@@ -18,7 +19,7 @@
 			}
 			else{
 
-				$this->form();
+				$this->form( array('company_name' => $this->settings_mdl->get('company_name', 'Conceptos')) );
 			}
 			
 		}
@@ -46,7 +47,7 @@
 			}
 			else{
 
-				$this->form( array('error' => TRUE ) );
+				$this->form( array('error' => TRUE, 'company_name' => $this->settings_mdl->get('company_name', 'Conceptos') ) );
 			}
 		}
 
