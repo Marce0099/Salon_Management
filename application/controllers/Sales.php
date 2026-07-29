@@ -694,7 +694,7 @@ class Sales extends Admin_Controller{
 
 		try{
 
-			$logo_path = str_replace("\\",'/', FCPATH . 'assets/img/logo_invoice.png');
+			$logo_path = resolveLogoPath('logo_receipt', 'logo_invoice.png');
 
 			$connector = new WindowsPrintConnector('CAJA');
 			$printer = new Printer($connector);

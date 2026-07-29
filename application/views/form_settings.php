@@ -74,3 +74,189 @@
 
 	  });
 </script>
+
+<h4 class="section-title">Logotipos</h4>
+
+<style>
+	.logo-group {
+		margin-bottom: 30px;
+		padding-bottom: 25px;
+		border-bottom: 1px solid #e6e9ed;
+	}
+	.logo-group:last-child {
+		border-bottom: 0;
+	}
+	.logo-preview-row {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 15px;
+		margin-bottom: 12px;
+	}
+	.logo-preview-panel {
+		border: 1px solid #e6e9ed;
+		border-radius: 4px;
+		padding: 8px 12px;
+		min-width: 160px;
+		text-align: center;
+	}
+	.logo-preview-panel img {
+		max-height: 80px;
+		display: block;
+		margin: 0 auto;
+	}
+	.logo-preview-caption {
+		display: block;
+		font-size: 11px;
+		color: #888;
+		text-transform: uppercase;
+		margin-bottom: 6px;
+	}
+	.logo-preview-pending {
+		border-color: #26b99a;
+		display: none;
+	}
+	.logo-file-input {
+		position: absolute;
+		width: 1px;
+		height: 1px;
+		padding: 0;
+		margin: -1px;
+		overflow: hidden;
+		clip: rect(0,0,0,0);
+		white-space: nowrap;
+		border: 0;
+	}
+	.logo-file-label {
+		margin: 0 5px 0 0;
+	}
+</style>
+
+<form id="form-logos" action="" method="post" class="form-horizontal form-label-left" autocomplete="off" onsubmit="return false;">
+	<input type="hidden" id="logo-tk" value="<?php echo $tk; ?>">
+
+	<?php foreach( $logo_groups as $key => $group ) : ?>
+	<div class="form-group logo-group">
+		<label class="control-label col-md-3 col-sm-3 col-xs-12"><?php echo htmlspecialchars($group['label']); ?>:
+        </label>
+		<div class="col-md-6 col-sm-6 col-xs-12">
+			<div class="logo-preview-row">
+				<div class="logo-preview-panel">
+					<span class="logo-preview-caption">Actual</span>
+					<img id="preview-<?php echo $key; ?>" src="<?php echo $group['url']; ?>" class="img-responsive" alt="">
+				</div>
+				<div class="logo-preview-panel logo-preview-pending" id="pending-panel-<?php echo $key; ?>">
+					<span class="logo-preview-caption">Nueva imagen</span>
+					<img id="pending-preview-<?php echo $key; ?>" class="img-responsive" alt="">
+				</div>
+			</div>
+            <input type="file" class="logo-file-input" id="logo-file-<?php echo $key; ?>" data-key="<?php echo $key; ?>" accept="image/png,image/jpeg">
+            <label for="logo-file-<?php echo $key; ?>" class="btn btn-default btn-sm logo-file-label">Reemplazar</label>
+            <button type="button" class="btn btn-success btn-sm logo-upload-btn" data-key="<?php echo $key; ?>">Guardar</button>
+        </div>
+	</div>
+	<?php endforeach; ?>
+</form>
+
+<script>
+
+	$('.logo-file-input').on('change', function() {
+
+		var key = $(this).data('key');
+		var pendingImg = document.getElementById('pending-preview-' + key);
+		var pendingPanel = document.getElementById('pending-panel-' + key);
+
+		if( pendingImg.dataset.blobUrl ){
+			URL.revokeObjectURL(pendingImg.dataset.blobUrl);
+			delete pendingImg.dataset.blobUrl;
+		}
+
+		if( this.files.length ){
+			var url = URL.createObjectURL(this.files[0]);
+			pendingImg.src = url;
+			pendingImg.dataset.blobUrl = url;
+			pendingPanel.style.display = 'block';
+		}
+		else{
+			pendingImg.src = '';
+			pendingPanel.style.display = 'none';
+		}
+	});
+
+	$('.logo-upload-btn').on('click', function() {
+
+		var key = $(this).data('key');
+		var btn = $(this);
+		var input = $('.logo-file-input[data-key="' + key + '"]')[0];
+
+		if( !input.files.length ){
+
+			new PNotify({
+	            title: 'Notificación',
+	            text: 'Seleccione una imagen primero',
+	            type : 'error',
+	            styling : 'bootstrap3',
+	            delay : 3500
+	        });
+
+			return;
+		}
+
+		var fd = new FormData();
+		fd.append('logo_key', key);
+		fd.append('logo_file', input.files[0]);
+		fd.append('tk', $('#logo-tk').val());
+
+		btn.attr('disabled','true');
+
+		$.ajax({
+
+	  		url : '<?php echo base_url('settings/uploadLogo'); ?>',
+	  		data : fd,
+	  		type : 'post',
+	  		contentType : false,
+	  		processData : false,
+	  		dataType : 'json',
+	  		success : function(data){
+
+	  			if( data.type === 'success' ){
+	  				$('#preview-' + key).attr('src', data.url);
+	  				input.value = '';
+
+	  				var pendingImg = document.getElementById('pending-preview-' + key);
+	  				if( pendingImg.dataset.blobUrl ){
+	  					URL.revokeObjectURL(pendingImg.dataset.blobUrl);
+	  					delete pendingImg.dataset.blobUrl;
+	  				}
+	  				pendingImg.src = '';
+	  				document.getElementById('pending-panel-' + key).style.display = 'none';
+	  			}
+
+	  			if( data.tk ){
+	  				$('#logo-tk').val(data.tk);
+	  			}
+
+	  			new PNotify({
+		            title: 'Notificación',
+		            text: data.message,
+		            type : data.type,
+		            styling : 'bootstrap3',
+		            delay : 3500
+		        });
+
+		        btn.removeAttr('disabled');
+	  		},
+	  		error : function(){
+
+	  			new PNotify({
+		            title: 'Notificación',
+		            text: 'Ha ocurrido un error subiendo la imagen',
+		            type : 'error',
+		            styling : 'bootstrap3',
+		            delay : 3500
+		        });
+
+		        btn.removeAttr('disabled');
+	  		}
+	  	});
+	});
+</script>

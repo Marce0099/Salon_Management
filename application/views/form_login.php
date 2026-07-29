@@ -25,7 +25,7 @@
           <div class="col-md-4 col-md-offset-4 col-sm-8 col-sm-offset-2">
             <form action="<?php echo base_url("login/check"); ?>" class="form form-login" method="post">
               <div class="form-header text-center">
-                <img class="img-responsive" src="<?php echo base_url('assets/img/logo_white.png'); ?>" alt="">
+                <img class="img-responsive" src="<?php echo resolveLogoUrl('logo_login', 'logo_white.png'); ?>" alt="">
               </div>
               <div class="form-body">
                 <?php if( isset($error) ) : ?>
