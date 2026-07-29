@@ -7,7 +7,7 @@
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1">
 
-    <title>Conceptos - Sistema de Facturación</title>
+    <title><?php echo htmlspecialchars($company_name); ?> - Sistema de Facturación</title>
 
     <!-- Bootstrap -->
     <link href="<?php echo base_url('assets/gentelella/vendors/bootstrap/dist/css/bootstrap.min.css'); ?>" rel="stylesheet">

@@ -17,6 +17,7 @@ class Settings extends Admin_Controller{
 
 		$this->content_data['vip_discount_rate'] = $this->settings_mdl->get('vip_discount_rate', 15);
 		$this->content_data['birthday_discount_rate'] = $this->settings_mdl->get('birthday_discount_rate', 50);
+		$this->content_data['company_name'] = $this->settings_mdl->get('company_name', 'Conceptos');
 		$this->renderPanel('form_settings');
 	}
 
@@ -36,6 +37,7 @@ class Settings extends Admin_Controller{
 
 		$this->form_validation->set_rules('vip_discount_rate','','required|numeric');
 		$this->form_validation->set_rules('birthday_discount_rate','','required|numeric');
+		$this->form_validation->set_rules('company_name','','required|trim|max_length[255]');
 
 		if( !$this->form_validation->run() ){
 
@@ -57,6 +59,7 @@ class Settings extends Admin_Controller{
 		try {
 			$this->settings_mdl->save('vip_discount_rate', $rate);
 			$this->settings_mdl->save('birthday_discount_rate', $birthday_rate);
+			$this->settings_mdl->save('company_name', $this->input->post('company_name'));
 		} catch (\Throwable $th) {
 			$response = array( 'type' => 'error', 'message' => 'Ha ocurrido un error actualizando la configuración' );
 			echo json_encode($response);

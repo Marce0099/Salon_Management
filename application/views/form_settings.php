@@ -16,6 +16,13 @@
         </div>
 	</div>
 	<div class="form-group">
+		<label class="control-label col-md-3 col-sm-3 col-xs-12" for="company_name">Nombre de la empresa:
+        </label>
+		<div class="col-md-6 col-sm-6 col-xs-12">
+            <input type="text" name="company_name" id="company_name" required="required" maxlength="255" class="form-control col-md-7 col-xs-12" value="<?php echo htmlspecialchars($company_name); ?>">
+        </div>
+	</div>
+	<div class="form-group">
 		<div class="col-md-offset-3 col-sm-offset-3 col-md-3 col-sm-3">
 			<button class="btn btn-success" id="btn-submit" type="submit">Guardar</button>
 		</div>
