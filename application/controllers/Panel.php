@@ -9,6 +9,7 @@
 			$this->load->model('cash_mdl');
 			$this->load->model('products_mdl');
 			$this->load->model('appointments_mdl');
+			$this->load->model('statistics_mdl');
 		}
 
 		public function index(){
@@ -21,6 +22,7 @@
 			$data['cash_movements'] = $data['open_cash'] ? $this->cash_mdl->getCashMovements($data['open_cash']) : NULL;
 			$data['low_stock_count'] = $this->products_mdl->getLowStockCount();
 			$data['upcoming_appointments'] = $this->appointments_mdl->getUpcomingCount(7);
+			$data['goal_progress'] = $this->statistics_mdl->getCurrentMonthGoalProgress();
 
 			$this->content_data = $data;
 			$this->renderPanel();
@@ -30,60 +32,42 @@
 		public function showSalesGraph(){
 			if($_SERVER["REQUEST_METHOD"] !== "POST") exit;
 
-			$query = 'SELECT
-			YEAR(S.date_time) AS Año,
-			MONTH(S.date_time) AS Mes,
-			DATE(S.date_time) AS Fecha,
-			SUM(ROUND(SP.quantity * (SP.price - (SP.price * (SP.discount / 100))),2)) AS "Ventas"
-			FROM sales as S
-			INNER JOIN sale_products as SP on S.id_sale = SP.id_sale
-			GROUP BY Año, Mes
-			ORDER BY Año DESC, Mes DESC;';
-
-			$res = $this->db->query($query);
-			echo json_encode($res->result());
+			echo json_encode($this->statistics_mdl->getSalesTrend());
 			exit;
 		}
 
 		public function showTopSoldGraph(){
 			if($_SERVER["REQUEST_METHOD"] !== "POST") exit;
 
-			$query = 'SELECT
-			SUM(SP.quantity) AS units_sold,
-            P.barcode,
-			P.name
-			FROM sales as S
-			INNER JOIN sale_products as SP on S.id_sale = SP.id_sale
-            INNER JOIN products AS P on P.id_product=SP.id_product
-            GROUP BY P.barcode, P.name
-            ORDER BY units_sold DESC
-            LIMIT 10;';
-
-			$res = $this->db->query($query);
-			echo json_encode($res->result());
+			echo json_encode($this->statistics_mdl->getTopSold(10));
 			exit;
 		}
 
 		public function showGoalsGraph(){
 			if($_SERVER["REQUEST_METHOD"] !== "POST") exit;
 
-			$query = 'SELECT
-			g.year_goal AS Año,
-			g.month_goal AS Mes,
-			g.amount AS Meta,
-			IFNULL(prof.Ventas, 0) AS Ventas
-			FROM goals g
-			LEFT JOIN (
-				SELECT YEAR(S.date_time) AS Año, MONTH(S.date_time) AS Mes,
-				SUM(ROUND(SP.quantity * (SP.price - (SP.price * (SP.discount / 100))),2)) AS Ventas
-				FROM sales as S
-				INNER JOIN sale_products as SP on S.id_sale = SP.id_sale
-				GROUP BY Año, Mes
-			) prof ON prof.Año = g.year_goal AND prof.Mes = g.month_goal
-			ORDER BY g.year_goal DESC, g.month_goal DESC;';
+			echo json_encode($this->statistics_mdl->getGoalsVsActual());
+			exit;
+		}
 
-			$res = $this->db->query($query);
-			echo json_encode($res->result());
+		public function showPaymentMethodGraph(){
+			if($_SERVER["REQUEST_METHOD"] !== "POST") exit;
+
+			echo json_encode($this->statistics_mdl->getRevenueByPaymentMethod());
+			exit;
+		}
+
+		public function showSalesByEmployeeGraph(){
+			if($_SERVER["REQUEST_METHOD"] !== "POST") exit;
+
+			echo json_encode($this->statistics_mdl->getSalesByEmployee(10));
+			exit;
+		}
+
+		public function showNewClientsGraph(){
+			if($_SERVER["REQUEST_METHOD"] !== "POST") exit;
+
+			echo json_encode($this->statistics_mdl->getNewClientsTrend());
 			exit;
 		}
 	}

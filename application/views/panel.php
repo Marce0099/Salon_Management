@@ -1,6 +1,6 @@
   <div class="row">
 
-    <div class="col-md-4">
+    <div class="col-md-3">
       <a href="<?php echo base_url('cash/state'); ?>" style="text-decoration:none; color:inherit;">
         <div class="panel panel-default kpi-tile">
           <div class="panel-heading"><i class="fa fa-money"></i> Caja</div>
@@ -21,7 +21,7 @@
       </a>
     </div>
 
-    <div class="col-md-4">
+    <div class="col-md-3">
       <a href="javascript:;" id="panel-low-stock-tile" style="text-decoration:none; color:inherit;">
         <div class="panel panel-default kpi-tile">
           <div class="panel-heading"><i class="fa fa-bell"></i> Stock bajo</div>
@@ -33,7 +33,7 @@
       </a>
     </div>
 
-    <div class="col-md-4">
+    <div class="col-md-3">
       <a href="<?php echo base_url('appointments'); ?>" style="text-decoration:none; color:inherit;">
         <div class="panel panel-default kpi-tile">
           <div class="panel-heading"><i class="fa fa-calendar"></i> Próximas reservas</div>
@@ -45,30 +45,72 @@
       </a>
     </div>
 
+    <div class="col-md-3">
+      <a href="<?php echo base_url('sale_goals'); ?>" style="text-decoration:none; color:inherit;">
+        <div class="panel panel-default kpi-tile">
+          <div class="panel-heading"><i class="fa fa-bullseye"></i> Meta del mes</div>
+          <div class="panel-body">
+            <?php if( $goal_progress['amount'] === NULL ) : ?>
+              <div class="kpi-value text-muted">—</div>
+              <div class="kpi-sub">Sin meta definida para este mes</div>
+            <?php else :
+              $pct = $goal_progress['percent'];
+              $pct_class = $pct >= 100 ? 'text-success' : ( $pct >= 70 ? 'text-warning' : 'text-danger' );
+            ?>
+              <div class="kpi-value <?php echo $pct_class; ?>"><?php echo number_format($pct,1); ?>%</div>
+              <div class="kpi-sub">
+                C$<?php echo number_format($goal_progress['sales'],2); ?> de
+                C$<?php echo number_format($goal_progress['amount'],2); ?>
+              </div>
+            <?php endif; ?>
+          </div>
+        </div>
+      </a>
+    </div>
+
   </div>
 
   <div class="row">
-    <div class="col-xs-12">
-      <div class="text-center">
+    <div class="col-md-6">
+      <div class="graph" id="showSalesGraph">
+        <h3 class="graph_tittle">Tendencia de ventas ($)</h3>
+        <canvas></canvas>
+      </div> <!-- .graph -->
+    </div>
+    <div class="col-md-6">
+      <div class="graph" id="showPaymentMethodGraph">
+        <h3 class="graph_tittle">Ingresos por método de pago</h3>
+        <canvas></canvas>
+        <div class="graph_legend"></div>
+      </div> <!-- .graph -->
+    </div>
 
-        <div class="graph" id="showSalesGraph">
-          <h3 class="graph_tittle">Tendencia de ventas ($)</h3>
-          <canvas></canvas>
-          <select></select>
-        </div> <!-- .graph -->
+    <div class="col-md-6">
+      <div class="graph" id="showGoalsGraph">
+        <h3 class="graph_tittle">Meta vs. ventas reales</h3>
+        <canvas></canvas>
+        <select></select>
+        <div class="graph_legend"></div>
+      </div> <!-- .graph -->
+    </div>
+    <div class="col-md-6">
+      <div class="graph" id="showSalesByEmployeeGraph">
+        <h3 class="graph_tittle">Ventas por vendedor</h3>
+        <canvas></canvas>
+      </div> <!-- .graph -->
+    </div>
 
-        <div class="graph" id="showGoalsGraph">
-          <h3 class="graph_tittle">Meta vs. ventas reales</h3>
-          <canvas></canvas>
-          <select></select>
-        </div> <!-- .graph -->
-
-        <div class="graph" id="showTopSoldGraph">
-          <h3 class="graph_tittle">Top 10 productos y servicios más vendidos</h3>
-          <canvas></canvas>
-        </div> <!-- .graph -->
-
-      </div>
+    <div class="col-md-6">
+      <div class="graph" id="showTopSoldGraph">
+        <h3 class="graph_tittle">Top 10 productos y servicios más vendidos</h3>
+        <canvas></canvas>
+      </div> <!-- .graph -->
+    </div>
+    <div class="col-md-6">
+      <div class="graph" id="showNewClientsGraph">
+        <h3 class="graph_tittle">Clientes nuevos por mes</h3>
+        <canvas></canvas>
+      </div> <!-- .graph -->
     </div>
   </div>
 

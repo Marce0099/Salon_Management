@@ -2,25 +2,28 @@
 
     const system = {
         path : window.location.pathname,
+        // Validated categorical palette (fixed order — see dataviz skill).
+        // Never cycled past 8, never reassigned by rank/filter.
         colorPalette : [
-            'rgb(255, 99, 132)',
-            'rgb(255, 159, 64)',
-            'rgb(255, 205, 86)',
-            'rgb(75, 192, 192)',
-            'rgb(54, 162, 235)',
-            'rgb(153, 102, 255)',
-            'rgb(201, 203, 207)',
-            'rgb(23, 252, 15)',
-            'rgb(135, 36, 242)',
-            'rgb(237, 210, 208)',
-            'rgb(45, 216, 133)',
-            'rgb(239, 160, 189)',
-        ]
+            '#2a78d6', // 1 blue
+            '#eb6834', // 2 orange
+            '#1baf7a', // 3 aqua
+            '#eda100', // 4 yellow
+            '#e87ba4', // 5 magenta
+            '#008300', // 6 green
+            '#4a3aa7', // 7 violet
+            '#e34948'  // 8 red
+        ],
+        gridColor : '#e1e0d9',
+        axisColor : '#898781'
     };
     const chart = {
         showSalesGraph : {filter: '', source : []},
         showGoalsGraph : {filter: '', source : []},
-        showTopSoldGraph : {filter: '', source : []}
+        showTopSoldGraph : {filter: '', source : []},
+        showPaymentMethodGraph : {filter: '', source : []},
+        showSalesByEmployeeGraph : {filter: '', source : []},
+        showNewClientsGraph : {filter: '', source : []}
     };
 
     document.addEventListener("DOMContentLoaded", async e => {
@@ -29,134 +32,32 @@
         // Loaded sequentially: concurrent requests contend on the app's
         // DB-backed session lock (GET_LOCK) and can 500 under load.
         await showSalesGraph();
+        await showPaymentMethodGraph();
         await showGoalsGraph();
+        await showSalesByEmployeeGraph();
         await showTopSoldGraph();
+        await showNewClientsGraph();
 
     });
 
     /**
-     * Obtener el nombre del mes en funcion a la fecha brindada
-     * @param {string} dateS - Fecha a usar para extraer el nombre del mes
-     * @returns {string}
+     * Construct a Chart.js instance defensively — a malformed chart (or any
+     * other draw-time bug) must not take out the rest of the dashboard.
+     *
+     * Multi-dataset charts must set `legend: {display: false}` and call
+     * renderLegend() instead: this vendored Chart.js 2.1.4's built-in legend
+     * crashes mid-draw for any chart with more than one dataset (confirmed
+     * with both 2 and 4 series, regardless of label length), and because all
+     * charts on the page share one animation loop, that crash silently kills
+     * every chart created after it too.
      */
-    function getMonthName(dateS){
-        const [year, month, day] = dateS.split("-").map(Number); 
-        const date = new Date(year, month - 1, day);
-        return date.toLocaleDateString('es-ES', { month: 'long' });
-    }
-
-    /**
-     * Load sales' graph (data and show)
-     */
-    async function showSalesGraph(){
-        // Local variables
-        const graph = "showSalesGraph";
-        const sales = document.querySelector(`#${graph} canvas`);
-        
-        const dato = {
-            labels: [],
-            datasets : [{
-                label: 'Ventas',
-                data: [],
-                backgroundColor : []
-            }]
-        };
-        const grafico =  new Chart(sales, {
-            type: 'bar',
-            data : dato
-        });
-
-        // Local functions
-        const uniqueValue = (arr) => [...new Set(arr)];
-
-        const applyFilter = (arr) => {
-            const filter = arr.filter(sale => sale['Año'] === chart.showSalesGraph.filter);
-            const arrange = filter.reverse();
-
-            const count = arrange.length
-            const background = system.colorPalette.slice(0, count);
-
-            dato.labels = arrange.map(sale => getMonthName( sale['Fecha'] ));
-            dato.datasets[0]['data'] = arrange.map(sale => sale['Ventas']);
-            dato.datasets[0]['backgroundColor'] = background
-
-            grafico.update();
-        };
-
-        // Calling API
-        const req = await fetch(`${system.path}/${graph}`, {
-            method: 'POST',
-            body : ''
-        });
-        const res = await req.json();
-        chart[graph]['source'] = res;
-
-        
-        // Filling up select's options
-        let years = [];
-        res.forEach(sale => years.push(sale["Año"]));
-        years = uniqueValue(years);
-        chart[graph]['filter'] = years[0];
-        
-        const graphFilterBtn = document.querySelector(`#${graph} select`);
-        graphFilterBtn.addEventListener("change", e => {
-            const selected = e.target.selectedIndex;
-            chart.showSalesGraph.filter = years[selected];
-
-            applyFilter([...chart.showSalesGraph.source]);
-        });
-
-        for(let year of years){
-            const option = document.createElement(`OPTION`);
-            option.value = year;
-            option.textContent = year;
-           
-            graphFilterBtn.append(option);
+    function safeChart(canvas, config){
+        try {
+            return new Chart(canvas, config);
+        } catch(e){
+            console.error('PanelChart: failed to render', canvas.closest('.graph') && canvas.closest('.graph').id, e);
+            return null;
         }
-
-        //Creating graph
-        applyFilter([...chart.showSalesGraph.source]);
-    }
-
-    /**
-     * Load Top sold products/services graph (data and show)
-     */
-    async function showTopSoldGraph(){
-        // Local variables
-        const graph = "showTopSoldGraph";
-        const topSold = document.querySelector(`#${graph} canvas`).getContext("2d");
-
-        const dato = {
-            labels: [],
-            datasets : [{
-                label: 'Unidades vendidas',
-                showInLegend: true,
-                data: [],
-                backgroundColor : []
-            }]
-        };
-
-        const grafico =  new Chart(topSold, {
-            type: 'pie',
-            data : dato
-        });
-
-        // Calling API
-        const req = await fetch(`${system.path}/${graph}`, {
-            method: 'POST',
-            body : ''
-        });
-        const res = await req.json();
-        chart[graph]['source'] = res;
-
-        //Creating graph
-        dato.labels = chart[graph]['source'].map(freq => freq.name);
-        dato.datasets[0].data = chart[graph]['source'].map(freq => freq.units_sold);
-
-        const count = chart[graph]['source'].length;
-        dato.datasets[0].backgroundColor = system.colorPalette.slice(0, count);
-
-        grafico.update();
     }
 
     /**
@@ -170,26 +71,120 @@
     }
 
     /**
+     * Small helper: shared axis/grid styling for a Chart.js v2 config.
+     */
+    function baseScales(extra){
+        return Object.assign({
+            xAxes: [{ gridLines: { color: system.gridColor, zeroLineColor: system.axisColor }, ticks: { fontColor: system.axisColor } }],
+            yAxes: [{ gridLines: { color: system.gridColor, zeroLineColor: system.axisColor }, ticks: { fontColor: system.axisColor, beginAtZero: true } }]
+        }, extra || {});
+    }
+
+    async function fetchGraph(graph){
+        const req = await fetch(`${system.path}/${graph}`, { method: 'POST', body: '' });
+        return req.json();
+    }
+
+    /**
+     * Load sales' graph (data and show) — trailing 12 months, single series.
+     */
+    async function showSalesGraph(){
+        const graph = "showSalesGraph";
+        const canvas = document.querySelector(`#${graph} canvas`);
+
+        const res = await fetchGraph(graph);
+        chart[graph]['source'] = res;
+
+        // res is ordered Año DESC, Mes DESC — take the newest 12 and put them back in chronological order.
+        const trailing = [...res].slice(0, 12).reverse();
+
+        const dato = {
+            labels: trailing.map(row => `${getMonthNameFromNumber(row['Mes'])} ${row['Año']}`),
+            datasets: [{
+                label: 'Ventas',
+                data: trailing.map(row => row['Ventas']),
+                borderColor: system.colorPalette[0],
+                backgroundColor: system.colorPalette[0] + '33',
+                pointBackgroundColor: system.colorPalette[0],
+                borderWidth: 2,
+                pointRadius: 3,
+                fill: true
+            }]
+        };
+
+        safeChart(canvas, {
+            type: 'line',
+            data: dato,
+            options: {
+                legend: { display: false },
+                scales: baseScales()
+            }
+        });
+    }
+
+    /**
+     * Load Top sold products/services graph — single series, one hue for every bar.
+     */
+    async function showTopSoldGraph(){
+        const graph = "showTopSoldGraph";
+        const canvas = document.querySelector(`#${graph} canvas`);
+
+        const res = await fetchGraph(graph);
+        chart[graph]['source'] = res;
+
+        const dato = {
+            labels: res.map(row => row.name),
+            datasets: [{
+                label: 'Unidades vendidas',
+                data: res.map(row => row.units_sold),
+                backgroundColor: system.colorPalette[0]
+            }]
+        };
+
+        safeChart(canvas, {
+            // Chart.js 2.1.4 (vendored) predates 'horizontalBar' (added 2.2.0) — vertical bar with angled labels instead.
+            type: 'bar',
+            data: dato,
+            options: {
+                legend: { display: false },
+                scales: baseScales({
+                    xAxes: [{ gridLines: { color: system.gridColor, zeroLineColor: system.axisColor }, ticks: { fontColor: system.axisColor, maxRotation: 60, minRotation: 40 } }]
+                })
+            }
+        });
+    }
+
+    /**
      * Load Goals vs actual sales' graph (data and show)
      */
     async function showGoalsGraph(){
-        // Local variables
         const graph = "showGoalsGraph";
-        const goals = document.querySelector(`#${graph} canvas`);
+        const canvas = document.querySelector(`#${graph} canvas`);
 
         const dato = {
             labels: [],
             datasets : [
-                { label: 'Meta', data: [], backgroundColor: system.colorPalette[5] },
-                { label: 'Ventas', data: [], backgroundColor: system.colorPalette[3] }
+                { label: 'Ventas', data: [], backgroundColor: system.colorPalette[0] },
+                { label: 'Meta', data: [], backgroundColor: system.colorPalette[1] }
             ]
         };
-        const grafico =  new Chart(goals, {
+        const grafico = safeChart(canvas, {
             type: 'bar',
-            data : dato
+            data : dato,
+            options: {
+                // Hand-rolled legend (see showPaymentMethodGraph) — this build's
+                // native multi-dataset legend crashes the whole render loop,
+                // taking every chart after it in the page down with it.
+                legend: { display: false },
+                scales: baseScales()
+            }
         });
 
-        // Local functions
+        renderLegend(document.querySelector(`#${graph} .graph_legend`), [
+            { label: 'Ventas', color: system.colorPalette[0] },
+            { label: 'Meta', color: system.colorPalette[1] }
+        ]);
+
         const uniqueValue = (arr) => [...new Set(arr)];
 
         const applyFilter = (arr) => {
@@ -197,21 +192,15 @@
             const arrange = filter.reverse();
 
             dato.labels = arrange.map(g => getMonthNameFromNumber( g['Mes'] ));
-            dato.datasets[0]['data'] = arrange.map(g => g['Meta']);
-            dato.datasets[1]['data'] = arrange.map(g => g['Ventas']);
+            dato.datasets[0]['data'] = arrange.map(g => g['Ventas']);
+            dato.datasets[1]['data'] = arrange.map(g => g['Meta']);
 
-            grafico.update();
+            if( grafico ) grafico.update();
         };
 
-        // Calling API
-        const req = await fetch(`${system.path}/${graph}`, {
-            method: 'POST',
-            body : ''
-        });
-        const res = await req.json();
+        const res = await fetchGraph(graph);
         chart[graph]['source'] = res;
 
-        // Filling up select's options
         let years = [];
         res.forEach(g => years.push(g["Año"]));
         years = uniqueValue(years);
@@ -233,8 +222,149 @@
             graphFilterBtn.append(option);
         }
 
-        //Creating graph
         applyFilter([...chart.showGoalsGraph.source]);
+    }
+
+    /**
+     * Revenue by payment method — trailing 12 months, stacked bar, one fixed
+     * color slot per payment method (identity, never reassigned by rank).
+     */
+    async function showPaymentMethodGraph(){
+        const graph = "showPaymentMethodGraph";
+        const canvas = document.querySelector(`#${graph} canvas`);
+
+        const methodMeta = {
+            cash:     { label: 'Efectivo',       color: system.colorPalette[0] },
+            pos:      { label: 'POS',            color: system.colorPalette[1] },
+            transfer: { label: 'Transferencia',  color: system.colorPalette[2] },
+            cupon:    { label: 'Cupón',          color: system.colorPalette[3] }
+        };
+
+        const res = await fetchGraph(graph);
+        chart[graph]['source'] = res;
+
+        const monthKey = row => `${row['Año']}-${String(row['Mes']).padStart(2,'0')}`;
+        const months = [...new Set(res.map(monthKey))].sort();
+
+        const datasets = Object.keys(methodMeta).map(method => {
+            const rowsForMethod = res.filter(r => r['Metodo'] === method);
+            const byMonth = Object.fromEntries(rowsForMethod.map(r => [monthKey(r), Number(r['Ingresos'])]));
+
+            return {
+                label: methodMeta[method].label,
+                backgroundColor: methodMeta[method].color,
+                borderColor: '#fcfcfb',
+                borderWidth: 2,
+                data: months.map(m => byMonth[m] || 0)
+            };
+        });
+
+        const dato = {
+            labels: months.map(m => {
+                const [y, mo] = m.split('-');
+                return `${getMonthNameFromNumber(mo)} ${y}`;
+            }),
+            datasets
+        };
+
+        safeChart(canvas, {
+            type: 'bar',
+            data: dato,
+            options: {
+                // Not stacked: the 'stacked' scale option shipped in Chart.js
+                // 2.2.0, the same release as 'horizontalBar' — this vendored
+                // build predates it (see showTopSoldGraph/
+                // showSalesByEmployeeGraph above), so grouped bars are used
+                // instead rather than risk the same kind of version gap.
+                //
+                // Legend built by hand below (see safeChart) rather than
+                // `legend: {display:true}` — this build's built-in legend
+                // crashes for any multi-dataset chart.
+                legend: { display: false },
+                scales: baseScales()
+            }
+        });
+
+        renderLegend(document.querySelector(`#${graph} .graph_legend`), Object.values(methodMeta));
+    }
+
+    /**
+     * Hand-rolled legend chips — avoids this Chart.js build's built-in legend
+     * layout, which crashes once its labels wrap past a single row.
+     */
+    function renderLegend(container, items){
+        if( !container ) return;
+        container.innerHTML = '';
+        for( const item of items ){
+            const chip = document.createElement('span');
+            chip.className = 'graph_legend_item';
+            chip.innerHTML = `<span class="graph_legend_swatch" style="background:${item.color}"></span>${item.label}`;
+            container.appendChild(chip);
+        }
+    }
+
+    /**
+     * Net revenue by employee — single series, one hue for every bar.
+     */
+    async function showSalesByEmployeeGraph(){
+        const graph = "showSalesByEmployeeGraph";
+        const canvas = document.querySelector(`#${graph} canvas`);
+
+        const res = await fetchGraph(graph);
+        chart[graph]['source'] = res;
+
+        const dato = {
+            labels: res.map(row => row.name),
+            datasets: [{
+                label: 'Ventas',
+                data: res.map(row => row['Ventas']),
+                backgroundColor: system.colorPalette[0]
+            }]
+        };
+
+        safeChart(canvas, {
+            // Chart.js 2.1.4 (vendored) predates 'horizontalBar' (added 2.2.0) — vertical bar with angled labels instead.
+            type: 'bar',
+            data: dato,
+            options: {
+                legend: { display: false },
+                scales: baseScales({
+                    xAxes: [{ gridLines: { color: system.gridColor, zeroLineColor: system.axisColor }, ticks: { fontColor: system.axisColor, maxRotation: 60, minRotation: 40 } }]
+                })
+            }
+        });
+    }
+
+    /**
+     * New clients per month — trailing 12 months, single series.
+     */
+    async function showNewClientsGraph(){
+        const graph = "showNewClientsGraph";
+        const canvas = document.querySelector(`#${graph} canvas`);
+
+        const res = await fetchGraph(graph);
+        chart[graph]['source'] = res;
+
+        // res is ordered Año DESC, Mes DESC — take the newest 12 and put them back in chronological order.
+        const trailing = [...res].slice(0, 12).reverse();
+
+        const dato = {
+            labels: trailing.map(row => `${getMonthNameFromNumber(row['Mes'])} ${row['Año']}`),
+            datasets: [{
+                label: 'Clientes nuevos',
+                data: trailing.map(row => row['Clientes']),
+                backgroundColor: system.colorPalette[0]
+            }]
+        };
+
+        safeChart(canvas, {
+            type: 'bar',
+            data: dato,
+            options: {
+                legend: { display: false },
+                scales: baseScales()
+            }
+        });
     }
 
 }())
