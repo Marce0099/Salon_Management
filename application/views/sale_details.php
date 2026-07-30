@@ -1,5 +1,13 @@
 <h3 class="section-title">Detalles de venta</h3>
 
+<?php if( !empty($sale->file) ): ?>
+<p>
+	<a href="<?php echo base_url('uploads/receipts/'.$sale->file); ?>" target="_blank" class="btn btn-primary">
+		<i class="fa fa-print"></i> Reimprimir factura
+	</a>
+</p>
+<?php endif; ?>
+
 <?php $total_dollar = 0; $total_cordobas = 0; ?>
 
 <table class="table">

@@ -57,8 +57,13 @@ class Sales_mdl extends CI_Model{
 
 		/*$sql = 'select S.*,E.* from sales S left outer join employees E on
 		S.id_employee = E.id_employee where S.id_sale = '.$id_sale;*/
-		$sql = 'select S.id_sale, S.id_employee, S.date_time, CONCAT(C.name_client, \' \', C.surname_client) as client ,S.dollar_ex_buy, S.dollar_ex_sell,E.name from sales S left outer join employees E on S.id_employee = E.id_employee left outer join clients C on C.id_client = S.client where S.id_sale = '.$id_sale;
+		$sql = 'select S.id_sale, S.id_employee, S.date_time, S.file, CONCAT(C.name_client, \' \', C.surname_client) as client ,S.dollar_ex_buy, S.dollar_ex_sell,E.name from sales S left outer join employees E on S.id_employee = E.id_employee left outer join clients C on C.id_client = S.client where S.id_sale = '.$id_sale;
 
 		return $this->db->query($sql)->row();
+	}
+
+	public function setFile($id_sale, $file){
+
+		$this->db->update('sales', array('file'=>$file), array('id_sale'=>$id_sale));
 	}
 }

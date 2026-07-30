@@ -647,6 +647,13 @@ class Sales extends Admin_Controller{
 			}
 
 			ob_start();
+			$pdf_name = $this->generateReceiptPdf( $id_sale );
+			ob_end_clean();
+
+			if( $pdf_name )
+				$this->sales_mdl->setFile( $id_sale, $pdf_name );
+
+			ob_start();
 			$prnt = $this->printInvoice( $id_sale );
 			ob_end_clean();
 
@@ -683,6 +690,221 @@ class Sales extends Admin_Controller{
 		}
 		else{
 			$this->sale_form( (int) $id_appointment );
+		}
+	}
+
+	private function generateReceiptPdf( $id_sale ){
+
+		$sale = $this->sales_mdl->getSale( $id_sale );
+		$details = $this->sales_mdl->getDetails( $id_sale );
+		$payment = $this->payments_mdl->getPayment( $id_sale );
+
+		$logo = resolveLogoPath('logo_receipt', 'logo_invoice.png');
+
+		$methods = [
+			'cash' => 'Efectivo',
+			'pos' => 'POS',
+			'transfer' => 'Transferencia',
+			'cupon' => 'Cupón'
+		];
+
+		// mirrors printInvoice()'s line-item loop exactly, so the archived PDF matches what was printed
+		$items_html = '';
+		$total_dol = 0;
+
+		foreach( $details as $d ){
+
+			$subtotal = $d->quantity * $d->price;
+
+			if( $d->discount )
+				$subtotal -= $subtotal * $d->discount / 100;
+
+			$total_dol += $subtotal;
+
+			$items_html .= '
+				<tr>
+					<td class="left">'.$d->quantity.'</td>
+					<td class="left">'.htmlspecialchars($d->name).'</td>
+					<td class="right">'.number_format($subtotal,2).'</td>
+				</tr>
+			';
+		}
+
+		$total_cor = $total_dol * $sale->dollar_ex_sell;
+		$_total_cor = $total_cor;
+
+		// mirrors printInvoice()'s payment-method loop exactly (non-cash rows individually, cash aggregated with change)
+		$payments_html = '';
+		$cash = array();
+
+		foreach( $payment as $pay ){
+
+			if( $pay->payment_method === 'cash' ){
+				array_push($cash, $pay);
+			}else{
+
+				$cor = floatval($pay->cordoba);
+				$dol = floatval($pay->dolar);
+
+				if( $cor > 0 ){
+					$payments_html .= '<tr><td class="left">'.$methods[$pay->payment_method].':</td><td class="right">C$'.number_format($pay->cordoba,2).'</td></tr>';
+				}
+
+				if( $dol > 0 ){
+					$payments_html .= '<tr><td class="left">'.$methods[$pay->payment_method].':</td><td class="right">$'.number_format($pay->dolar,2).'</td></tr>';
+				}
+
+				$dol_to_cor = $dol * $sale->dollar_ex_sell;
+				$total_cordobas = $cor + $dol_to_cor;
+
+				$_total_cor -= $total_cordobas;
+			}
+		}
+
+		if( count($cash) > 0 ){
+
+			$pay = $cash[0];
+
+			$cor = floatval($pay->cordoba);
+			$dol = floatval($pay->dolar);
+
+			if( $cor > 0 ){
+				$payments_html .= '<tr><td class="left">Efectivo:</td><td class="right">C$'.number_format($pay->cordoba,2).'</td></tr>';
+			}
+
+			if( $dol > 0 ){
+				$payments_html .= '<tr><td class="left">Efectivo:</td><td class="right">$'.number_format($pay->dolar,2).'</td></tr>';
+			}
+
+			$dol_to_cor = $dol * $sale->dollar_ex_sell;
+			$total_cordobas = $cor + $dol_to_cor;
+
+			if( $pay->change_cordoba_given !== null || $pay->change_dollar_given !== null ){
+
+				$change_cordobas = floatval($pay->change_cordoba_given);
+				$change_dollars = floatval($pay->change_dollar_given);
+
+				if( $change_cordobas > 0 || $change_dollars > 0 ){
+					$payments_html .= '<tr><td class="left">Cambio:</td><td class="right">C$'.number_format($change_cordobas,2).' + $'.number_format($change_dollars,2).'</td></tr>';
+				}
+			}else{
+
+				$change_cordobas = $total_cordobas - $_total_cor;
+				$change_dollars = $change_cordobas / $sale->dollar_ex_buy;
+
+				$payments_html .= '<tr><td class="left">Cambio:</td><td class="right">$'.number_format($change_dollars,2).' (C$'.number_format($change_cordobas,2).')</td></tr>';
+			}
+		}
+
+		require_once(FCPATH.'includes/html2pdf/html2pdf.class.php');
+
+		ob_start();
+
+		?>
+
+		<style type="text/css">
+<!--
+		page{
+			font-family: courier;
+		}
+		table{
+			width: 100%;
+			border-collapse: collapse;
+		}
+		table td, table th{
+			font-size: 9px;
+			padding: 1px 0;
+		}
+		.left{ text-align: left; }
+		.right{ text-align: right; }
+		.center{ text-align: center; }
+		.divider{
+			border-top: 1px dashed #000000;
+			margin: 4px 0;
+		}
+		.tagline{
+			text-decoration: underline;
+			font-style: italic;
+		}
+		#logo{
+			width: 140px;
+			height: auto;
+		}
+-->
+		</style>
+		<page backtop="3mm" backbottom="3mm" backleft="3mm" backright="3mm">
+			<p class="center">
+				<img src="<?php echo $logo; ?>" id="logo" alt="">
+			</p>
+			<p class="center tagline">"Siente la Diferencia"</p>
+
+			<p class="center">
+				RUC: 2811201760006N<br>
+				Direccion: Costado sur funeraria monte<br>
+				los olivos 2 1/2c al este,<br>
+				Managua-Nicaragua.<br>
+				Telefono: 8885-1430
+			</p>
+
+			<p class="center">
+				Fecha: <?php echo date('d/m/Y h:i A'); ?><br>
+				No. Factura: <?php echo $sale->id_sale; ?>
+			</p>
+
+			<div class="divider"></div>
+
+			<table>
+				<tr>
+					<th class="left">Cant.</th>
+					<th class="left">Descripción</th>
+					<th class="right">Subtotal</th>
+				</tr>
+				<?php echo $items_html; ?>
+			</table>
+
+			<div class="divider"></div>
+
+			<table>
+				<tr><td class="left">Total en Dolares:</td><td class="right">$<?php echo number_format($total_dol,2); ?></td></tr>
+				<tr><td class="left">Total en Cordobas:</td><td class="right">C$<?php echo number_format($total_cor,2); ?></td></tr>
+			</table>
+
+			<table>
+				<?php echo $payments_html; ?>
+			</table>
+
+			<p class="left">Vendedor: <?php echo htmlspecialchars($sale->name); ?></p>
+
+			<div class="divider"></div>
+
+			<p class="center">No se aceptan devoluciones</p>
+			<p class="center">Gracias por preferirnos!!<br>Le esperamos pronto.</p>
+		</page>
+
+		<?php
+
+		$content = ob_get_clean();
+
+		try{
+
+			$receipts_dir = FCPATH.'uploads/receipts/';
+
+			if( !is_dir($receipts_dir) )
+				mkdir($receipts_dir, 0755, true);
+
+			$pdf_name = 'sale_'.$id_sale.'_'.time().'.pdf';
+
+			$pdf_path = $receipts_dir.$pdf_name;
+
+			$html2pdf = new HTML2PDF('P', array(80,200), 'es', true, 'UTF-8', array(0,0,0,0) );
+			$html2pdf->writeHTML($content);
+			$html2pdf->Output($pdf_path, 'F');
+
+			return $pdf_name;
+		}
+		catch( Exception $e ){
+
+			return NULL;
 		}
 	}
 
@@ -730,7 +952,7 @@ class Sales extends Admin_Controller{
 
 			//invoice info
 			$printer -> setJustification(Printer::JUSTIFY_CENTER);
-			$printer->text( 'Fecha: ' . date('d/m/Y h:i:s') . "\n" );
+			$printer->text( 'Fecha: ' . date('d/m/Y h:i A') . "\n" );
 			$printer->text( 'No. Factura: ' . $sale->id_sale );
 			$printer->feed(2);
 
