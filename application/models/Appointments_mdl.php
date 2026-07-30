@@ -133,6 +133,23 @@ class Appointments_mdl extends CI_Model{
 		return $this->db->trans_status() ? $id_appointment : FALSE;
 	}
 
+	// serializes the overlap-check-then-write critical section per employee, so two concurrent
+	// booking/reschedule requests for the same employee can't both pass hasOverlap() before either
+	// commits; different employees never contend since the lock name is scoped to id_employee
+	public function acquireEmployeeLock( $id_employee, $timeout_seconds = 5 ){
+
+		$lock_name = 'appt_employee_'.(int) $id_employee;
+		$row = $this->db->query( 'SELECT GET_LOCK(?, ?) AS locked', array( $lock_name, $timeout_seconds ) )->row();
+
+		return $row && (int) $row->locked === 1;
+	}
+
+	public function releaseEmployeeLock( $id_employee ){
+
+		$lock_name = 'appt_employee_'.(int) $id_employee;
+		$this->db->query( 'SELECT RELEASE_LOCK(?)', array( $lock_name ) );
+	}
+
 	public function hasOverlap( $id_employee, $start_datetime, $end_datetime, $exclude_id_appointment = 0 ){
 
 		$sql = 'select count(*) as total from appointments

@@ -9,6 +9,10 @@ class Payments_mdl extends CI_Model{
 
 	public function savePayment( $data ){
 
+		// a coupon code redeemed by a concurrent, still-uncommitted sale is rejected by the
+		// uniq_cupon_code constraint; on this PHP/PDO version (default PDO::ERRMODE_EXCEPTION
+		// since PHP 8.1) that surfaces as a normal catchable PDOException, which the caller
+		// (Sales::register()) wraps in a try/catch for exactly this case
 		$this->db->insert_batch('sale_payments', $data);
 	}
 

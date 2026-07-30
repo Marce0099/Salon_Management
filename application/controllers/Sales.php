@@ -611,8 +611,38 @@ class Sales extends Admin_Controller{
 				);
 			}
 
-			$this->payments_mdl->savePayment( $payment_to_save );
-			
+			try{
+
+				$this->payments_mdl->savePayment( $payment_to_save );
+			}
+			catch( Exception $e ){
+
+				$this->db->trans_rollback();
+
+				/* most likely cause: two sales redeemed the same coupon code at the same instant and
+				   the sale_payments.cupon_code UNIQUE index rejected the loser of that race (a
+				   PDOException, on this PHP/PDO version's default PDO::ERRMODE_EXCEPTION) — the
+				   app-level check at the top of register() only catches codes already committed by
+				   the time it ran, not ones committing concurrently */
+				if( !empty($seen_codes) ){
+
+					$used_codes = $this->payments_mdl->getUsedCouponCodes( array_keys($seen_codes) );
+
+					if( !empty($used_codes) ){
+
+						$response['type'] = 'error';
+						$response['message'] = 'El cupón "'.$used_codes[0].'" ya fue utilizado en otra venta';
+						echo json_encode($response);
+						exit();
+					}
+				}
+
+				$response['type'] = 'error';
+				$response['message'] = 'No se ha podido guardar la venta';
+				echo json_encode($response);
+				exit();
+			}
+
 			$total_cordobas = 0;
 
 			for( $i=0; $i < count($id_products); $i++ ){

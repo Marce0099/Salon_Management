@@ -226,6 +226,10 @@ class Cash_mdl extends CI_Model{
 
 	public function save_open( $data ){
 
+		// a second concurrent "abrir caja" for the same day is rejected by the uniq_open_date
+		// constraint; on this PHP/PDO version (default PDO::ERRMODE_EXCEPTION since PHP 8.1) that
+		// surfaces as a normal catchable PDOException, which Cash::open()'s existing
+		// catch (\Throwable $th) around this call already handles
 		$this->db->insert( 'cash', $data );
 	}
 

@@ -15,6 +15,11 @@
 
 		public function saveInvoice( $data ){
 
+			// a concurrent duplicate invoice_no+id_provider is rejected by the
+			// uniq_invoice_no_provider constraint; on this PHP/PDO version (default
+			// PDO::ERRMODE_EXCEPTION since PHP 8.1) that surfaces as a normal catchable
+			// PDOException, which Invoices::register()'s existing catch (Exception $e) around
+			// this call (inside its trans_begin()/trans_rollback() block) already handles
 			$this->db->insert( 'invoices', $data );
 
 			return $this->db->insert_id();

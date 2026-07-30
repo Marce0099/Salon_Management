@@ -322,18 +322,30 @@ class Appointments extends Admin_Controller{
 
 					$this->validateAppointmentInput( $id_client, $id_products, $start_datetime, $end_datetime );
 
-					if( $this->appointments_mdl->hasOverlap( $id_employee, $start_datetime, $end_datetime ) ){
+					if( !$this->appointments_mdl->acquireEmployeeLock( $id_employee ) ){
 
-						throw new Exception('Este empleado ya tiene una reserva en ese horario');
+						throw new Exception('El sistema está ocupado procesando otra reserva para este empleado, intente de nuevo');
 					}
 
-					$deposit = $this->resolveDeposit( $id_products );
+					try{
 
-					$id_appointment = $this->appointments_mdl->save( $id_client, $this->get_userID(), $id_employee, $start_datetime, $end_datetime, $notes !== '' ? $notes : NULL, $id_products, $deposit['account'], $deposit['cordoba'], $deposit['dolar'] );
+						if( $this->appointments_mdl->hasOverlap( $id_employee, $start_datetime, $end_datetime ) ){
 
-					if( !$id_appointment ){
+							throw new Exception('Este empleado ya tiene una reserva en ese horario');
+						}
 
-						throw new Exception('Ha ocurrido un error guardando la reserva');
+						$deposit = $this->resolveDeposit( $id_products );
+
+						$id_appointment = $this->appointments_mdl->save( $id_client, $this->get_userID(), $id_employee, $start_datetime, $end_datetime, $notes !== '' ? $notes : NULL, $id_products, $deposit['account'], $deposit['cordoba'], $deposit['dolar'] );
+
+						if( !$id_appointment ){
+
+							throw new Exception('Ha ocurrido un error guardando la reserva');
+						}
+					}
+					finally{
+
+						$this->appointments_mdl->releaseEmployeeLock( $id_employee );
 					}
 
 					$new_tk = generateToken();
@@ -422,90 +434,102 @@ class Appointments extends Admin_Controller{
 
 			$shifts = array();
 
-			if( $this->appointments_mdl->hasOverlap( $id_employee, $start_datetime, $end_datetime, $id_appointment ) ){
+			if( !$this->appointments_mdl->acquireEmployeeLock( $id_employee ) ){
 
-				$window_start = date( 'Y-m-d H:i:s', strtotime($schedule_date.' 01:00:00') );
-				$window_end = date( 'Y-m-d H:i:s', strtotime($schedule_date.' +1 day 01:00:00') );
-				$cascade_cap_ts = strtotime( $schedule_date.' +1 day 00:00:00' );
+				throw new Exception('El sistema está ocupado procesando otra reserva para este empleado, intente de nuevo');
+			}
 
-				$others = $this->appointments_mdl->getEmployeeDayAppointments( $id_employee, $window_start, $window_end, $id_appointment );
+			try{
 
-				$new_start_ts = strtotime( $start_datetime );
-				$cursor_end_ts = strtotime( $end_datetime );
+				if( $this->appointments_mdl->hasOverlap( $id_employee, $start_datetime, $end_datetime, $id_appointment ) ){
 
-				foreach( $others as $other ){
+					$window_start = date( 'Y-m-d H:i:s', strtotime($schedule_date.' 01:00:00') );
+					$window_end = date( 'Y-m-d H:i:s', strtotime($schedule_date.' +1 day 01:00:00') );
+					$cascade_cap_ts = strtotime( $schedule_date.' +1 day 00:00:00' );
 
-					$other_start_ts = strtotime( $other->start_datetime );
-					$other_end_ts = strtotime( $other->end_datetime );
+					$others = $this->appointments_mdl->getEmployeeDayAppointments( $id_employee, $window_start, $window_end, $id_appointment );
 
-					if( $other_end_ts <= $new_start_ts ){
+					$new_start_ts = strtotime( $start_datetime );
+					$cursor_end_ts = strtotime( $end_datetime );
 
-						// entirely before the edited slot — unrelated, leave it alone
-						continue;
+					foreach( $others as $other ){
+
+						$other_start_ts = strtotime( $other->start_datetime );
+						$other_end_ts = strtotime( $other->end_datetime );
+
+						if( $other_end_ts <= $new_start_ts ){
+
+							// entirely before the edited slot — unrelated, leave it alone
+							continue;
+						}
+
+						if( $other_start_ts < $new_start_ts ){
+
+							throw new Exception('No se puede reprogramar: se solapa con una reserva anterior');
+						}
+
+						if( $other_start_ts >= $cursor_end_ts ){
+
+							break;
+						}
+
+						$duration = $other_end_ts - $other_start_ts;
+						$shifted_start_ts = $cursor_end_ts;
+						$shifted_end_ts = $shifted_start_ts + $duration;
+
+						if( $shifted_end_ts > $cascade_cap_ts ){
+
+							throw new Exception('No hay espacio disponible para reprogramar las reservas siguientes');
+						}
+
+						$shifts[] = array(
+							'id_appointment' => $other->id_appointment,
+							'start_datetime' => date('Y-m-d H:i:s', $shifted_start_ts),
+							'end_datetime'   => date('Y-m-d H:i:s', $shifted_end_ts),
+						);
+
+						$cursor_end_ts = $shifted_end_ts;
 					}
-
-					if( $other_start_ts < $new_start_ts ){
-
-						throw new Exception('No se puede reprogramar: se solapa con una reserva anterior');
-					}
-
-					if( $other_start_ts >= $cursor_end_ts ){
-
-						break;
-					}
-
-					$duration = $other_end_ts - $other_start_ts;
-					$shifted_start_ts = $cursor_end_ts;
-					$shifted_end_ts = $shifted_start_ts + $duration;
-
-					if( $shifted_end_ts > $cascade_cap_ts ){
-
-						throw new Exception('No hay espacio disponible para reprogramar las reservas siguientes');
-					}
-
-					$shifts[] = array(
-						'id_appointment' => $other->id_appointment,
-						'start_datetime' => date('Y-m-d H:i:s', $shifted_start_ts),
-						'end_datetime'   => date('Y-m-d H:i:s', $shifted_end_ts),
-					);
-
-					$cursor_end_ts = $shifted_end_ts;
 				}
+
+				if( $validate_only ){
+
+					$message = count($shifts) > 0 ? count($shifts).' reserva(s) serán reprogramada(s)' : 'OK';
+
+					echo json_encode( array( 'type' => 'success', 'message' => $message ) );
+					return;
+				}
+
+				$edit_reason = trim( $this->input->post('edit_reason') );
+
+				if( $edit_reason === '' ){
+
+					throw new Exception('Debe indicar el motivo del cambio');
+				}
+
+				$ok = $this->appointments_mdl->updateWithShifts( $id_appointment, $id_client, $id_employee, $start_datetime, $end_datetime, $notes !== '' ? $notes : NULL, $id_products, $shifts, $this->get_userID(), $edit_reason );
+
+				if( !$ok ){
+
+					throw new Exception('Ha ocurrido un error actualizando la reserva');
+				}
+
+				$new_tk = generateToken();
+				$this->session->set_userdata('tk', $new_tk);
+
+				$message = 'Reserva actualizada';
+
+				if( count($shifts) > 0 ){
+
+					$message .= ' y '.count($shifts).' reserva(s) reprogramada(s)';
+				}
+
+				echo json_encode( array( 'type' => 'success', 'message' => $message, 'tk' => $new_tk ) );
 			}
+			finally{
 
-			if( $validate_only ){
-
-				$message = count($shifts) > 0 ? count($shifts).' reserva(s) serán reprogramada(s)' : 'OK';
-
-				echo json_encode( array( 'type' => 'success', 'message' => $message ) );
-				return;
+				$this->appointments_mdl->releaseEmployeeLock( $id_employee );
 			}
-
-			$edit_reason = trim( $this->input->post('edit_reason') );
-
-			if( $edit_reason === '' ){
-
-				throw new Exception('Debe indicar el motivo del cambio');
-			}
-
-			$ok = $this->appointments_mdl->updateWithShifts( $id_appointment, $id_client, $id_employee, $start_datetime, $end_datetime, $notes !== '' ? $notes : NULL, $id_products, $shifts, $this->get_userID(), $edit_reason );
-
-			if( !$ok ){
-
-				throw new Exception('Ha ocurrido un error actualizando la reserva');
-			}
-
-			$new_tk = generateToken();
-			$this->session->set_userdata('tk', $new_tk);
-
-			$message = 'Reserva actualizada';
-
-			if( count($shifts) > 0 ){
-
-				$message .= ' y '.count($shifts).' reserva(s) reprogramada(s)';
-			}
-
-			echo json_encode( array( 'type' => 'success', 'message' => $message, 'tk' => $new_tk ) );
 		}
 		catch( Exception $e ){
 
