@@ -169,7 +169,7 @@ class Employees extends Admin_Controller{
 		}
 		else{
 
-			$data['employees'] = $this->employees_mdl->getAll();
+			$data['employees'] = $this->employees_mdl->getActiveEmployees();
 			$data['test'] = $this->employees_mdl;
 			$this->content_data = $data;
 			$this->renderPanel('form_commissions');
