@@ -50,10 +50,10 @@ class Employees_mdl extends CI_Model{
 		$date_start = date('Y-m-d',strtotime($date_start));
 		$date_end = date('Y-m-d',strtotime($date_end));
 
-		$sql = 'select S.* from sales S where id_employee = '.$id_employee.' and
-		date(date_time) between "'.$date_start.'" and "'.$date_end.'"';
+		$sql = 'select S.* from sales S where id_employee = ? and
+		date(date_time) between ? and ?';
 
-		$data['sales'] = $this->db->query($sql)->result();
+		$data['sales'] = $this->db->query($sql, array( (int) $id_employee, $date_start, $date_end ))->result();
 
 		/*foreach( $data['sales'] as $s ){
 

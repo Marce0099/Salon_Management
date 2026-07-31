@@ -154,7 +154,7 @@ class Employees extends Admin_Controller{
 
 		if( formPosted() ){
 
-			$id_employee = $this->input->post('id_employee');
+			$id_employee = (int) $this->input->post('id_employee');
 			$date_start = $this->input->post('date_start');
 			$date_end = $this->input->post('date_end');
 
