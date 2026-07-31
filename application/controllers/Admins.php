@@ -47,7 +47,7 @@ class Admins extends Admin_Controller{
 
 				$data = array(
 					'username' => $username,
-					'password' => sha1($this->input->post('password')),
+					'password' => password_hash($this->input->post('password'), PASSWORD_DEFAULT),
 					'name'     => $this->input->post('name'),
 					'role'     => $this->input->post('role'),
 				);
