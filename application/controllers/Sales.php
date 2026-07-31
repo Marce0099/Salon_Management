@@ -1138,7 +1138,7 @@ class Sales extends Admin_Controller{
 
 		$this->load->model('settings_mdl');
 
-		$data['employees'] = $this->db->query('select * from employees')->result();
+		$data['employees'] = $this->db->query('select * from employees where active = 1')->result();
 		$data['exchange'] = $this->db->get('dollar_exchange')->row();
 		$data['tk'] = generateToken();
 		$this->session->set_userdata('tk', $data['tk']);
