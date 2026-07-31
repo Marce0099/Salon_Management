@@ -6,20 +6,25 @@ A point-of-sale and inventory management web application built for a cosmetics r
 
 ## Features
 
-- **Sales** — register sales with multiple payment methods (cash, POS/card, bank transfer), split payments, per-product discounts, and employee commissions
-- **Products** — barcode-based catalog with cost/sell prices, stock tracking, and service items (no stock deduction)
-- **Clients** — customer profiles with national ID, VIP flag, and purchase history
+- **Sales** — register sales with multiple payment methods (cash, POS/card, bank transfer, coupons), split payments, per-product discounts, and employee commissions
+- **Products** — barcode-based catalog with cost/sell prices, stock tracking, service items (no stock deduction), service categories with default discount rates, and low-stock alerts
+- **Appointments** — per-employee hourly scheduling grid with a mandatory transfer deposit at booking time; continues seamlessly into a sale
+- **Loyalty program** — points accrual on service purchases and tiered redemption discounts, with a full per-client points ledger
+- **Clients** — customer profiles with national ID, VIP flag, birthday discounts, and purchase history
 - **Employees** — sales staff management with soft-delete and commission rates
-- **Cash drawer** — daily open/close sessions that gate sale registration; tracks cordobas, dollars, POS, and transfers separately
+- **Cash drawer** — daily open/close sessions that gate sale registration; tracks cordobas, dollars, POS, transfers, coupons, and cancelled-appointment deposits separately
 - **Purchases (Invoices)** — record supplier invoices that restock products and update cost/sell prices
 - **Purchase Orders** — generate orders to suppliers with optional PDF attachment
 - **Returns** — log product returns to suppliers
+- **Internal product use** — track stock withdrawn for internal business use (display, damage, employee use) rather than sold
 - **Providers** — supplier/brand catalog
+- **Product import** — bulk-import products from Excel spreadsheets
 - **Dollar exchange** — configurable buy/sell exchange rate used across all transactions
 - **Bank accounts** — manage accounts used as transfer payment targets
 - **Statistics** — sales charts and revenue reporting (Chart.js)
 - **Monthly goals** — set and track sales targets per month/year (admin only)
-- **Thermal receipt printing** — ESC/POS receipts via `mike42/escpos-php`
+- **Settings** — app-wide config (company name, discount rates) and customizable logos (header, login, receipt, purchase order)
+- **Thermal receipt printing** — ESC/POS receipts via `mike42/escpos-php`, plus a reprintable PDF copy of every sale receipt
 - **PDF export** — order PDFs via `html2pdf`
 - **Email notifications** — PHPMailer integration
 
@@ -29,8 +34,8 @@ A point-of-sale and inventory management web application built for a cosmetics r
 
 | Layer | Technology |
 |---|---|
-| Backend | PHP 7 · CodeIgniter 2 (CI2) · HMVC (`MX` module extension) |
-| Database | MySQL 5.x |
+| Backend | PHP 7.0–8.3 · CodeIgniter 2 (CI2) · HMVC (`MX` module extension) |
+| Database | MySQL / MariaDB |
 | Frontend | Bootstrap 3 · Gentelella admin theme · jQuery · Chart.js · PNotify |
 | Printing | `mike42/escpos-php` (ESC/POS thermal printers) |
 | PDF | `html2pdf` |
@@ -41,7 +46,7 @@ A point-of-sale and inventory management web application built for a cosmetics r
 
 ## Prerequisites
 
-- [XAMPP](https://www.apachefriends.org/) (Apache + MySQL) — PHP 7.x recommended
+- **[XAMPP 8.2.12](https://sourceforge.net/projects/xampp/files/XAMPP%20Windows/8.2.12/xampp-windows-x64-8.2.12-0-VS16-installer.exe/download)** (Apache + MariaDB + PHP 8.2.12) — recommended version. This is the closest official Windows build to the PHP version this project is developed and tested against (PHP 8.3.30); the codebase uses no syntax newer than PHP 7.0 (only the `??` null-coalescing operator), so anything from PHP 7.0 up through 8.3 runs it identically.
 - A web browser
 - A thermal receipt printer (optional, for printing receipts)
 
@@ -52,17 +57,15 @@ A point-of-sale and inventory management web application built for a cosmetics r
 ### 1. Clone the repository
 
 ```bash
-git clone https://github.com/<your-username>/coco-cosmetics.git
-cd coco-cosmetics
+git clone https://github.com/Marce0099/Salon_Management.git
+cd Salon_Management
 ```
 
 Place the cloned folder inside your XAMPP `htdocs` directory (e.g. `C:\xampp\htdocs\coco-cosmetics`), or clone directly into `htdocs` root.
 
-### 2. Install PHP dependencies
+### 2. PHP dependencies
 
-```bash
-composer install
-```
+No `composer install` needed — third-party libraries (`mike42/escpos-php`, PHPMailer, `html2pdf`, PHPExcel) are vendored directly in the repo under `print/`, `application/libraries/`, and `includes/`.
 
 ### 3. Create the database
 
@@ -149,8 +152,8 @@ application/
   config/         # CI2 config files
 assets/           # CSS (admin.css), JS, Gentelella vendor bundle
 print/            # ESC/POS thermal printing (mike42/escpos-php)
-includes/         # html2pdf library
-uploads/          # Product images (git-ignored)
+includes/         # html2pdf and PHPExcel libraries
+uploads/          # Product images, receipts, and logos (git-ignored)
 orders_pdf/       # Generated order PDFs (git-ignored)
 ```
 
