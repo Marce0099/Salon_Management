@@ -30,7 +30,7 @@ SET time_zone = "+00:00";
 CREATE TABLE `admins` (
   `id_admin` int(11) NOT NULL,
   `username` varchar(50) COLLATE utf8_unicode_ci DEFAULT NULL,
-  `password` varchar(40) COLLATE utf8_unicode_ci DEFAULT NULL,
+  `password` varchar(255) COLLATE utf8_unicode_ci DEFAULT NULL,
   `role` enum('super','administrador','trabajador') COLLATE utf8_unicode_ci NOT NULL DEFAULT 'trabajador',
   `active` tinyint(1) NOT NULL DEFAULT 1,
   `name` varchar(100) COLLATE utf8_unicode_ci NOT NULL
