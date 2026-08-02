@@ -173,4 +173,4 @@ orders_pdf/       # Generated order PDFs (git-ignored)
 
 ## License
 
-This repository is shared publicly for portfolio and demonstration purposes. All rights reserved — see [LICENSE](LICENSE) for details; it is not licensed for reuse, redistribution, or deployment.
+MIT — see [LICENSE](LICENSE) for details.
