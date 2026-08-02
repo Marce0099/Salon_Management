@@ -24,21 +24,21 @@ class Sales extends Admin_Controller{
 
 	private function format_columns( $col_1, $col_2, $col_3 ){
 
-	    $ww = wordwrap($col_2,27);
+	    $ww = wordwrap($col_2,22);
 	    $strings = explode("\n",$ww);
-	    $line = str_pad( $col_1, 6, " ", STR_PAD_RIGHT );
+	    $line = str_pad( $col_1, 4, " ", STR_PAD_RIGHT );
 
 	    for($i=0; $i<count($strings); $i++){
 
 	        if( $i == 0 )
-	            $line .= str_pad($strings[$i],27," ", STR_PAD_RIGHT) . $col_3;
+	            $line .= str_pad($strings[$i],22,".", STR_PAD_RIGHT) . str_pad($col_3,17," ", STR_PAD_LEFT);
 	        else
-	            $line .= str_pad($strings[$i], strlen($strings[$i]) + 6, " ", STR_PAD_LEFT);
+	            $line .= str_pad($strings[$i], strlen($strings[$i]) + 4, " ", STR_PAD_LEFT);
 
 	        $line .= "\n";
 	    }
 
-	    $line .= "------------------------------------------\n";
+	    $line .= "-------------------------------------------\n";
 
 	    return $line;
 	}
@@ -731,6 +731,13 @@ class Sales extends Admin_Controller{
 
 		$logo = resolveLogoPath('logo_receipt', 'logo_invoice.png');
 
+		$receipt_ruc = $this->settings_mdl->get('receipt_ruc', '2811201760006N');
+		$receipt_address = $this->settings_mdl->get('receipt_address', "Costado sur funeraria monte\nlos olivos 2 1/2c al este,\nManagua-Nicaragua.");
+		$receipt_phone = $this->settings_mdl->get('receipt_phone', '8885-1430');
+		$receipt_tagline = $this->settings_mdl->get('receipt_tagline', 'Siente la Diferencia');
+		$receipt_footer_notice = $this->settings_mdl->get('receipt_footer_notice', 'No se aceptan devoluciones');
+		$receipt_footer_thanks = $this->settings_mdl->get('receipt_footer_thanks', "Gracias por preferirnos!!\nLe esperamos pronto.");
+
 		$methods = [
 			'cash' => 'Efectivo',
 			'pos' => 'POS',
@@ -751,11 +758,15 @@ class Sales extends Admin_Controller{
 
 			$total_dol += $subtotal;
 
+			// cap the name at 22 chars so the auto-sized "Descripción" column can never
+			// grow past this width and push the price column out of alignment
+			$name = mb_strlen($d->name,'UTF-8') > 22 ? mb_substr($d->name,0,21,'UTF-8').'…' : $d->name;
+
 			$items_html .= '
 				<tr>
 					<td class="left">'.$d->quantity.'</td>
-					<td class="left">'.htmlspecialchars($d->name).'</td>
-					<td class="right">'.number_format($subtotal,2).'</td>
+					<td class="left">'.htmlspecialchars(str_pad($name,22,".",STR_PAD_RIGHT)).'</td>
+					<td class="left">'.number_format($subtotal,2).'</td>
 				</tr>
 			';
 		}
@@ -777,11 +788,11 @@ class Sales extends Admin_Controller{
 				$dol = floatval($pay->dolar);
 
 				if( $cor > 0 ){
-					$payments_html .= '<tr><td class="left">'.$methods[$pay->payment_method].':</td><td class="right">C$'.number_format($pay->cordoba,2).'</td></tr>';
+					$payments_html .= '<tr><td class="left label-col">'.$methods[$pay->payment_method].':</td><td class="left">C$'.number_format($pay->cordoba,2).'</td></tr>';
 				}
 
 				if( $dol > 0 ){
-					$payments_html .= '<tr><td class="left">'.$methods[$pay->payment_method].':</td><td class="right">$'.number_format($pay->dolar,2).'</td></tr>';
+					$payments_html .= '<tr><td class="left label-col">'.$methods[$pay->payment_method].':</td><td class="left">$'.number_format($pay->dolar,2).'</td></tr>';
 				}
 
 				$dol_to_cor = $dol * $sale->dollar_ex_sell;
@@ -799,11 +810,11 @@ class Sales extends Admin_Controller{
 			$dol = floatval($pay->dolar);
 
 			if( $cor > 0 ){
-				$payments_html .= '<tr><td class="left">Efectivo:</td><td class="right">C$'.number_format($pay->cordoba,2).'</td></tr>';
+				$payments_html .= '<tr><td class="left label-col">Efectivo:</td><td class="left">C$'.number_format($pay->cordoba,2).'</td></tr>';
 			}
 
 			if( $dol > 0 ){
-				$payments_html .= '<tr><td class="left">Efectivo:</td><td class="right">$'.number_format($pay->dolar,2).'</td></tr>';
+				$payments_html .= '<tr><td class="left label-col">Efectivo:</td><td class="left">$'.number_format($pay->dolar,2).'</td></tr>';
 			}
 
 			$dol_to_cor = $dol * $sale->dollar_ex_sell;
@@ -815,14 +826,14 @@ class Sales extends Admin_Controller{
 				$change_dollars = floatval($pay->change_dollar_given);
 
 				if( $change_cordobas > 0 || $change_dollars > 0 ){
-					$payments_html .= '<tr><td class="left">Cambio:</td><td class="right">C$'.number_format($change_cordobas,2).' + $'.number_format($change_dollars,2).'</td></tr>';
+					$payments_html .= '<tr><td class="left label-col">Cambio:</td><td class="left">C$'.number_format($change_cordobas,2).' + $'.number_format($change_dollars,2).'</td></tr>';
 				}
 			}else{
 
 				$change_cordobas = $total_cordobas - $_total_cor;
 				$change_dollars = $change_cordobas / $sale->dollar_ex_buy;
 
-				$payments_html .= '<tr><td class="left">Cambio:</td><td class="right">$'.number_format($change_dollars,2).' (C$'.number_format($change_cordobas,2).')</td></tr>';
+				$payments_html .= '<tr><td class="left label-col">Cambio:</td><td class="left">$'.number_format($change_dollars,2).' (C$'.number_format($change_cordobas,2).')</td></tr>';
 			}
 		}
 
@@ -846,8 +857,8 @@ class Sales extends Admin_Controller{
 			padding: 1px 0;
 		}
 		.left{ text-align: left; }
-		.right{ text-align: right; }
 		.center{ text-align: center; }
+		.label-col{ width: 50%; white-space: nowrap; }
 		.divider{
 			border-top: 1px dashed #000000;
 			margin: 4px 0;
@@ -866,14 +877,12 @@ class Sales extends Admin_Controller{
 			<p class="center">
 				<img src="<?php echo $logo; ?>" id="logo" alt="">
 			</p>
-			<p class="center tagline">"Siente la Diferencia"</p>
+			<p class="center tagline">"<?php echo htmlspecialchars($receipt_tagline); ?>"</p>
 
 			<p class="center">
-				RUC: 2811201760006N<br>
-				Direccion: Costado sur funeraria monte<br>
-				los olivos 2 1/2c al este,<br>
-				Managua-Nicaragua.<br>
-				Telefono: 8885-1430
+				RUC: <?php echo htmlspecialchars($receipt_ruc); ?><br>
+				Direccion: <?php echo nl2br(htmlspecialchars($receipt_address)); ?><br>
+				Telefono: <?php echo htmlspecialchars($receipt_phone); ?>
 			</p>
 
 			<p class="center">
@@ -887,7 +896,7 @@ class Sales extends Admin_Controller{
 				<tr>
 					<th class="left">Cant.</th>
 					<th class="left">Descripción</th>
-					<th class="right">Subtotal</th>
+					<th class="left">Subtotal</th>
 				</tr>
 				<?php echo $items_html; ?>
 			</table>
@@ -895,8 +904,8 @@ class Sales extends Admin_Controller{
 			<div class="divider"></div>
 
 			<table>
-				<tr><td class="left">Total en Dolares:</td><td class="right">$<?php echo number_format($total_dol,2); ?></td></tr>
-				<tr><td class="left">Total en Cordobas:</td><td class="right">C$<?php echo number_format($total_cor,2); ?></td></tr>
+				<tr><td class="left label-col">Total en Dolares:</td><td class="left">$<?php echo number_format($total_dol,2); ?></td></tr>
+				<tr><td class="left label-col">Total en Cordobas:</td><td class="left">C$<?php echo number_format($total_cor,2); ?></td></tr>
 			</table>
 
 			<table>
@@ -907,8 +916,8 @@ class Sales extends Admin_Controller{
 
 			<div class="divider"></div>
 
-			<p class="center">No se aceptan devoluciones</p>
-			<p class="center">Gracias por preferirnos!!<br>Le esperamos pronto.</p>
+			<p class="center"><?php echo htmlspecialchars($receipt_footer_notice); ?></p>
+			<p class="center"><?php echo nl2br(htmlspecialchars($receipt_footer_thanks)); ?></p>
 		</page>
 
 		<?php
@@ -948,27 +957,33 @@ class Sales extends Admin_Controller{
 
 			$logo_path = resolveLogoPath('logo_receipt', 'logo_invoice.png');
 
+			$receipt_ruc = $this->settings_mdl->get('receipt_ruc', '2811201760006N');
+			$receipt_address = $this->settings_mdl->get('receipt_address', "Costado sur funeraria monte\nlos olivos 2 1/2c al este,\nManagua-Nicaragua.");
+			$receipt_phone = $this->settings_mdl->get('receipt_phone', '8885-1430');
+			$receipt_tagline = $this->settings_mdl->get('receipt_tagline', 'Siente la Diferencia');
+			$receipt_footer_notice = $this->settings_mdl->get('receipt_footer_notice', 'No se aceptan devoluciones');
+			$receipt_footer_thanks = $this->settings_mdl->get('receipt_footer_thanks', "Gracias por preferirnos!!\nLe esperamos pronto.");
+
 			$connector = new WindowsPrintConnector('CAJA');
 			$printer = new Printer($connector);
 			$printer->initialize();
-			
+
 			//logo
 			$printer->setJustification(Printer::JUSTIFY_CENTER);
 			$logo = EscposImage::load($logo_path, false);
 			//$printer->graphics($logo);
 			$printer->bitImage($logo);
 			$printer->selectPrintMode(Printer::MODE_UNDERLINE);
-			$printer->text("\n\"Siente la Diferencia\"");
+			$printer->text("\n\"".$receipt_tagline."\"");
 			$printer->selectPrintMode();
 			$printer->feed(2);
 
 			if( !$copy ){
 
 				$printer->setTextSize(1,1);
-				$printer->text("RUC: 2811201760006N\n");
-				//$printer->text("Dirección: Centro Comercial Paseo Real \nMódulo B-2B\nLeón-Nicaragua.");
-				$printer->text("Direccion: Costado sur funeraria monte\nlos olivos 2 1/2c al este,\nManagua-Nicaragua.");
-				$printer->text("Telefono: 8885-1430");
+				$printer->text("RUC: ".$receipt_ruc."\n");
+				$printer->text("Direccion: ".$receipt_address);
+				$printer->text("Telefono: ".$receipt_phone);
 				$printer->selectPrintMode();
 				$printer->feed(2);
 			}
@@ -988,10 +1003,10 @@ class Sales extends Admin_Controller{
 
 			//products header
 			$printer->setJustification(Printer::JUSTIFY_LEFT);
-			$printer->text( str_pad('Cant.', 6, ' ', STR_PAD_RIGHT) );
-			$printer->text( str_pad('Descripción', 27, ' ', STR_PAD_RIGHT) );
-			$printer->text( "Subtotal\n" );
-			$printer->text( "------------------------------------------\n" );
+			$printer->text( str_pad('Cant.', 4, ' ', STR_PAD_RIGHT) );
+			$printer->text( str_pad('Descripción', 22, ' ', STR_PAD_RIGHT) );
+			$printer->text( str_pad("Subtotal", 17, ' ', STR_PAD_LEFT) . "\n" );
+			$printer->text( "-------------------------------------------\n" );
 			$printer->selectPrintMode();
 
 			//products
@@ -1019,9 +1034,10 @@ class Sales extends Admin_Controller{
 
 			//totals
 			$printer->feed();
-			$printer->setJustification(Printer::JUSTIFY_RIGHT);
-			$printer->text("Total en Dolares:".str_pad("$".number_format($total_dol,2)."\n",15,' ',STR_PAD_LEFT) );
-			$printer->text("Total en Cordobas:".str_pad("C$".number_format($total_cor,2)."\n",15,' ',STR_PAD_LEFT) );
+			$printer->setJustification(Printer::JUSTIFY_LEFT);
+			$label_width = 20;
+			$printer->text(str_pad("Total en Dolares:", $label_width, ' ', STR_PAD_RIGHT)."$".number_format($total_dol,2)."\n" );
+			$printer->text(str_pad("Total en Cordobas:", $label_width, ' ', STR_PAD_RIGHT)."C$".number_format($total_cor,2)."\n" );
 
 			$methods = [
 				'cash' => 'Efectivo',
@@ -1039,11 +1055,11 @@ class Sales extends Admin_Controller{
 					$dol = floatval($pay->dolar);
 
 					if( $cor > 0 ){
-						$printer->text($methods[$pay->payment_method].":".str_pad("C$".number_format($pay->cordoba,2)."\n",15,' ',STR_PAD_LEFT) );
+						$printer->text(str_pad($methods[$pay->payment_method].":", $label_width, ' ', STR_PAD_RIGHT)."C$".number_format($pay->cordoba,2)."\n" );
 					}
 
 					if( $dol > 0 ){
-						$printer->text($methods[$pay->payment_method].":".str_pad("$".number_format($pay->dolar,2)."\n",15,' ',STR_PAD_LEFT) );
+						$printer->text(str_pad($methods[$pay->payment_method].":", $label_width, ' ', STR_PAD_RIGHT)."$".number_format($pay->dolar,2)."\n" );
 					}
 
 					$dol_to_cor = $dol * $sale->dollar_ex_sell;
@@ -1060,11 +1076,11 @@ class Sales extends Admin_Controller{
 				$dol = floatval($pay->dolar);
 
 				if( $cor > 0 ){
-					$printer->text($methods[$pay->payment_method].":".str_pad("C$".number_format($pay->cordoba,2)."\n",15,' ',STR_PAD_LEFT) );
+					$printer->text(str_pad($methods[$pay->payment_method].":", $label_width, ' ', STR_PAD_RIGHT)."C$".number_format($pay->cordoba,2)."\n" );
 				}
 
 				if( $dol > 0 ){
-					$printer->text($methods[$pay->payment_method].":".str_pad("$".number_format($pay->dolar,2)."\n",15,' ',STR_PAD_LEFT) );
+					$printer->text(str_pad($methods[$pay->payment_method].":", $label_width, ' ', STR_PAD_RIGHT)."$".number_format($pay->dolar,2)."\n" );
 				}
 
 				$dol_to_cor = $dol * $sale->dollar_ex_sell;
@@ -1079,14 +1095,14 @@ class Sales extends Admin_Controller{
 					$change_dollars = floatval($pay->change_dollar_given);
 
 					if( $change_cordobas > 0 || $change_dollars > 0 ){
-						$printer->text("Cambio: ".str_pad("C$".number_format($change_cordobas,2)." + $".number_format($change_dollars,2)."\n",15,' ',STR_PAD_LEFT) );
+						$printer->text(str_pad("Cambio:", $label_width, ' ', STR_PAD_RIGHT)."C$".number_format($change_cordobas,2)." + $".number_format($change_dollars,2)."\n" );
 					}
 				}else{
 
 					$change_cordobas = $total_cordobas - $_total_cor;
 					$change_dollars = $change_cordobas / $sale->dollar_ex_buy;
 
-					$printer->text("Cambio: ".str_pad("$".number_format($change_dollars,2)." (C$".number_format($change_cordobas,2).")\n",15,' ',STR_PAD_LEFT) );
+					$printer->text(str_pad("Cambio:", $label_width, ' ', STR_PAD_RIGHT)."$".number_format($change_dollars,2)." (C$".number_format($change_cordobas,2).")\n" );
 				}
 			}
 
@@ -1120,9 +1136,9 @@ class Sales extends Admin_Controller{
 			//footer
 			$printer->setJustification(Printer::JUSTIFY_CENTER);
 			$printer->selectPrintMode(Printer::MODE_FONT_B);
-			$printer->text('No se aceptan devoluciones');
+			$printer->text($receipt_footer_notice);
 			$printer->feed(1);
-			$printer->text("Gracias por preferirnos!!\nLe esperamos pronto.");
+			$printer->text($receipt_footer_thanks);
 			$printer->feed(2);
 			$printer->cut();
 			$printer->close();

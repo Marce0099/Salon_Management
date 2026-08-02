@@ -23,6 +23,48 @@
         </div>
 	</div>
 	<div class="form-group">
+		<label class="control-label col-md-3 col-sm-3 col-xs-12" for="receipt_ruc">RUC del recibo:
+        </label>
+		<div class="col-md-6 col-sm-6 col-xs-12">
+            <input type="text" name="receipt_ruc" id="receipt_ruc" required="required" maxlength="255" class="form-control col-md-7 col-xs-12" value="<?php echo htmlspecialchars($receipt_ruc); ?>">
+        </div>
+	</div>
+	<div class="form-group">
+		<label class="control-label col-md-3 col-sm-3 col-xs-12" for="receipt_address">Dirección del recibo:
+        </label>
+		<div class="col-md-6 col-sm-6 col-xs-12">
+            <textarea name="receipt_address" id="receipt_address" required="required" maxlength="255" rows="3" class="form-control col-md-7 col-xs-12"><?php echo htmlspecialchars($receipt_address); ?></textarea>
+        </div>
+	</div>
+	<div class="form-group">
+		<label class="control-label col-md-3 col-sm-3 col-xs-12" for="receipt_phone">Teléfono del recibo:
+        </label>
+		<div class="col-md-6 col-sm-6 col-xs-12">
+            <input type="text" name="receipt_phone" id="receipt_phone" required="required" maxlength="255" class="form-control col-md-7 col-xs-12" value="<?php echo htmlspecialchars($receipt_phone); ?>">
+        </div>
+	</div>
+	<div class="form-group">
+		<label class="control-label col-md-3 col-sm-3 col-xs-12" for="receipt_tagline">Eslogan del recibo:
+        </label>
+		<div class="col-md-6 col-sm-6 col-xs-12">
+            <input type="text" name="receipt_tagline" id="receipt_tagline" required="required" maxlength="255" class="form-control col-md-7 col-xs-12" value="<?php echo htmlspecialchars($receipt_tagline); ?>">
+        </div>
+	</div>
+	<div class="form-group">
+		<label class="control-label col-md-3 col-sm-3 col-xs-12" for="receipt_footer_notice">Aviso del pie del recibo:
+        </label>
+		<div class="col-md-6 col-sm-6 col-xs-12">
+            <input type="text" name="receipt_footer_notice" id="receipt_footer_notice" required="required" maxlength="255" class="form-control col-md-7 col-xs-12" value="<?php echo htmlspecialchars($receipt_footer_notice); ?>">
+        </div>
+	</div>
+	<div class="form-group">
+		<label class="control-label col-md-3 col-sm-3 col-xs-12" for="receipt_footer_thanks">Agradecimiento del pie del recibo:
+        </label>
+		<div class="col-md-6 col-sm-6 col-xs-12">
+            <textarea name="receipt_footer_thanks" id="receipt_footer_thanks" required="required" maxlength="255" rows="2" class="form-control col-md-7 col-xs-12"><?php echo htmlspecialchars($receipt_footer_thanks); ?></textarea>
+        </div>
+	</div>
+	<div class="form-group">
 		<div class="col-md-offset-3 col-sm-offset-3 col-md-3 col-sm-3">
 			<button class="btn btn-success" id="btn-submit" type="submit">Guardar</button>
 		</div>

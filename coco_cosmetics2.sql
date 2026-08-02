@@ -514,7 +514,13 @@ INSERT INTO `settings` (`id_setting`, `setting_key`, `setting_value`, `descripti
 (4, 'logo_header', NULL, 'Nombre de archivo del logo del panel administrativo (vacio = usar imagen por defecto)'),
 (5, 'logo_login', NULL, 'Nombre de archivo del logo de la pantalla de inicio de sesion'),
 (6, 'logo_receipt', NULL, 'Nombre de archivo del logo impreso en los recibos termicos'),
-(7, 'logo_purchase_order', NULL, 'Nombre de archivo del logo en los PDF de ordenes de compra');
+(7, 'logo_purchase_order', NULL, 'Nombre de archivo del logo en los PDF de ordenes de compra'),
+(8, 'receipt_ruc', '2811201760006N', 'RUC impreso en el encabezado del recibo'),
+(9, 'receipt_address', 'Costado sur funeraria monte\nlos olivos 2 1/2c al este,\nManagua-Nicaragua.', 'Direccion impresa en el encabezado del recibo (una linea por salto de linea)'),
+(10, 'receipt_phone', '8885-1430', 'Telefono impreso en el encabezado del recibo'),
+(11, 'receipt_tagline', 'Siente la Diferencia', 'Eslogan impreso en el encabezado del recibo (sin comillas, se agregan al imprimir)'),
+(12, 'receipt_footer_notice', 'No se aceptan devoluciones', 'Aviso impreso en el pie del recibo'),
+(13, 'receipt_footer_thanks', 'Gracias por preferirnos!!\nLe esperamos pronto.', 'Mensaje de agradecimiento impreso en el pie del recibo (una linea por salto de linea)');
 
 --
 -- Índices para tablas volcadas
@@ -886,7 +892,7 @@ ALTER TABLE `service_category`
 -- AUTO_INCREMENT de la tabla `settings`
 --
 ALTER TABLE `settings`
-  MODIFY `id_setting` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=8;
+  MODIFY `id_setting` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=14;
 
 --
 -- Restricciones para tablas volcadas
