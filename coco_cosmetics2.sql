@@ -41,7 +41,7 @@ CREATE TABLE `admins` (
 --
 
 INSERT INTO `admins` (`id_admin`, `username`, `password`, `role`, `active`, `name`) VALUES
-(1, 'admin', 'REDACTED_LEGACY_HASH', 'super', 1, 'Admin User');
+(1, 'admin', '$2y$10$9EMmpuBBN0XufoDuh05huO.a/pIiC.DQZzAReLcC3qA.voKSGtac6', 'super', 1, 'Admin User');
 
 -- --------------------------------------------------------
 

@@ -135,7 +135,7 @@ For a clean URL like `http://coco.local`, add a virtual host in your XAMPP `http
    - `http://localhost/coco-cosmetics/` (if inside a subfolder)
 3. You will land on the **login page**. Use your admin credentials stored in the `admins` table.
 
-> **Default credentials:** The SQL dump includes a default admin account. Check the `admins` table after import — update the password immediately after first login.
+> **Default credentials:** The SQL dump seeds a demo admin account — username `admin`, password `ChangeMe123!`. Change this password immediately after first login; it's a placeholder for local evaluation only, not meant for any real deployment.
 
 ---
 
@@ -173,4 +173,4 @@ orders_pdf/       # Generated order PDFs (git-ignored)
 
 ## License
 
-Private / proprietary — all rights reserved.
+This repository is shared publicly for portfolio and demonstration purposes. All rights reserved — see [LICENSE](LICENSE) for details; it is not licensed for reuse, redistribution, or deployment.
