@@ -6,21 +6,27 @@
 	<div class="panel-body">
 		<form action="<?php echo base_url('/clients'); ?>" class="form-horizontal" autocomplete="off" spellcheck="false">
 
-			<div class="col-md-4">
+			<div class="col-md-6">
 				<div class="row">
-					<div class="col-md-6">
+					<div class="col-md-4">
 						<div class="form-group">
 							<label for="">Cedula</label>
 							<input type="text" name="id_card_client" class="form-control" value="<?php echo Easysearch::getValue('id_card_client'); ?>">
 						</div>
 					</div>
-					<div class="col-md-6">
+					<div class="col-md-4">
 						<div class="form-group">
 							<label for="">Telefono</label>
 							<input type="text" name="phone_client" class="form-control" value="<?php echo Easysearch::getValue('phone_client'); ?>">
 						</div>
 					</div>
-					<div class="col-md-6">
+					<div class="col-md-4">
+						<div class="form-group">
+							<label for="">Nombre o Apellido</label>
+							<input type="text" name="name_client" class="form-control" value="<?php echo Easysearch::getValue('name_client'); ?>">
+						</div>
+					</div>
+					<div class="col-md-4">
 						<div class="form-group">
 							<label for="">VIP</label>
 							<select name="is_vip_client" class="form-control">

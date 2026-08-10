@@ -54,14 +54,15 @@ class Clients extends Admin_Controller{
 
 		$this->load->library('easysearch');
 
-		$search['query'] = 'select * from clients';
+		$search['query'] = "select *, CONCAT(name_client, ' ', surname_client) as full_name_client from clients";
 		$search['order_by'] = array( 'registered_client' => 'DESC'  );
 		$search['return_as'] = 'clients';
 		$search['limit'] = 100;
         $search['fields'] = array(
 			'is_vip_client' => array( 'column' => 'is_vip_client', 'type' => 'numeric' ),
 			'id_card_client' => array( 'column' => 'id_card_client', 'type' => 'string' ),
-			'phone_client' => array( 'column' => 'phone_client', 'type' => 'string' )
+			'phone_client' => array( 'column' => 'phone_client', 'type' => 'string' ),
+			'name_client' => array( 'column' => "CONCAT(name_client, ' ', surname_client)", 'type' => 'string' )
 		);
 
 		$this->easysearch->setInitialWhere('active=1');
