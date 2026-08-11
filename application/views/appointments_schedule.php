@@ -248,7 +248,13 @@
 			</div>
 		</div>
 
-		<div id="deposit-section">
+		<div class="form-group" id="charge-deposit-group">
+			<label class="checkbox-inline">
+				<input type="checkbox" id="charge-deposit-checkbox"> Cobrar depósito del 10% al reservar
+			</label>
+		</div>
+
+		<div id="deposit-section" class="hide">
 			<label>Depósito (transferencia): <span id="required-deposit-badge" class="label label-warning">C$0.00 ($0.00)</span></label>
 			<div class="form-group">
 				<label>Cuenta bancaria:</label>
@@ -427,7 +433,9 @@ function openBooking(cell){
 	$('#notes').val('');
 	collapseAllCategories();
 
-	$('#deposit-section').removeClass('hide');
+	$('#charge-deposit-checkbox').prop('checked', false);
+	$('#charge-deposit-group').removeClass('hide');
+	$('#deposit-section').addClass('hide');
 	$('#deposit-summary').addClass('hide');
 	$('#schedule-date-group').addClass('hide');
 	$('#deposit-account').prop('selectedIndex', 0);
@@ -468,6 +476,8 @@ function openEditBooking(cell){
 
 	$('#notes').val(cell.data('notes') || '');
 
+	$('#charge-deposit-group').addClass('hide');
+	$('#charge-deposit-checkbox').prop('checked', false);
 	$('#deposit-section').addClass('hide');
 	$('#schedule-date-group').removeClass('hide');
 	$('#schedule_date_input').val(cell.data('date-start'));
@@ -484,7 +494,7 @@ function openEditBooking(cell){
 		$('#deposit-summary').addClass('hide');
 	}
 
-	if( cell.data('has-deposit') && !cell.data('invoiced') ){
+	if( !cell.data('invoiced') ){
 		$('#btn-continue-to-sale').removeClass('hide').data('id', cell.data('id'));
 	}else{
 		$('#btn-continue-to-sale').addClass('hide');
@@ -685,6 +695,17 @@ $(function(){
 	$(document).on('change', 'input[name="id_products[]"]', updateRequiredDeposit);
 	$(document).on('keyup', '#deposit-cordoba, #deposit-dolar', checkDepositMismatch);
 
+	$(document).on('change', '#charge-deposit-checkbox', function(){
+		if( $(this).is(':checked') ){
+			$('#deposit-section').removeClass('hide');
+		}else{
+			$('#deposit-section').addClass('hide');
+			$('#deposit-cordoba, #deposit-dolar').val('').removeClass('deposit-mismatch');
+			$('#deposit-mismatch-notice').text('');
+		}
+		updateRequiredDeposit();
+	});
+
 	$('#schedule_date_input').attr('min', todayStr);
 
 	$('#schedule_date_input').on('change', function(){
@@ -790,8 +811,9 @@ $(function(){
 		}
 
 		var id_appointment = $('#id_appointment').val();
+		var chargeDeposit = !id_appointment && $('#charge-deposit-checkbox').is(':checked');
 
-		if( !id_appointment && !checkDepositMismatch() ){
+		if( chargeDeposit && !checkDepositMismatch() ){
 			notify('El depósito debe ser exactamente el 10% del total de servicios', 'error');
 			return false;
 		}
@@ -819,9 +841,13 @@ $(function(){
 
 		if( !id_appointment ){
 
-			payload.account = $('#deposit-account').val();
-			payload.deposit_cordoba = $('#deposit-cordoba').val();
-			payload.deposit_dolar = $('#deposit-dolar').val();
+			payload.charge_deposit = chargeDeposit ? '1' : '0';
+
+			if( chargeDeposit ){
+				payload.account = $('#deposit-account').val();
+				payload.deposit_cordoba = $('#deposit-cordoba').val();
+				payload.deposit_dolar = $('#deposit-dolar').val();
+			}
 
 			submitAppointment(baseUrl + 'appointments/register', payload);
 

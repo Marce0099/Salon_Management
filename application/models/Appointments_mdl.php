@@ -121,12 +121,15 @@ class Appointments_mdl extends CI_Model{
 			) );
 		}
 
-		$this->db->insert( 'appointment_payments', array(
-			'id_appointment' => $id_appointment,
-			'account'        => $deposit_account,
-			'cordoba'        => $deposit_cordoba,
-			'dolar'          => $deposit_dolar,
-		) );
+		if( $deposit_account !== NULL ){
+
+			$this->db->insert( 'appointment_payments', array(
+				'id_appointment' => $id_appointment,
+				'account'        => $deposit_account,
+				'cordoba'        => $deposit_cordoba,
+				'dolar'          => $deposit_dolar,
+			) );
+		}
 
 		$this->db->trans_complete();
 

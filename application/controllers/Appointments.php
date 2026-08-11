@@ -298,7 +298,9 @@ class Appointments extends Admin_Controller{
 
 		if( formSubmited() ){
 
-			if( !$this->cash_mdl->getOpenedCash() ){
+			$charge_deposit = $this->input->post('charge_deposit') == '1';
+
+			if( $charge_deposit && !$this->cash_mdl->getOpenedCash() ){
 
 				echo json_encode( array( 'type' => 'warning', 'message' => 'Para registrar reservas con depósito debe primero abrir la caja del día' ) );
 				exit();
@@ -334,7 +336,9 @@ class Appointments extends Admin_Controller{
 							throw new Exception('Este empleado ya tiene una reserva en ese horario');
 						}
 
-						$deposit = $this->resolveDeposit( $id_products );
+						$deposit = $charge_deposit
+							? $this->resolveDeposit( $id_products )
+							: array( 'account' => NULL, 'cordoba' => NULL, 'dolar' => NULL );
 
 						$id_appointment = $this->appointments_mdl->save( $id_client, $this->get_userID(), $id_employee, $start_datetime, $end_datetime, $notes !== '' ? $notes : NULL, $id_products, $deposit['account'], $deposit['cordoba'], $deposit['dolar'] );
 
