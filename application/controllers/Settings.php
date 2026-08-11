@@ -28,6 +28,8 @@ class Settings extends Admin_Controller{
 
 		$this->content_data['vip_discount_rate'] = $this->settings_mdl->get('vip_discount_rate', 15);
 		$this->content_data['birthday_discount_rate'] = $this->settings_mdl->get('birthday_discount_rate', 50);
+		$this->content_data['birthday_discount_ceiling_min'] = $this->settings_mdl->get('birthday_discount_ceiling_min', 0);
+		$this->content_data['birthday_discount_ceiling_max'] = $this->settings_mdl->get('birthday_discount_ceiling_max', 999999999);
 		$this->content_data['company_name'] = $this->settings_mdl->get('company_name', 'Conceptos');
 		$this->content_data['receipt_ruc'] = $this->settings_mdl->get('receipt_ruc', '2811201760006N');
 		$this->content_data['receipt_address'] = $this->settings_mdl->get('receipt_address', "Costado sur funeraria monte\nlos olivos 2 1/2c al este,\nManagua-Nicaragua.");
@@ -65,6 +67,8 @@ class Settings extends Admin_Controller{
 
 		$this->form_validation->set_rules('vip_discount_rate','','required|numeric');
 		$this->form_validation->set_rules('birthday_discount_rate','','required|numeric');
+		$this->form_validation->set_rules('birthday_discount_ceiling_min','','required|numeric');
+		$this->form_validation->set_rules('birthday_discount_ceiling_max','','required|numeric');
 		$this->form_validation->set_rules('company_name','','required|trim|max_length[255]');
 		$this->form_validation->set_rules('receipt_ruc','','required|trim|max_length[255]');
 		$this->form_validation->set_rules('receipt_address','','required|trim|max_length[255]');
@@ -90,9 +94,21 @@ class Settings extends Admin_Controller{
 			return;
 		}
 
+		$ceiling_min = $this->input->post('birthday_discount_ceiling_min');
+		$ceiling_max = $this->input->post('birthday_discount_ceiling_max');
+
+		if( $ceiling_min < 0 || $ceiling_max < 0 || $ceiling_min > $ceiling_max ){
+
+			$response = array( 'type' => 'error', 'message' => 'El monto mínimo no puede ser mayor al máximo y ambos deben ser positivos' );
+			echo json_encode($response);
+			return;
+		}
+
 		try {
 			$this->settings_mdl->save('vip_discount_rate', $rate);
 			$this->settings_mdl->save('birthday_discount_rate', $birthday_rate);
+			$this->settings_mdl->save('birthday_discount_ceiling_min', $ceiling_min);
+			$this->settings_mdl->save('birthday_discount_ceiling_max', $ceiling_max);
 			$this->settings_mdl->save('company_name', $this->input->post('company_name'));
 			$this->settings_mdl->save('receipt_ruc', $this->input->post('receipt_ruc'));
 			$this->settings_mdl->save('receipt_address', $this->input->post('receipt_address'));

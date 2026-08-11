@@ -205,6 +205,8 @@ class Sales extends Admin_Controller{
 			$this->load->model('settings_mdl');
 			$vip_discount_rate = (float) $this->settings_mdl->get('vip_discount_rate', 0);
 			$birthday_discount_rate = (float) $this->settings_mdl->get('birthday_discount_rate', 0);
+			$birthday_ceiling_min = (float) $this->settings_mdl->get('birthday_discount_ceiling_min', 0);
+			$birthday_ceiling_max = (float) $this->settings_mdl->get('birthday_discount_ceiling_max', 999999999);
 			$sale_client_row = $this->db->get_where('clients', array( 'id_client' => $sale['client'] ))->row();
 			$sale_client_is_vip = $sale_client_row && $sale_client_row->is_vip_client == 1;
 			$sale_client_is_birthday = $sale_client_row && !empty($sale_client_row->birth_client)
@@ -216,26 +218,70 @@ class Sales extends Admin_Controller{
 			$sale_products_cache = array();
 			$has_discounted_service = false;
 
+			/* Pass 1: fetch each line's product, resolve its category discount rate, and — for service
+			   lines only — compute the undiscounted córdoba subtotal. Birthday eligibility (pass 2 below)
+			   depends on the sale's whole undiscounted-services total, so it can't be decided line-by-line
+			   in a single pass. */
+			$category_rates = array();
+			$undiscounted_service_cordobas = array();
+			$services_total_undiscounted_cordobas = 0;
+
 			for( $i=0; $i < count($id_products); $i++ ){
 
 				$product = $this->db->get_where('products', array( 'id_product' => $id_products[$i] ))->row();
 				$sale_products_cache[$i] = $product;
 
-				/* line discount is server-computed, not read from the POST: services get max(category
-				   default, VIP rate, birthday rate); anything else gets 0 — mirrors the auto-fill in
-				   form_sales.php, whose .p-discount inputs are readonly for this exact reason */
+				$category_rates[$i] = 0;
+
+				if( $product && $product->is_service ){
+
+					if( $product->id_service_category ){
+						$category = $this->db->get_where('service_category', array( 'id_service_category' => $product->id_service_category ))->row();
+						if( $category && $category->discount_rate !== null ) $category_rates[$i] = (float) $category->discount_rate;
+					}
+
+					$price = str_replace(',', '', $prices[$i] );
+					$undiscounted_service_cordobas[$i] = $price * $quantities[$i] * $exchange->sell_price;
+					$services_total_undiscounted_cordobas += $undiscounted_service_cordobas[$i];
+				}
+			}
+
+			/* Birthday ceiling: only eligible at all once the sale's undiscounted services total meets the
+			   minimum; lines are then walked in submission order (matches on-screen order) accumulating a
+			   running total, and marked eligible while it stays within the maximum (both bounds inclusive).
+			   The first line that would push the running total past the max — and every line after it —
+			   is excluded from the birthday discount (no skip-ahead to a later, smaller line). */
+			$birthday_eligible = array();
+			$apply_birthday_ceiling = $sale_client_is_birthday && $services_total_undiscounted_cordobas >= $birthday_ceiling_min;
+			$running_cordobas = 0;
+			$ceiling_exceeded = false;
+
+			for( $i=0; $i < count($id_products); $i++ ){
+
+				if( !isset($undiscounted_service_cordobas[$i]) ) continue;
+
+				if( $apply_birthday_ceiling && !$ceiling_exceeded && ( $running_cordobas + $undiscounted_service_cordobas[$i] ) <= $birthday_ceiling_max ){
+					$birthday_eligible[$i] = true;
+					$running_cordobas += $undiscounted_service_cordobas[$i];
+				}
+				else{
+					$birthday_eligible[$i] = false;
+					if( $apply_birthday_ceiling ) $ceiling_exceeded = true;
+				}
+			}
+
+			/* Pass 2: line discount is server-computed, not read from the POST: services get max(category
+			   default, VIP rate, birthday rate if ceiling-eligible); anything else gets 0 — mirrors the
+			   auto-fill in form_sales.php, whose .p-discount inputs are readonly for this exact reason */
+			for( $i=0; $i < count($id_products); $i++ ){
+
+				$product = $sale_products_cache[$i];
 				$line_discount = 0;
 
 				if( $product && $product->is_service ){
 
-					$category_rate = 0;
-
-					if( $product->id_service_category ){
-						$category = $this->db->get_where('service_category', array( 'id_service_category' => $product->id_service_category ))->row();
-						if( $category && $category->discount_rate !== null ) $category_rate = (float) $category->discount_rate;
-					}
-
-					$line_discount = max( $category_rate, $sale_client_is_vip ? $vip_discount_rate : 0, $sale_client_is_birthday ? $birthday_discount_rate : 0 );
+					$birthday_rate_for_line = !empty($birthday_eligible[$i]) ? $birthday_discount_rate : 0;
+					$line_discount = max( $category_rates[$i], $sale_client_is_vip ? $vip_discount_rate : 0, $birthday_rate_for_line );
 				}
 
 				$discounts[$i] = $line_discount;
@@ -1163,6 +1209,8 @@ class Sales extends Admin_Controller{
 		$this->content_data['prefill'] = $this->buildAppointmentPrefill( (int) $id_appointment, $data['exchange'] );
 		$this->content_data['vip_discount_rate'] = $this->settings_mdl->get('vip_discount_rate', 15);
 		$this->content_data['birthday_discount_rate'] = $this->settings_mdl->get('birthday_discount_rate', 50);
+		$this->content_data['birthday_discount_ceiling_min'] = $this->settings_mdl->get('birthday_discount_ceiling_min', 0);
+		$this->content_data['birthday_discount_ceiling_max'] = $this->settings_mdl->get('birthday_discount_ceiling_max', 999999999);
 		$this->renderPanel('form_sales');
 	}
 

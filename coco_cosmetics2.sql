@@ -520,7 +520,9 @@ INSERT INTO `settings` (`id_setting`, `setting_key`, `setting_value`, `descripti
 (10, 'receipt_phone', '8885-1430', 'Telefono impreso en el encabezado del recibo'),
 (11, 'receipt_tagline', 'Siente la Diferencia', 'Eslogan impreso en el encabezado del recibo (sin comillas, se agregan al imprimir)'),
 (12, 'receipt_footer_notice', 'No se aceptan devoluciones', 'Aviso impreso en el pie del recibo'),
-(13, 'receipt_footer_thanks', 'Gracias por preferirnos!!\nLe esperamos pronto.', 'Mensaje de agradecimiento impreso en el pie del recibo (una linea por salto de linea)');
+(13, 'receipt_footer_thanks', 'Gracias por preferirnos!!\nLe esperamos pronto.', 'Mensaje de agradecimiento impreso en el pie del recibo (una linea por salto de linea)'),
+(14, 'birthday_discount_ceiling_min', '0', 'Monto minimo (C$) del total de servicios sin descuento para que aplique el descuento de cumpleanos'),
+(15, 'birthday_discount_ceiling_max', '999999999', 'Monto maximo (C$) del total de servicios sin descuento que puede recibir el descuento de cumpleanos');
 
 --
 -- Índices para tablas volcadas

@@ -478,6 +478,11 @@
 	// service line discounts alongside the existing category-default auto-fill (whichever is higher wins)
 	var VIP_DISCOUNT_RATE = <?php echo (float) $vip_discount_rate; ?>;
 	var BIRTHDAY_DISCOUNT_RATE = <?php echo (float) $birthday_discount_rate; ?>;
+	// Ceiling gating the birthday discount only (VIP/category are unaffected): the running total of
+	// undiscounted service lines, taken in the order they were added, must clear this minimum before any
+	// line becomes birthday-eligible, and only lines whose running total stays within the maximum qualify
+	var BIRTHDAY_CEILING_MIN = <?php echo (float) $birthday_discount_ceiling_min; ?>;
+	var BIRTHDAY_CEILING_MAX = <?php echo (float) $birthday_discount_ceiling_max; ?>;
 	var _selectedClientVip = false;
 	var _selectedClientBirthday = false;
 
@@ -614,38 +619,56 @@
 
 			var categoryRate = (p.category_discount_rate !== null && p.category_discount_rate !== undefined && p.category_discount_rate !== '') ? numeral(p.category_discount_rate).value() : 0;
 			row.data('category-discount-rate', categoryRate);
-
-			var vipRate = _selectedClientVip ? VIP_DISCOUNT_RATE : 0;
-			var birthdayRate = _selectedClientBirthday ? BIRTHDAY_DISCOUNT_RATE : 0;
-			var autoRate = Math.max(categoryRate, vipRate, birthdayRate);
-
-			if( autoRate > 0 ){
-				row.find('.p-discount').val( autoRate );
-			}
 		}
 
 		$('#sales-list').append(row);
 
+		// discount assignment (category/VIP/ceiling-gated birthday) and totals are resolved for every
+		// row in one full pass, since birthday-ceiling eligibility depends on the whole set of service rows
 		updateTotal(row);
 
 		return row;
 	}
 
-	// Re-syncs every service row's discount to max(its category default, current VIP rate, current
-	// birthday rate) — called whenever the selected client changes, so rows added before the client
-	// was picked still pick up the VIP/birthday discount
-	function applyVipDiscountToServiceRows(){
+	// Sums each service row's UNDISCOUNTED córdoba subtotal (price * qty * sell rate) in DOM order, then
+	// decides which rows qualify for the birthday discount: none, if the client isn't a birthday client or
+	// the total doesn't reach BIRTHDAY_CEILING_MIN; otherwise rows are walked in that same order and marked
+	// eligible while the running total stays within BIRTHDAY_CEILING_MAX (both bounds inclusive) — the first
+	// row that would push the running total past the max, and every row after it, is left ineligible.
+	// Eligibility is stashed per-row via .data('birthday-eligible', bool) for updateTotal() to consume.
+	function recalcBirthdayEligibility(){
 
-		$('#sales-list tr.p-service').each(function(){
+		var rows = $('#sales-list tr.p-service');
+		var undiscountedTotals = [];
+		var servicesTotalUndiscounted = 0;
 
+		rows.each(function(){
 			var row = $(this);
-			var categoryRate = row.data('category-discount-rate') || 0;
-			var vipRate = _selectedClientVip ? VIP_DISCOUNT_RATE : 0;
-			var birthdayRate = _selectedClientBirthday ? BIRTHDAY_DISCOUNT_RATE : 0;
+			var price = numeral( row.find('.p-price').val() ).value();
+			var qt = numeral( row.find('.p-quantity').val() ).value();
+			var undiscounted = price * qt * dollarSellRate;
+			undiscountedTotals.push(undiscounted);
+			servicesTotalUndiscounted += undiscounted;
+		});
 
-			row.find('.p-discount').val( Math.max(categoryRate, vipRate, birthdayRate) );
+		var applyCeiling = _selectedClientBirthday && servicesTotalUndiscounted >= BIRTHDAY_CEILING_MIN;
+		var running = 0;
+		var ceilingExceeded = false;
 
-			updateTotal(row);
+		rows.each(function(index){
+			var row = $(this);
+			var undiscounted = undiscountedTotals[index];
+			var eligible = false;
+
+			if( applyCeiling && !ceilingExceeded && ( running + undiscounted ) <= BIRTHDAY_CEILING_MAX ){
+				eligible = true;
+				running += undiscounted;
+			}
+			else if( applyCeiling ){
+				ceilingExceeded = true;
+			}
+
+			row.data('birthday-eligible', eligible);
 		});
 	}
 
@@ -841,63 +864,59 @@
 
 		_selectedClientVip = (c.is_vip_client == 1 || c.is_vip_client == '1');
 		_selectedClientBirthday = (c.is_birthday_today == 1 || c.is_birthday_today == '1');
-		applyVipDiscountToServiceRows();
+		updateTotal();
 
 		$('#client-picker-modal').modal('hide');
 	});
 
+	// Full recompute over every row in the sale, not just the one that triggered the change: birthday-
+	// ceiling eligibility depends on the whole set of service rows and their order, so a row being added,
+	// removed, or having its quantity edited can shift which OTHER rows qualify for the birthday discount.
+	// The `row` argument is accepted (existing call sites pass the changed row) but unused.
 	function updateTotal( row ){
 
+		recalcBirthdayEligibility();
 
-		var price = numeral( row.find('.p-price').val() );
-		var qt = numeral( row.find('.p-quantity').val() );
-		//initial subtotal dollar
-		var subtotal_dollar = numeral( price.value() * qt.value() );
-		var subtotal_cordobas = 0;
-		var discount = numeral( row.find('.p-discount').val() );
-		var total_dollar = 0, total_cordobas = 0;
+		var total_dollar = 0, total_cordobas = 0, total_services = 0;
 
-		//descuento
-		if( discount.value() ){
+		$('#sales-list tr').each(function(){
 
-			subtotal_dollar = numeral( subtotal_dollar.value() - ( subtotal_dollar.value() * discount.value() / 100 ) );
-		}
+			var r = $(this);
+			var price = numeral( r.find('.p-price').val() ).value();
+			var qt = numeral( r.find('.p-quantity').val() ).value();
+			var subtotal_dollar = price * qt;
+			var discount = 0;
 
-		//subtotal dollar
-		row.find('.subtotal-dollar').html( subtotal_dollar.format('0,0.00') );
+			if( r.hasClass('p-service') ){
 
-		//dollar total
-		$('#products-sale .subtotal-dollar').each(function(index,element){
+				var categoryRate = r.data('category-discount-rate') || 0;
+				var vipRate = _selectedClientVip ? VIP_DISCOUNT_RATE : 0;
+				var birthdayRate = ( _selectedClientBirthday && r.data('birthday-eligible') ) ? BIRTHDAY_DISCOUNT_RATE : 0;
 
-			total_dollar += numeral( $(element).html() ).value();
+				discount = Math.max(categoryRate, vipRate, birthdayRate);
 
+				r.find('.p-discount').val( discount );
+			}
+
+			if( discount ){
+				subtotal_dollar = subtotal_dollar - ( subtotal_dollar * discount / 100 );
+			}
+
+			var subtotal_cordobas = subtotal_dollar * dollarSellRate;
+
+			r.find('.subtotal-dollar').html( numeral(subtotal_dollar).format('0,0.00') );
+			r.find('.subtotal-cordobas').html( numeral(subtotal_cordobas).format('0,0.00') );
+
+			total_dollar += subtotal_dollar;
+			total_cordobas += subtotal_cordobas;
+
+			if( r.hasClass('p-service') ) total_services += subtotal_cordobas;
 		});
 
-		total_dollar = numeral(total_dollar);
-		$('#total-dollar').html(total_dollar.format('0,0.00'));
-
-		//subtotal cordobas
-		subtotal_cordobas = numeral( subtotal_dollar.value() * <?php echo $exchange->sell_price; ?> );
-
-		row.find('.subtotal-cordobas').html( subtotal_cordobas.format('0,0.00') );
-
-		//calc cordobas total
-		$('#products-sale .subtotal-cordobas').each(function(index,element){
-
-			total_cordobas += numeral( $(element).html() ).value();
-
-		});
-
-		total_cordobas = numeral(total_cordobas);
-		$('#total-cordobas').html(total_cordobas.format('0,0.00'));
+		$('#total-dollar').html( numeral(total_dollar).format('0,0.00') );
+		$('#total-cordobas').html( numeral(total_cordobas).format('0,0.00') );
 
 		//services-only subtotal, used to cap coupon redemption
-		var total_services = 0;
-		$('#products-sale tr.p-service .subtotal-cordobas').each(function(index,element){
-
-			total_services += numeral( $(element).html() ).value();
-
-		});
 		system.total_services = total_services;
 		refreshCouponAvailability();
 
@@ -908,7 +927,7 @@
 			system.loyalty_discount_cordobas = system.total_services * claimedTier.rate / 100;
 		}
 
-		system.total_invoice = Math.max( total_cordobas.value() - system.deposit_credit_cordobas - system.loyalty_discount_cordobas, 0 );
+		system.total_invoice = Math.max( total_cordobas - system.deposit_credit_cordobas - system.loyalty_discount_cordobas, 0 );
 
 		updateDueAmount();
 	}
@@ -919,33 +938,11 @@
 		if( event.screenX == 0 )
 			return false;
 
-		var subtotal_dollar = numeral( row.find('.subtotal-dollar').html() );
-		var subtotal_cordobas = numeral( row.find('.subtotal-cordobas').html() );
-		var total_dollar = numeral( $('#total-dollar').html() );
-		var total_cordobas = numeral( $('#total-cordobas').html() );
-
-		$('#total-dollar').html( numeral( total_dollar.value() - subtotal_dollar.value() ).format('0,0.00') );
-
-		var tot_cord = numeral( total_cordobas.value() - subtotal_cordobas.value());
-		$('#total-cordobas').html( tot_cord.format('0,0.00') );
-
-		if( row.hasClass('p-service') ){
-			system.total_services = numeral( system.total_services - subtotal_cordobas.value() ).value();
-		}
-
-		//keep an already-claimed loyalty reward in sync with the current services subtotal
-		var $loyaltyChk = $('#loyalty-claim-checkbox');
-		if( $loyaltyChk.length && $loyaltyChk.is(':checked') ){
-			var claimedTier = $loyaltyChk.data('tier');
-			system.loyalty_discount_cordobas = system.total_services * claimedTier.rate / 100;
-		}
-
-		system.total_invoice = Math.max( tot_cord.value() - system.deposit_credit_cordobas - system.loyalty_discount_cordobas, 0 );
-
-		updateDueAmount();
-
 		row.remove();
-		refreshCouponAvailability();
+
+		// removing a row can change birthday-ceiling eligibility for the remaining rows, so this delegates
+		// to the same full recompute as updateTotal() rather than subtracting this row's totals in place
+		updateTotal();
 	}
 
 	$(document).on('ready',function(){
