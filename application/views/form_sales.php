@@ -459,7 +459,11 @@
 	var system = {
 		total_invoice : 0,
 		total_services : 0,
-		has_discounted_service_line : false,
+		// true when a coupon payment may be used: either no line discount is in play, or a coupon has
+		// already out-valued it and neutralized it (see updateTotal()'s golden-rule resolution)
+		coupon_allowed : true,
+		discount_neutralized_by_coupon : false,
+		_couponNeutralizeNotified : false,
 		deposit_credit_cordobas : 0,
 		loyalty_discount_cordobas : 0,
 		payments : {
@@ -873,11 +877,24 @@
 	// ceiling eligibility depends on the whole set of service rows and their order, so a row being added,
 	// removed, or having its quantity edited can shift which OTHER rows qualify for the birthday discount.
 	// The `row` argument is accepted (existing call sites pass the changed row) but unused.
+	//
+	// Golden rule, two stages, both UX mirrors of Sales.php — the server never trusts either. Stage 1
+	// (below): category/VIP/birthday compete as three whole-sale strategies, only the single winning
+	// source's candidate discount is assigned per row (mirrors resolve_single_discount_source()). Stage 2
+	// (Pass 2 below): those candidates are then weighed as a whole against any coupon payment currently
+	// entered — whichever is worth more in córdobas wins, the other is neutralized (mirrors
+	// resolve_coupon_vs_line_discounts()).
 	function updateTotal( row ){
 
 		recalcBirthdayEligibility();
 
-		var total_dollar = 0, total_cordobas = 0, total_services = 0;
+		// Golden rule stage 1 (UX mirror of resolve_single_discount_source() in Sales.php — the server
+		// remains authoritative and never trusts this): category, VIP, and birthday compete as three
+		// whole-sale strategies, not per row independently. First collect each service row's inputs
+		// without deciding a discount yet, along with the three "representative" rates for the sale.
+		var rows = [];
+		var categoryRepresentative = 0;
+		var birthdayApplies = false;
 
 		$('#sales-list tr').each(function(){
 
@@ -885,18 +902,93 @@
 			var price = numeral( r.find('.p-price').val() ).value();
 			var qt = numeral( r.find('.p-quantity').val() ).value();
 			var subtotal_dollar = price * qt;
-			var discount = 0;
+			var isService = r.hasClass('p-service');
+			var categoryRate = 0, birthdayEligible = false, undiscountedCordobas = 0;
 
-			if( r.hasClass('p-service') ){
+			if( isService ){
 
-				var categoryRate = r.data('category-discount-rate') || 0;
-				var vipRate = _selectedClientVip ? VIP_DISCOUNT_RATE : 0;
-				var birthdayRate = ( _selectedClientBirthday && r.data('birthday-eligible') ) ? BIRTHDAY_DISCOUNT_RATE : 0;
+				categoryRate = r.data('category-discount-rate') || 0;
+				birthdayEligible = _selectedClientBirthday && !!r.data('birthday-eligible');
+				undiscountedCordobas = subtotal_dollar * dollarSellRate;
 
-				discount = Math.max(categoryRate, vipRate, birthdayRate);
-
-				r.find('.p-discount').val( discount );
+				if( categoryRate > categoryRepresentative ) categoryRepresentative = categoryRate;
+				if( birthdayEligible ) birthdayApplies = true;
 			}
+
+			rows.push({ el : r, subtotal_dollar : subtotal_dollar, isService : isService,
+				categoryRate : categoryRate, birthdayEligible : birthdayEligible, undiscountedCordobas : undiscountedCordobas });
+		});
+
+		var vipRepresentative = _selectedClientVip ? VIP_DISCOUNT_RATE : 0;
+		var birthdayRepresentative = birthdayApplies ? BIRTHDAY_DISCOUNT_RATE : 0;
+
+		// ascending precedence (category, then VIP, then birthday) checked with >=, so a later source
+		// overtakes an equal representative — gives birthday > VIP > category on exact ties, matching
+		// resolve_single_discount_source() server-side
+		var winningSource = 'none', winningRate = 0;
+
+		if( categoryRepresentative > winningRate ){
+			winningSource = 'category';
+			winningRate = categoryRepresentative;
+		}
+		if( vipRepresentative > 0 && vipRepresentative >= winningRate ){
+			winningSource = 'vip';
+			winningRate = vipRepresentative;
+		}
+		if( birthdayRepresentative > 0 && birthdayRepresentative >= winningRate ){
+			winningSource = 'birthday';
+			winningRate = birthdayRepresentative;
+		}
+
+		// Pass 1b: assign each row's candidate discount from the winning source, nothing written to the
+		// DOM yet — mirrors resolve_single_discount_source()'s per-line output
+		var totalLineDiscountCordobas = 0;
+
+		$.each(rows, function(i, row){
+
+			var candidateDiscount = 0;
+
+			if( row.isService ){
+
+				if( winningSource === 'category' ) candidateDiscount = row.categoryRate;
+				else if( winningSource === 'vip' ) candidateDiscount = vipRepresentative;
+				else if( winningSource === 'birthday' ) candidateDiscount = row.birthdayEligible ? birthdayRepresentative : 0;
+
+				totalLineDiscountCordobas += row.undiscountedCordobas * candidateDiscount / 100;
+			}
+
+			row.candidateDiscount = candidateDiscount;
+		});
+
+		var couponTenderTotal = 0;
+		$.each(system.payments, function(idx, p){
+			if( p.method === 'cupon' ) couponTenderTotal += p.subtotal;
+		});
+
+		var couponAllowed = true;
+		var neutralizedByCoupon = false;
+
+		if( totalLineDiscountCordobas > 0 ){
+			if( couponTenderTotal > totalLineDiscountCordobas + 0.01 ){
+				neutralizedByCoupon = true;
+			}else{
+				couponAllowed = false;
+			}
+		}
+
+		system.coupon_allowed = couponAllowed;
+		system.discount_neutralized_by_coupon = neutralizedByCoupon;
+
+		// Pass 2: write the final (possibly neutralized) discount and compute displayed/aggregate totals
+		var total_dollar = 0, total_cordobas = 0, total_services = 0;
+
+		$.each(rows, function(i, row){
+
+			var r = row.el;
+			var discount = neutralizedByCoupon ? 0 : row.candidateDiscount;
+			var subtotal_dollar = row.subtotal_dollar;
+
+			if( r.hasClass('p-service') ) r.find('.p-discount').val( discount );
 
 			if( discount ){
 				subtotal_dollar = subtotal_dollar - ( subtotal_dollar * discount / 100 );
@@ -1098,8 +1190,8 @@
 
 			if( method === 'cupon' ){
 
-				if( system.has_discounted_service_line ){
-					couponError = 'No se pueden usar cupones cuando algún servicio de la factura tiene un descuento aplicado';
+				if( !system.coupon_allowed ){
+					couponError = 'El descuento de los servicios es mayor o igual al monto del cupón; no se puede usar el cupón';
 					return false;
 				}
 
@@ -1375,7 +1467,10 @@
 		system.payments[idx] = { method : method, subtotal : subtotal, total : total };
 
 		$block.find('.payment-total-cordobas').val( numeral(total).format('0,0.00') );
-		updateDueAmount();
+
+		// full recompute, not just updateDueAmount(): a coupon amount/method change can flip the golden-rule
+		// comparison against the line discounts (see updateTotal()), which in turn changes total_invoice
+		updateTotal();
 	}
 
 	function checkCurrencyMismatch($block){
@@ -1429,39 +1524,50 @@
 		return found;
 	}
 
+	// Golden rule enforcement for the UI: system.coupon_allowed / system.discount_neutralized_by_coupon are
+	// computed by updateTotal() just before this runs, comparing the line discounts' córdoba value against
+	// whatever coupon amount is currently typed. Unlike the old behavior, the mere presence of a line
+	// discount no longer blocks selecting 'cupon' — a coupon row is only reverted once an insufficient
+	// amount has actually been entered for it (couponTenderTotal reflects real typed amounts, not zero).
 	function refreshCouponAvailability(){
 
-		var hasDiscountedService = false;
-		$('#products-sale tr.p-service').each(function(){
-			if( numeral( $(this).find('.p-discount').val() ).value() > 0 ){
-				hasDiscountedService = true;
-			}
-		});
-		system.has_discounted_service_line = hasDiscountedService;
+		if( !system.coupon_allowed ){
 
-		if( hasDiscountedService ){
-			// a discount appeared after a coupon row was already added (e.g. VIP client picked later) — revert it.
-			// Must run BEFORE the option below gets disabled: once the currently-selected <option> is disabled,
-			// the <select>'s .val() stops reporting it (returns null) even though it's still shown as selected,
-			// so this check would never match if it ran after.
+			// Must run BEFORE the option below gets disabled: once the currently-selected <option> is
+			// disabled, the <select>'s .val() stops reporting it (returns null) even though it's still
+			// shown as selected, so this check would never match if it ran after.
 			$('#payment-blocks .payment_container').each(function(){
 				var $block = $(this);
-				if( $block.find('.payment-method-select').val() === 'cupon' ){
+				var amt = numeral( $block.find('.cupon-amount-input').val() || 0 ).value();
+
+				if( $block.find('.payment-method-select').val() === 'cupon' && amt > 0 ){
 					$block.find('.payment-method-select').val('pos').trigger('change');
 					new PNotify({
 						title: 'Notificación',
-						text: 'No se pueden usar cupones cuando algún servicio de la factura tiene un descuento aplicado',
+						text: 'El descuento de los servicios es mayor o igual al monto del cupón; no se puede usar el cupón',
 						type : 'error',
 						styling : 'bootstrap3',
 						delay : 4000
 					});
 				}
 			});
-		}
+			system._couponNeutralizeNotified = false;
 
-		// gray out the option everywhere a payment-method select exists, including the
-		// hidden #payment-mdl clone template so future rows inherit the disabled state
-		$('.payment-method-select option[value="cupon"]').prop('disabled', hasDiscountedService);
+		}else if( system.discount_neutralized_by_coupon ){
+
+			if( !system._couponNeutralizeNotified ){
+				system._couponNeutralizeNotified = true;
+				new PNotify({
+					title: 'Notificación',
+					text: 'El cupón supera el valor del descuento de los servicios: se aplicará el cupón en lugar del descuento',
+					type : 'info',
+					styling : 'bootstrap3',
+					delay : 4000
+				});
+			}
+		}else{
+			system._couponNeutralizeNotified = false;
+		}
 	}
 
 	function updateDueAmount(){
@@ -1622,7 +1728,9 @@
 
 		delete system.payments[ $block.data('idx') ];
 		$block.remove();
-		updateDueAmount();
+		// full recompute: removing a coupon row that was winning the golden-rule comparison must restore
+		// the line discount it had neutralized
+		updateTotal();
 	});
 
 	$(document).on('change', '.payment-method-select', function(event){
@@ -1641,17 +1749,11 @@
 			$(this).val('pos');
 		}
 
-		if( method === 'cupon' && system.has_discounted_service_line ){
-			new PNotify({
-		            title: 'Notificación',
-		            text: 'No se pueden usar cupones cuando algún servicio de la factura tiene un descuento aplicado',
-		            type : 'error',
-		            styling : 'bootstrap3',
-		            delay : 4000
-		    });
-			method = 'pos';
-			$(this).val('pos');
-		}
+		// No preemptive block here for an existing line discount: the golden rule now lets the cashier
+		// select 'cupon' and type an amount, then resolve_coupon_vs_line_discounts()-equivalent logic in
+		// updateTotal() (triggered via recalcAmountPayment below) decides whether the coupon out-values the
+		// discount as they type; refreshCouponAvailability()/submit validation reject only an insufficient
+		// coupon amount, not the mere presence of a discount.
 
 		if( method === 'cupon' && hasCouponPayment( $block.data('idx') ) ){
 			new PNotify({
