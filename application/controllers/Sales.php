@@ -20,6 +20,7 @@ class Sales extends Admin_Controller{
 		$this->load->model('appointments_mdl');
 		$this->load->model('appointment_payments_mdl');
 		$this->load->model('loyalty_points_mdl');
+		$this->load->helper('discount');
 	}
 
 	private function format_columns( $col_1, $col_2, $col_3 ){
@@ -216,7 +217,6 @@ class Sales extends Admin_Controller{
 			$total_cordobas = 0;
 			$services_total_cordobas = 0;
 			$sale_products_cache = array();
-			$has_discounted_service = false;
 
 			/* Pass 1: fetch each line's product, resolve its category discount rate, and — for service
 			   lines only — compute the undiscounted córdoba subtotal. Birthday eligibility (pass 2 below)
@@ -270,24 +270,62 @@ class Sales extends Admin_Controller{
 				}
 			}
 
-			/* Pass 2: line discount is server-computed, not read from the POST: services get max(category
-			   default, VIP rate, birthday rate if ceiling-eligible); anything else gets 0 — mirrors the
-			   auto-fill in form_sales.php, whose .p-discount inputs are readonly for this exact reason */
+			/* Pass 2a: candidate line discounts are server-computed, not read from the POST. Golden rule
+			   stage 1: category, VIP, and birthday compete as three whole-sale strategies (not per line
+			   independently) — whichever is worth the most wins and is applied everywhere it's eligible,
+			   every other line gets a flat 0. This is only a candidate: golden rule stage 2 below may
+			   still neutralize the winner in favor of a coupon payment worth more. */
+			$discounts = array_fill( 0, count($id_products), 0 );
+
+			$category_rates_for_services = array();
+			$birthday_eligible_for_services = array();
+			foreach( $undiscounted_service_cordobas as $i => $undiscounted ){
+				$category_rates_for_services[$i] = $category_rates[$i];
+				$birthday_eligible_for_services[$i] = !empty($birthday_eligible[$i]);
+			}
+
+			$source_resolution = resolve_single_discount_source(
+				$category_rates_for_services,
+				$sale_client_is_vip,
+				$vip_discount_rate,
+				$birthday_eligible_for_services,
+				$birthday_discount_rate
+			);
+
+			foreach( $source_resolution['discounts'] as $i => $rate ){
+				$discounts[$i] = $rate;
+			}
+
+			/* Pass 2b, golden rule stage 2: only one discount effect survives per sale. The winning line
+			   discount from stage 1 above competes against a coupon payment: whichever is worth more in
+			   córdobas wins, the other is neutralized. Coupon tender total is a single row's amount since
+			   more than one coupon payment per sale is already rejected above. */
+			$coupon_tender_total = 0;
+			foreach( $payment_methods as $pm_i => $pm ){
+				if( $pm === 'cupon' ) $coupon_tender_total += floatval(str_replace(',', '', $cupon_amounts[$pm_i]));
+			}
+
+			// only service lines carry a candidate discount and an undiscounted córdoba value (Pass 1
+			// only populated $undiscounted_service_cordobas for is_service rows), so key the resolver's
+			// input off that array to weigh exactly those lines against the coupon
+			$candidate_discounts_for_resolution = array();
+			foreach( $undiscounted_service_cordobas as $i => $undiscounted ){
+				$candidate_discounts_for_resolution[$i] = $discounts[$i];
+			}
+			$resolution = resolve_coupon_vs_line_discounts( $candidate_discounts_for_resolution, $undiscounted_service_cordobas, $coupon_tender_total );
+
+			foreach( $resolution['discounts'] as $i => $final_rate ){
+				$discounts[$i] = $final_rate;
+			}
+
+			$has_discounted_service = !$resolution['coupon_allowed'];
+			$total_line_discount_cordobas = $resolution['total_line_discount_cordobas'];
+
+			/* totals accumulation runs after the golden-rule resolution above so it reflects the final
+			   (possibly neutralized) discount, not the raw per-line candidate */
 			for( $i=0; $i < count($id_products); $i++ ){
 
 				$product = $sale_products_cache[$i];
-				$line_discount = 0;
-
-				if( $product && $product->is_service ){
-
-					$birthday_rate_for_line = !empty($birthday_eligible[$i]) ? $birthday_discount_rate : 0;
-					$line_discount = max( $category_rates[$i], $sale_client_is_vip ? $vip_discount_rate : 0, $birthday_rate_for_line );
-				}
-
-				$discounts[$i] = $line_discount;
-
-				if( $discounts[$i] > 0 ) $has_discounted_service = true;
-
 				$price = str_replace(',', '', $prices[$i] );
 				$subtotal = $price * $quantities[$i];
 
@@ -366,7 +404,7 @@ class Sales extends Admin_Controller{
 					if( $has_discounted_service ){
 
 						$response['type'] = 'error';
-						$response['message'] = 'No se pueden aplicar cupones cuando algún servicio de la factura tiene un descuento aplicado';
+						$response['message'] = 'El descuento de los servicios (C$'.number_format($total_line_discount_cordobas, 2).') es mayor o igual al monto del cupón; no se puede usar el cupón';
 						echo json_encode($response);
 						exit();
 					}
