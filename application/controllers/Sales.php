@@ -296,23 +296,41 @@ class Sales extends Admin_Controller{
 				$discounts[$i] = $rate;
 			}
 
+			/* Birthday-ceiling cap: once birthday wins stage 1 above AND the sale's undiscounted services
+			   total goes beyond the configured maximum, the discount stops being granted per line — every
+			   service line's candidate is zeroed here and replaced by a single flat córdoba write-off
+			   (birthday_rate% of the MAXIMUM, not the actual total), which still competes against a coupon
+			   in stage 2 below just like a per-line discount would. No-op in every other case: a different
+			   source won, or birthday won within the ceiling (today's per-line behavior is unchanged). */
+			$candidate_discounts_for_resolution = array();
+			foreach( $undiscounted_service_cordobas as $i => $undiscounted ){
+				$candidate_discounts_for_resolution[$i] = $discounts[$i];
+			}
+
+			$ceiling_resolution = resolve_birthday_ceiling_writeoff(
+				$source_resolution['winning_source'],
+				$birthday_discount_rate,
+				$services_total_undiscounted_cordobas,
+				$birthday_ceiling_max,
+				$candidate_discounts_for_resolution
+			);
+
+			$candidate_discounts_for_resolution = $ceiling_resolution['discounts'];
+			foreach( $candidate_discounts_for_resolution as $i => $rate ){
+				$discounts[$i] = $rate;
+			}
+
 			/* Pass 2b, golden rule stage 2: only one discount effect survives per sale. The winning line
-			   discount from stage 1 above competes against a coupon payment: whichever is worth more in
-			   córdobas wins, the other is neutralized. Coupon tender total is a single row's amount since
-			   more than one coupon payment per sale is already rejected above. */
+			   discount from stage 1 above (or the flat birthday-ceiling write-off just resolved) competes
+			   against a coupon payment: whichever is worth more in córdobas wins, the other is neutralized.
+			   Coupon tender total is a single row's amount since more than one coupon payment per sale is
+			   already rejected above. */
 			$coupon_tender_total = 0;
 			foreach( $payment_methods as $pm_i => $pm ){
 				if( $pm === 'cupon' ) $coupon_tender_total += floatval(str_replace(',', '', $cupon_amounts[$pm_i]));
 			}
 
-			// only service lines carry a candidate discount and an undiscounted córdoba value (Pass 1
-			// only populated $undiscounted_service_cordobas for is_service rows), so key the resolver's
-			// input off that array to weigh exactly those lines against the coupon
-			$candidate_discounts_for_resolution = array();
-			foreach( $undiscounted_service_cordobas as $i => $undiscounted ){
-				$candidate_discounts_for_resolution[$i] = $discounts[$i];
-			}
-			$resolution = resolve_coupon_vs_line_discounts( $candidate_discounts_for_resolution, $undiscounted_service_cordobas, $coupon_tender_total );
+			$resolution = resolve_coupon_vs_line_discounts( $candidate_discounts_for_resolution, $undiscounted_service_cordobas, $coupon_tender_total, $ceiling_resolution['writeoff_cordobas'] );
 
 			foreach( $resolution['discounts'] as $i => $final_rate ){
 				$discounts[$i] = $final_rate;
@@ -320,6 +338,7 @@ class Sales extends Admin_Controller{
 
 			$has_discounted_service = !$resolution['coupon_allowed'];
 			$total_line_discount_cordobas = $resolution['total_line_discount_cordobas'];
+			$birthday_ceiling_writeoff_cordobas = $resolution['extra_discount_cordobas'];
 
 			/* totals accumulation runs after the golden-rule resolution above so it reflects the final
 			   (possibly neutralized) discount, not the raw per-line candidate */
@@ -383,6 +402,12 @@ class Sales extends Admin_Controller{
 			}
 
 			$remaining_cordobas = max( $remaining_cordobas - $loyalty_discount_cordobas, 0 );
+
+			/* birthday-ceiling write-off (resolved above, alongside the golden rule): same pure córdoba
+			   deduction pattern as the loyalty discount just above — never touches sale_products.discount
+			   or $total_cordobas/the receipt line items, only what's actually owed. Already 0 if a coupon
+			   neutralized it in stage 2. */
+			$remaining_cordobas = max( $remaining_cordobas - $birthday_ceiling_writeoff_cordobas, 0 );
 
 			/* coupon uniqueness + sequential coverage + aggregate non-cash overpay rejection (mirrors the JS check);
 			   also gathers the raw cash tendered while we're already looping payment methods */
