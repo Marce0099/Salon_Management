@@ -786,18 +786,18 @@ class Sales extends Admin_Controller{
 			}
 
 			ob_start();
-			$pdf_name = $this->generateReceiptPdf( $id_sale );
+			$pdf_name = $this->generateReceiptPdf( $id_sale, $birthday_ceiling_writeoff_cordobas, $birthday_ceiling_max );
 			ob_end_clean();
 
 			if( $pdf_name )
 				$this->sales_mdl->setFile( $id_sale, $pdf_name );
 
 			ob_start();
-			$prnt = $this->printInvoice( $id_sale );
+			$prnt = $this->printInvoice( $id_sale, FALSE, $birthday_ceiling_writeoff_cordobas, $birthday_ceiling_max );
 			ob_end_clean();
 
 			ob_start();
-			$prnt = $this->printInvoice( $id_sale, TRUE );
+			$prnt = $this->printInvoice( $id_sale, TRUE, $birthday_ceiling_writeoff_cordobas, $birthday_ceiling_max );
 			ob_end_clean();
 
 			$message = '<p>Venta registrada</p>';
@@ -832,7 +832,7 @@ class Sales extends Admin_Controller{
 		}
 	}
 
-	private function generateReceiptPdf( $id_sale ){
+	private function generateReceiptPdf( $id_sale, $birthday_writeoff_cordobas = 0, $birthday_ceiling_max = 0 ){
 
 		$sale = $this->sales_mdl->getSale( $id_sale );
 		$details = $this->sales_mdl->getDetails( $id_sale );
@@ -902,6 +902,11 @@ class Sales extends Admin_Controller{
 
 				if( $dol > 0 ){
 					$payments_html .= '<tr><td class="left label-col">'.$methods[$pay->payment_method].':</td><td class="left">$'.number_format($pay->dolar,2).'</td></tr>';
+				}
+
+				if( $pay->payment_method === 'cupon' && floatval($pay->cupon_discount_rate) > 0 ){
+					$neto = $cor * (1 - floatval($pay->cupon_discount_rate) / 100);
+					$payments_html .= '<tr><td class="left label-col">&nbsp;&nbsp;Desc. cupón:</td><td class="left">'.number_format($pay->cupon_discount_rate,2).'% (neto C$'.number_format($neto,2).')</td></tr>';
 				}
 
 				$dol_to_cor = $dol * $sale->dollar_ex_sell;
@@ -1015,6 +1020,10 @@ class Sales extends Admin_Controller{
 			<table>
 				<tr><td class="left label-col">Total en Dolares:</td><td class="left">$<?php echo number_format($total_dol,2); ?></td></tr>
 				<tr><td class="left label-col">Total en Cordobas:</td><td class="left">C$<?php echo number_format($total_cor,2); ?></td></tr>
+				<?php if( $birthday_writeoff_cordobas > 0 ): ?>
+				<tr><td class="left label-col">Desc. cumpleaños:</td><td class="left">-C$<?php echo number_format($birthday_writeoff_cordobas,2); ?></td></tr>
+				<tr><td class="left label-col">&nbsp;&nbsp;(tope max.):</td><td class="left">C$<?php echo number_format($birthday_ceiling_max,2); ?></td></tr>
+				<?php endif; ?>
 			</table>
 
 			<table>
@@ -1056,7 +1065,7 @@ class Sales extends Admin_Controller{
 		}
 	}
 
-	private function printInvoice( $id_sale = 0, $copy = FALSE ){
+	private function printInvoice( $id_sale = 0, $copy = FALSE, $birthday_writeoff_cordobas = 0, $birthday_ceiling_max = 0 ){
 
 		$sale = $this->sales_mdl->getSale( $id_sale );
 		$details = $this->sales_mdl->getDetails( $id_sale );
@@ -1148,6 +1157,11 @@ class Sales extends Admin_Controller{
 			$printer->text(str_pad("Total en Dolares:", $label_width, ' ', STR_PAD_RIGHT)."$".number_format($total_dol,2)."\n" );
 			$printer->text(str_pad("Total en Cordobas:", $label_width, ' ', STR_PAD_RIGHT)."C$".number_format($total_cor,2)."\n" );
 
+			if( $birthday_writeoff_cordobas > 0 ){
+				$printer->text(str_pad("Desc. cumpleaños:", $label_width, ' ', STR_PAD_RIGHT)."-C$".number_format($birthday_writeoff_cordobas,2)."\n" );
+				$printer->text("  (tope max. C$".number_format($birthday_ceiling_max,2).")\n" );
+			}
+
 			$methods = [
 				'cash' => 'Efectivo',
 				'pos' => 'POS',
@@ -1169,6 +1183,11 @@ class Sales extends Admin_Controller{
 
 					if( $dol > 0 ){
 						$printer->text(str_pad($methods[$pay->payment_method].":", $label_width, ' ', STR_PAD_RIGHT)."$".number_format($pay->dolar,2)."\n" );
+					}
+
+					if( $pay->payment_method === 'cupon' && floatval($pay->cupon_discount_rate) > 0 ){
+						$neto = $cor * (1 - floatval($pay->cupon_discount_rate) / 100);
+						$printer->text("  Desc. cupón: ".number_format($pay->cupon_discount_rate,2)."% (neto C$".number_format($neto,2).")\n" );
 					}
 
 					$dol_to_cor = $dol * $sale->dollar_ex_sell;
