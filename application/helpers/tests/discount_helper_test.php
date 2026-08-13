@@ -235,6 +235,125 @@ check( 'integration: coupon above the corrected total wins, neutralizes both lin
 check( 'integration: coupon allowed once it exceeds the corrected total', $stage2['coupon_allowed'], true );
 
 // ---------------------------------------------------------------------------
+// resolve_birthday_ceiling_writeoff(): once birthday wins the sale AND the undiscounted services total
+// goes beyond the configured ceiling maximum, the discount stops being granted per line — it's capped
+// at birthday_rate% of the MAXIMUM and applied as a single flat córdoba write-off, with every line's
+// candidate discount zeroed. No-op passthrough in every other case.
+// ---------------------------------------------------------------------------
+
+// A different source won the sale (category/VIP untouched): must be a complete no-op even though the
+// total is well beyond the max — proves this feature doesn't affect other discount logistics.
+$discounts = array( 0 => 60, 1 => 20 );
+$r = resolve_birthday_ceiling_writeoff( 'category', 50, 5000, 1000, $discounts );
+check( 'ceiling writeoff: category won, no-op discounts', $r['discounts'], $discounts );
+check( 'ceiling writeoff: category won, no writeoff', $r['writeoff_cordobas'], 0.0 );
+
+$discounts = array( 0 => 20, 1 => 20 );
+$r = resolve_birthday_ceiling_writeoff( 'vip', 50, 5000, 1000, $discounts );
+check( 'ceiling writeoff: vip won, no-op discounts', $r['discounts'], $discounts );
+check( 'ceiling writeoff: vip won, no writeoff', $r['writeoff_cordobas'], 0.0 );
+
+// Birthday won, but the total stays within the ceiling — today's per-line behavior is unchanged,
+// including the exact boundary (total == max, inclusive, not "beyond" it).
+$discounts = array( 0 => 50, 1 => 0 );
+$r = resolve_birthday_ceiling_writeoff( 'birthday', 50, 800, 1000, $discounts );
+check( 'ceiling writeoff: birthday won, under max, no-op discounts', $r['discounts'], $discounts );
+check( 'ceiling writeoff: birthday won, under max, no writeoff', $r['writeoff_cordobas'], 0.0 );
+
+$discounts = array( 0 => 50, 1 => 50 );
+$r = resolve_birthday_ceiling_writeoff( 'birthday', 50, 1000, 1000, $discounts );
+check( 'ceiling writeoff: birthday won, exactly at max (inclusive), no-op discounts', $r['discounts'], $discounts );
+check( 'ceiling writeoff: birthday won, exactly at max (inclusive), no writeoff', $r['writeoff_cordobas'], 0.0 );
+
+// Birthday won and the total goes beyond the max: every line zeroed (including ones the old per-line
+// walk would still have marked eligible), writeoff is rate% of the MAX, not the actual total.
+$discounts = array( 0 => 50, 1 => 0, 2 => 0 ); // e.g. line 0 was under the old walk's cutoff, 1/2 excluded
+$r = resolve_birthday_ceiling_writeoff( 'birthday', 50, 1500, 1000, $discounts );
+check( 'ceiling writeoff: birthday won, over max, all lines zeroed', $r['discounts'], array(0 => 0, 1 => 0, 2 => 0) );
+check( 'ceiling writeoff: birthday won, over max, writeoff is rate% of MAX', $r['writeoff_cordobas'], 500.0 );
+
+// ---------------------------------------------------------------------------
+// resolve_coupon_vs_line_discounts(): 4th arg ($extra_discount_cordobas), the birthday-ceiling write-off
+// ---------------------------------------------------------------------------
+
+// Omitted 4th arg must reproduce prior behavior exactly (backward-compatibility regression check).
+$candidate = array( 0 => 15 );
+$undiscounted = array( 0 => 1000 );
+$r_old = resolve_coupon_vs_line_discounts( $candidate, $undiscounted, 0 );
+$r_new = resolve_coupon_vs_line_discounts( $candidate, $undiscounted, 0, 0 );
+check( 'extra arg: omitted vs explicit 0 give identical discounts', $r_old['discounts'], $r_new['discounts'] );
+check( 'extra arg: omitted vs explicit 0 give identical totals', $r_old['total_line_discount_cordobas'], $r_new['total_line_discount_cordobas'] );
+check( 'extra arg: omitted defaults extra_discount_cordobas to 0.0', $r_new['extra_discount_cordobas'], 0.0 );
+
+// Write-off alone (no per-line discounts, as production always sends once the ceiling zeroes every
+// line), coupon below it: write-off wins, coupon blocked, extra_discount_cordobas kept.
+$candidate = array( 0 => 0, 1 => 0 );
+$undiscounted = array( 0 => 600, 1 => 900 );
+$r = resolve_coupon_vs_line_discounts( $candidate, $undiscounted, 400, 500 );
+check( 'extra arg alone: coupon below writeoff, coupon blocked', $r['coupon_allowed'], false );
+check( 'extra arg alone: coupon below writeoff, not neutralized', $r['neutralized_by_coupon'], false );
+check( 'extra arg alone: total includes the writeoff', $r['total_line_discount_cordobas'], 500.0 );
+check( 'extra arg alone: writeoff kept in output', $r['extra_discount_cordobas'], 500.0 );
+check( 'extra arg alone: line discounts stay zero', $r['discounts'], array(0 => 0, 1 => 0) );
+
+// Coupon clearly above the writeoff (> +0.01): neutralized, writeoff zeroed out in the result.
+$r = resolve_coupon_vs_line_discounts( $candidate, $undiscounted, 500.02, 500 );
+check( 'extra arg alone: coupon above writeoff, coupon allowed', $r['coupon_allowed'], true );
+check( 'extra arg alone: coupon above writeoff, neutralized', $r['neutralized_by_coupon'], true );
+check( 'extra arg alone: coupon above writeoff, extra_discount_cordobas zeroed', $r['extra_discount_cordobas'], 0.0 );
+
+// Exact-tie boundary on the writeoff, mirroring the existing per-line epsilon test: coupon must exceed
+// by MORE than 0.01 to neutralize.
+$r = resolve_coupon_vs_line_discounts( $candidate, $undiscounted, 500.01, 500 );
+check( 'extra arg alone: coupon at +0.01 still blocked', $r['coupon_allowed'], false );
+$r = resolve_coupon_vs_line_discounts( $candidate, $undiscounted, 500.02, 500 );
+check( 'extra arg alone: coupon at +0.02 wins', $r['coupon_allowed'], true );
+
+// Defensive completeness: writeoff combined with nonzero per-line discounts (production never actually
+// combines them, since the ceiling resolver always zeroes lines first) — totals must still add correctly.
+$candidate = array( 0 => 10 );
+$undiscounted = array( 0 => 1000 ); // line discount value = 100
+$r = resolve_coupon_vs_line_discounts( $candidate, $undiscounted, 0, 50 ); // + 50 extra = 150 total
+check( 'extra arg combined: total_line_discount_cordobas adds line + extra', $r['total_line_discount_cordobas'], 150.0 );
+check( 'extra arg combined: extra kept when coupon absent', $r['extra_discount_cordobas'], 50.0 );
+
+// ---------------------------------------------------------------------------
+// End-to-end integration: resolve_single_discount_source() -> resolve_birthday_ceiling_writeoff() ->
+// resolve_coupon_vs_line_discounts(), replicating a realistic over-ceiling Sales.php sale.
+// Two service lines, undiscounted 700 + 900 = 1600 total, ceiling max 1000, birthday rate 50%,
+// VIP also active at 15% (birthday must still win the sale on rate, same as before this feature).
+// Expected writeoff = 50% x 1000 = 500, regardless of the actual 1600 total or how lines split.
+// ---------------------------------------------------------------------------
+
+$category_rates = array( 0 => 0, 1 => 0 );
+$birthday_eligible = array( 0 => true, 1 => false ); // old per-line walk: line 0 fits under 1000, line 1 doesn't
+$stage1 = resolve_single_discount_source( $category_rates, true, 15, $birthday_eligible, 50 );
+check( 'e2e ceiling: birthday still wins the sale', $stage1['winning_source'], 'birthday' );
+
+$undiscounted = array( 0 => 700, 1 => 900 );
+$services_total_undiscounted = 700 + 900;
+
+$ceiling = resolve_birthday_ceiling_writeoff( $stage1['winning_source'], 50, $services_total_undiscounted, 1000, $stage1['discounts'] );
+check( 'e2e ceiling: both lines zeroed', $ceiling['discounts'], array(0 => 0, 1 => 0) );
+check( 'e2e ceiling: writeoff is 500 (50% of the 1000 max)', $ceiling['writeoff_cordobas'], 500.0 );
+
+// (a) no coupon: writeoff applies untouched
+$stage2 = resolve_coupon_vs_line_discounts( $ceiling['discounts'], $undiscounted, 0, $ceiling['writeoff_cordobas'] );
+check( 'e2e ceiling, no coupon: writeoff applied', $stage2['extra_discount_cordobas'], 500.0 );
+check( 'e2e ceiling, no coupon: coupon not allowed (no discounted service anyway, none attempted)', $stage2['coupon_allowed'], false );
+
+// (b) small coupon (below the 500 writeoff): writeoff still wins, coupon blocked
+$stage2 = resolve_coupon_vs_line_discounts( $ceiling['discounts'], $undiscounted, 300, $ceiling['writeoff_cordobas'] );
+check( 'e2e ceiling, small coupon: writeoff still wins', $stage2['extra_discount_cordobas'], 500.0 );
+check( 'e2e ceiling, small coupon: coupon blocked', $stage2['coupon_allowed'], false );
+
+// (c) large coupon (clearly above the 500 writeoff): writeoff neutralized, coupon allowed
+$stage2 = resolve_coupon_vs_line_discounts( $ceiling['discounts'], $undiscounted, 600, $ceiling['writeoff_cordobas'] );
+check( 'e2e ceiling, large coupon: writeoff neutralized', $stage2['extra_discount_cordobas'], 0.0 );
+check( 'e2e ceiling, large coupon: coupon allowed', $stage2['coupon_allowed'], true );
+check( 'e2e ceiling, large coupon: line discounts still zero', $stage2['discounts'], array(0 => 0, 1 => 0) );
+
+// ---------------------------------------------------------------------------
 
 echo "\n$passed passed, $failed failed\n";
 exit( $failed > 0 ? 1 : 0 );

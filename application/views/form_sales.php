@@ -85,6 +85,7 @@
 			<span id="payment-overpayment-badge" class="label label-info" style="font-size: 100%; white-space: nowrap; display: none;"></span>
 			<span id="deposit-applied-badge" class="label label-success" style="font-size: 100%; white-space: nowrap; display: none;"></span>
 			<span id="loyalty-applied-badge" class="label label-success" style="font-size: 100%; white-space: nowrap; display: none;"></span>
+			<span id="birthday-ceiling-applied-badge" class="label label-success" style="font-size: 100%; white-space: nowrap; display: none;"></span>
 			<span class="label label-info" style="font-size: 100%; white-space: nowrap;">Tasa venta:C$<?php echo $exchange->sell_price; ?></span>
 			<span class="label label-info" style="font-size: 100%; white-space: nowrap;">Tasa compra:C$<?php echo $exchange->buy_price; ?></span>
 		</div>
@@ -466,6 +467,11 @@
 		_couponNeutralizeNotified : false,
 		deposit_credit_cordobas : 0,
 		loyalty_discount_cordobas : 0,
+		// flat birthday-ceiling write-off currently in effect (0 if not applicable or neutralized by a
+		// coupon) plus the rate it was computed at, purely for the "Descuento cumpleaños aplicado" badge —
+		// see resolve_birthday_ceiling_writeoff() in discount_helper.php for the server-side source of truth
+		birthday_ceiling_writeoff_cordobas : 0,
+		birthday_ceiling_rate : 0,
 		payments : {
 			'0' : { method : 'cash', subtotal : 0, total : 0 }
 		}
@@ -895,6 +901,7 @@
 		var rows = [];
 		var categoryRepresentative = 0;
 		var birthdayApplies = false;
+		var servicesTotalUndiscounted = 0;
 
 		$('#sales-list tr').each(function(){
 
@@ -913,6 +920,7 @@
 
 				if( categoryRate > categoryRepresentative ) categoryRepresentative = categoryRate;
 				if( birthdayEligible ) birthdayApplies = true;
+				servicesTotalUndiscounted += undiscountedCordobas;
 			}
 
 			rows.push({ el : r, subtotal_dollar : subtotal_dollar, isService : isService,
@@ -940,6 +948,18 @@
 			winningRate = birthdayRepresentative;
 		}
 
+		// Birthday-ceiling cap (UX mirror of resolve_birthday_ceiling_writeoff() in discount_helper.php):
+		// once birthday wins the sale AND the undiscounted services total goes beyond the configured
+		// maximum, the discount stops being granted per row — it's capped at birthdayRepresentative% of
+		// the MAXIMUM (not the actual total) and applied as a single flat write-off below, with every
+		// service row's candidate forced to 0. No-op otherwise: a different source won, or birthday won
+		// within the ceiling (today's per-row behavior stays unchanged).
+		var birthdayCeilingWriteoffCordobas = 0;
+
+		if( winningSource === 'birthday' && servicesTotalUndiscounted > BIRTHDAY_CEILING_MAX ){
+			birthdayCeilingWriteoffCordobas = birthdayRepresentative / 100 * BIRTHDAY_CEILING_MAX;
+		}
+
 		// Pass 1b: assign each row's candidate discount from the winning source, nothing written to the
 		// DOM yet — mirrors resolve_single_discount_source()'s per-line output
 		var totalLineDiscountCordobas = 0;
@@ -950,7 +970,10 @@
 
 			if( row.isService ){
 
-				if( winningSource === 'category' ) candidateDiscount = row.categoryRate;
+				if( birthdayCeilingWriteoffCordobas > 0 ){
+					candidateDiscount = 0;
+				}
+				else if( winningSource === 'category' ) candidateDiscount = row.categoryRate;
 				else if( winningSource === 'vip' ) candidateDiscount = vipRepresentative;
 				else if( winningSource === 'birthday' ) candidateDiscount = row.birthdayEligible ? birthdayRepresentative : 0;
 
@@ -959,6 +982,8 @@
 
 			row.candidateDiscount = candidateDiscount;
 		});
+
+		totalLineDiscountCordobas += birthdayCeilingWriteoffCordobas;
 
 		var couponTenderTotal = 0;
 		$.each(system.payments, function(idx, p){
@@ -978,6 +1003,10 @@
 
 		system.coupon_allowed = couponAllowed;
 		system.discount_neutralized_by_coupon = neutralizedByCoupon;
+
+		var birthdayWriteoffApplied = neutralizedByCoupon ? 0 : birthdayCeilingWriteoffCordobas;
+		system.birthday_ceiling_writeoff_cordobas = birthdayWriteoffApplied;
+		system.birthday_ceiling_rate = birthdayWriteoffApplied > 0 ? birthdayRepresentative : 0;
 
 		// Pass 2: write the final (possibly neutralized) discount and compute displayed/aggregate totals
 		var total_dollar = 0, total_cordobas = 0, total_services = 0;
@@ -1019,7 +1048,7 @@
 			system.loyalty_discount_cordobas = system.total_services * claimedTier.rate / 100;
 		}
 
-		system.total_invoice = Math.max( total_cordobas - system.deposit_credit_cordobas - system.loyalty_discount_cordobas, 0 );
+		system.total_invoice = Math.max( total_cordobas - system.deposit_credit_cordobas - system.loyalty_discount_cordobas - birthdayWriteoffApplied, 0 );
 
 		updateDueAmount();
 	}
@@ -1103,7 +1132,7 @@
 		system.deposit_credit_cordobas = appointmentPrefill.deposit_credit_cordobas || 0;
 
 		var currentTotalCordobas = numeral($('#total-cordobas').html()).value();
-		system.total_invoice = Math.max(currentTotalCordobas - system.deposit_credit_cordobas - system.loyalty_discount_cordobas, 0);
+		system.total_invoice = Math.max(currentTotalCordobas - system.deposit_credit_cordobas - system.loyalty_discount_cordobas - system.birthday_ceiling_writeoff_cordobas, 0);
 
 		if( system.total_invoice <= 0 ){
 
@@ -1403,6 +1432,10 @@
 		        	$('#loyalty-claim-options').empty();
 		        	$('#loyalty-balance-display').text('');
 
+		        	system.birthday_ceiling_writeoff_cordobas = 0;
+		        	system.birthday_ceiling_rate = 0;
+		        	$('#birthday-ceiling-applied-badge').hide().text('');
+
 		        	// a completed continuation may have emptied #payment-blocks entirely (zero remaining
 		        	// balance owed); restore the default block so the form is usable for a fresh sale
 		        	if( $('#payment-blocks').children('.payment_container').length === 0 ){
@@ -1579,6 +1612,7 @@
 		var $overpaymentBadge = $('#payment-overpayment-badge');
 		var $depositBadge = $('#deposit-applied-badge');
 		var $loyaltyBadge = $('#loyalty-applied-badge');
+		var $birthdayCeilingBadge = $('#birthday-ceiling-applied-badge');
 
 		if( system.deposit_credit_cordobas > 0 ){
 			$depositBadge.text('Depósito aplicado: C$' + numeral(system.deposit_credit_cordobas).format('0,0.00')).show();
@@ -1590,6 +1624,12 @@
 			$loyaltyBadge.text('Descuento por puntos aplicado: C$' + numeral(system.loyalty_discount_cordobas).format('0,0.00')).show();
 		}else{
 			$loyaltyBadge.hide().text('');
+		}
+
+		if( system.birthday_ceiling_writeoff_cordobas > 0 ){
+			$birthdayCeilingBadge.text('Descuento cumpleaños aplicado (' + numeral(system.birthday_ceiling_rate).format('0,0.[00]') + '% sobre el tope): C$' + numeral(system.birthday_ceiling_writeoff_cordobas).format('0,0.00')).show();
+		}else{
+			$birthdayCeilingBadge.hide().text('');
 		}
 
 		if( system.total_invoice > 0 && due.value() > 0 ){

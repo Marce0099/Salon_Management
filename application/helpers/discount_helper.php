@@ -96,26 +96,35 @@ function resolve_single_discount_source( $category_rates, $is_vip, $vip_rate, $b
 
 /**
  * Stage 2 of the golden rule: the winning line discount total from
- * resolve_single_discount_source() competes against a coupon payment, comparing
- * córdoba value and neutralizing whichever is smaller.
+ * resolve_single_discount_source() (optionally adjusted by resolve_birthday_ceiling_writeoff())
+ * competes against a coupon payment, comparing córdoba value and neutralizing whichever is smaller.
  *
- * @param array $candidate_discounts   service-line index => discount percentage (0-100)
- * @param array $undiscounted_cordobas service-line index => undiscounted córdoba subtotal
- * @param float $coupon_tender_total   córdoba amount tendered via the sale's coupon payment (0 if none)
+ * @param array $candidate_discounts    service-line index => discount percentage (0-100)
+ * @param array $undiscounted_cordobas  service-line index => undiscounted córdoba subtotal
+ * @param float $coupon_tender_total    córdoba amount tendered via the sale's coupon payment (0 if none)
+ * @param float $extra_discount_cordobas flat córdoba discount not tied to any line's percentage — the
+ *                                        birthday-ceiling write-off from resolve_birthday_ceiling_writeoff()
+ *                                        (0 if none/not applicable); folded into the total this competes
+ *                                        against the coupon with, and zeroed out in the result if the
+ *                                        coupon wins instead
  * @return array{
  *   discounts: array,
  *   coupon_allowed: bool,
  *   neutralized_by_coupon: bool,
- *   total_line_discount_cordobas: float
+ *   total_line_discount_cordobas: float,
+ *   extra_discount_cordobas: float
  * }
  */
-function resolve_coupon_vs_line_discounts( $candidate_discounts, $undiscounted_cordobas, $coupon_tender_total ) {
+function resolve_coupon_vs_line_discounts( $candidate_discounts, $undiscounted_cordobas, $coupon_tender_total, $extra_discount_cordobas = 0 ) {
 
-	$total_line_discount_cordobas = 0;
+	$extra_discount_cordobas = (float) $extra_discount_cordobas;
+	$total_line_discount_cordobas = 0.0;
 
 	foreach( $candidate_discounts as $i => $rate ){
 		$total_line_discount_cordobas += $rate / 100 * $undiscounted_cordobas[$i];
 	}
+
+	$total_line_discount_cordobas += $extra_discount_cordobas;
 
 	if( $total_line_discount_cordobas <= 0 ){
 
@@ -124,6 +133,7 @@ function resolve_coupon_vs_line_discounts( $candidate_discounts, $undiscounted_c
 			'coupon_allowed' => true,
 			'neutralized_by_coupon' => false,
 			'total_line_discount_cordobas' => 0.0,
+			'extra_discount_cordobas' => 0.0,
 		);
 	}
 
@@ -136,6 +146,7 @@ function resolve_coupon_vs_line_discounts( $candidate_discounts, $undiscounted_c
 			'coupon_allowed' => true,
 			'neutralized_by_coupon' => true,
 			'total_line_discount_cordobas' => $total_line_discount_cordobas,
+			'extra_discount_cordobas' => 0.0,
 		);
 	}
 
@@ -144,5 +155,40 @@ function resolve_coupon_vs_line_discounts( $candidate_discounts, $undiscounted_c
 		'coupon_allowed' => false,
 		'neutralized_by_coupon' => false,
 		'total_line_discount_cordobas' => $total_line_discount_cordobas,
+		'extra_discount_cordobas' => $extra_discount_cordobas,
+	);
+}
+
+/**
+ * Birthday-ceiling cap: when birthday wins stage 1 (resolve_single_discount_source()) AND the sale's
+ * undiscounted services total goes beyond the configured ceiling maximum, the discount is no longer
+ * granted per line — it's capped at birthday_rate% of the MAXIMUM (not the actual total) and applied as
+ * a single flat córdoba write-off instead. Every service line's candidate discount is zeroed so the
+ * write-off can still compete against a coupon as one figure in resolve_coupon_vs_line_discounts()
+ * (pass the returned writeoff_cordobas as that function's $extra_discount_cordobas).
+ *
+ * A no-op passthrough in every other case: a different source won stage 1 (category/VIP untouched), or
+ * birthday won but the total is within the ceiling (today's per-line behavior is unchanged).
+ *
+ * @param string $winning_source                     resolve_single_discount_source()'s 'winning_source'
+ * @param float  $birthday_rate                       configured birthday discount percentage
+ * @param float  $services_total_undiscounted_cordobas sale's whole undiscounted services total
+ * @param float  $ceiling_max                          configured birthday ceiling maximum (córdobas)
+ * @param array  $discounts                            service-line index => candidate discount percentage
+ * @return array{ discounts: array, writeoff_cordobas: float }
+ */
+function resolve_birthday_ceiling_writeoff( $winning_source, $birthday_rate, $services_total_undiscounted_cordobas, $ceiling_max, $discounts ) {
+
+	if( $winning_source !== 'birthday' || $services_total_undiscounted_cordobas <= $ceiling_max ){
+
+		return array(
+			'discounts' => $discounts,
+			'writeoff_cordobas' => 0.0,
+		);
+	}
+
+	return array(
+		'discounts' => array_fill_keys( array_keys($discounts), 0 ),
+		'writeoff_cordobas' => round( $birthday_rate / 100 * $ceiling_max, 2 ),
 	);
 }
