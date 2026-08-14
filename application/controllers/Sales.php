@@ -1072,6 +1072,7 @@ class Sales extends Admin_Controller{
 				<?php echo $payments_html; ?>
 			</table>
 
+			<p class="left">Cliente: <?php echo htmlspecialchars($sale->client); ?></p>
 			<p class="left">Vendedor: <?php echo htmlspecialchars($sale->name); ?></p>
 
 			<div class="divider"></div>
@@ -1312,9 +1313,11 @@ class Sales extends Admin_Controller{
 				$printer->text("Cambio: ".str_pad("C$".number_format($cor - $total_cor,2)."\n",15,' ',STR_PAD_LEFT) );
 			}*/
 
-			//seller info
+			//customer + seller info
 			$printer->feed(2);
 			$printer->setJustification(Printer::JUSTIFY_LEFT);
+			$printer->text("Cliente: ".$sale->client);
+			$printer->feed(1);
 			$printer->text("Vendedor: ".$sale->name);
 			$printer->feed(2);
 
