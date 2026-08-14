@@ -59,6 +59,26 @@
 		);
 	}
 
+	/* Payment-sufficiency tolerance (córdobas): how much a sale's tendered total may fall short
+	   of (or exceed) the invoice total and still be accepted as "paid in full". A córdoba amount
+	   typed directly is exact to 0.01; a dollar amount is only exact to 0.01 USD, which after
+	   *sell_rate is coarser than a córdoba cent. The "Pendiente"/"remaining owed" figure shown to
+	   the cashier in dollars is itself a rounded quotient (see form_sales.php's updateDueAmount()),
+	   so re-typing that rounded figure back and reconverting to córdobas can miss the exact
+	   córdoba total by up to half a dollar-cent's worth of córdobas, per independently-typed
+	   dollar-denominated payment row. Scales with $num_dollar_rows so multiple dollar rows (e.g.
+	   a split cash tender plus a dollar POS row) are each allowed their own rounding slack, but is
+	   capped well under 1 córdoba so it can never be used to forgive a real, whole-unit shortfall
+	   (mirrors the change_rounding_cordoba policy in Sales::register(), which rejects any
+	   abs(...) >= 1). Must be mirrored exactly (same constants) in form_sales.php's
+	   paymentSufficiencyTolerance(), since JS and PHP can't share this function. */
+	function paymentSufficiencyToleranceCordobas( $num_dollar_rows, $sell_rate ){
+
+		$tolerance = max( 0, $num_dollar_rows ) * 0.005 * $sell_rate;
+
+		return max( 0.01, min( $tolerance, 0.99 ) );
+	}
+
 	/* Ratio of a sale's real (bank/coupon-absorption-netted) córdoba revenue to its gross,
 	   post-manual-discount invoice total. Mirrors the pos/cupon netting math in
 	   Cash_mdl::getCashMovements() exactly, so the two can't diverge in intent. Cash and
