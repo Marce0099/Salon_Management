@@ -22,20 +22,31 @@
  * Category has no single flat rate (it varies per service), so its "representative"
  * rate for the three-way comparison is the highest category rate present among the
  * sale's service lines; once category wins, each line still uses its own rate. VIP
- * and birthday are flat settings-level rates. A source only enters the comparison
- * if it actually applies to at least one line (birthday doesn't "win" by having the
- * higher configured rate if the ceiling excludes every line — that would discount
- * nothing while blocking VIP for no benefit). On an exact tie between representative
- * rates, precedence is birthday > VIP > category.
+ * and birthday are flat settings-level rates. Category/VIP only enter the comparison
+ * if they actually apply to at least one line. Birthday instead enters the comparison
+ * whenever $birthday_qualifies is true (the client's birthday applies and the sale's
+ * undiscounted services total clears the ceiling minimum) — deliberately NOT tied to
+ * any individual line surviving the per-line ceiling walk in $birthday_eligible: once
+ * the sale's total goes beyond the ceiling maximum, every line can end up excluded by
+ * that walk (e.g. a single line whose own amount alone already exceeds the max) while
+ * birthday still owes a flat córdoba write-off via resolve_birthday_ceiling_writeoff()
+ * — birthday must still win the sale for that write-off to happen, not fall back to
+ * discounting nothing. $birthday_eligible remains used below only to decide each
+ * line's OWN discount when birthday wins and the sale stays within the ceiling (where,
+ * by construction of the running-sum walk, every line ends up eligible anyway). On an
+ * exact tie between representative rates, precedence is birthday > VIP > category.
  *
- * @param array $category_rates    service-line index => category discount percentage (0-100; 0 if none)
- * @param bool  $is_vip            whether the sale's client is VIP
- * @param float $vip_rate          configured VIP discount percentage
- * @param array $birthday_eligible service-line index => bool, ceiling-eligibility (same keys as $category_rates)
- * @param float $birthday_rate     configured birthday discount percentage
+ * @param array $category_rates     service-line index => category discount percentage (0-100; 0 if none)
+ * @param bool  $is_vip             whether the sale's client is VIP
+ * @param float $vip_rate           configured VIP discount percentage
+ * @param array $birthday_eligible  service-line index => bool, per-line ceiling-eligibility (same keys as $category_rates)
+ * @param float $birthday_rate      configured birthday discount percentage
+ * @param bool  $birthday_qualifies whether birthday applies to the sale at all (client's birthday today AND
+ *                                   undiscounted services total >= ceiling minimum) — independent of whether
+ *                                   any individual line survived the per-line ceiling walk
  * @return array{ discounts: array, winning_source: string, winning_rate: float }
  */
-function resolve_single_discount_source( $category_rates, $is_vip, $vip_rate, $birthday_eligible, $birthday_rate ) {
+function resolve_single_discount_source( $category_rates, $is_vip, $vip_rate, $birthday_eligible, $birthday_rate, $birthday_qualifies ) {
 
 	$category_representative = 0;
 	foreach( $category_rates as $rate ){
@@ -44,10 +55,7 @@ function resolve_single_discount_source( $category_rates, $is_vip, $vip_rate, $b
 
 	$vip_representative = $is_vip ? $vip_rate : 0;
 
-	$birthday_applies = false;
-	foreach( $birthday_eligible as $eligible ){
-		if( $eligible ){ $birthday_applies = true; break; }
-	}
+	$birthday_applies = !empty( $birthday_qualifies );
 	$birthday_representative = $birthday_applies ? $birthday_rate : 0;
 
 	// checked in ascending precedence (category, then VIP, then birthday) with >=, so a later

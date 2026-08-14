@@ -25,14 +25,14 @@ class Sales extends Admin_Controller{
 
 	private function format_columns( $col_1, $col_2, $col_3 ){
 
-	    $ww = wordwrap($col_2,22);
+	    $ww = wordwrap($col_2,24);
 	    $strings = explode("\n",$ww);
 	    $line = str_pad( $col_1, 4, " ", STR_PAD_RIGHT );
 
 	    for($i=0; $i<count($strings); $i++){
 
 	        if( $i == 0 )
-	            $line .= str_pad($strings[$i],22,".", STR_PAD_RIGHT) . str_pad($col_3,17," ", STR_PAD_LEFT);
+	            $line .= str_pad($strings[$i],24,".", STR_PAD_RIGHT) . str_pad($col_3,12," ", STR_PAD_LEFT) . str_repeat(" ",3);
 	        else
 	            $line .= str_pad($strings[$i], strlen($strings[$i]) + 4, " ", STR_PAD_LEFT);
 
@@ -289,7 +289,8 @@ class Sales extends Admin_Controller{
 				$sale_client_is_vip,
 				$vip_discount_rate,
 				$birthday_eligible_for_services,
-				$birthday_discount_rate
+				$birthday_discount_rate,
+				$apply_birthday_ceiling
 			);
 
 			foreach( $source_resolution['discounts'] as $i => $rate ){
@@ -415,6 +416,7 @@ class Sales extends Admin_Controller{
 			$non_cash_total = 0;
 			$cash_cordoba_raw = 0;
 			$cash_dolar_raw = 0;
+			$dollar_row_count = 0;
 			// coupons may only be redeemed against the services portion of the invoice, not products; the
 			// loyalty discount is subtracted first so a coupon can't validate against services value already
 			// given away as a loyalty reward
@@ -487,22 +489,45 @@ class Sales extends Admin_Controller{
 					$cash_cordoba_raw += floatval(str_replace(',', '', $cordobas_inputs[$i]));
 					$cash_dolar_raw += floatval(str_replace(',', '', $dolar_inputs[$i]));
 
+					if( $dolar_inputs[$i] )
+						$dollar_row_count++;
+
 				}else{
 
 					$amt = floatval(str_replace(',', '', $cordobas_inputs[$i]));
 
-					if( $dolar_inputs[$i] )
+					if( $dolar_inputs[$i] ){
 						$amt += floatval(str_replace(',', '', $dolar_inputs[$i])) * floatval($exchange->sell_price);
+						$dollar_row_count++;
+					}
 
 					$non_cash_total += $amt;
 				}
 			}
 
+			/* dollar-denominated payment amounts are only exact to the cent in dollars, which after
+			   conversion at $exchange->sell_price is coarser than a córdoba cent — the "Pendiente"
+			   figure the cashier types back is itself a rounded display value (see form_sales.php's
+			   updateDueAmount()/paymentSufficiencyTolerance(), which this must match exactly) */
+			$payment_tolerance_cordobas = paymentSufficiencyToleranceCordobas( $dollar_row_count, $exchange->sell_price );
+
 			/* only cash may cover an overpayment (it gives change); POS/transfer/cupon combined can't exceed the total */
-			if( $non_cash_total - $remaining_cordobas > 0.01 ){
+			if( $non_cash_total - $remaining_cordobas > $payment_tolerance_cordobas ){
 
 				$response['type'] = 'error';
 				$response['message'] = 'El total de pagos con POS, transferencia y/o cupón no puede exceder el total de la factura. El efectivo debe cubrir cualquier excedente.';
+				echo json_encode($response);
+				exit();
+			}
+
+			/* minimum-payment guard: total tendered across every method must cover the invoice,
+			   within the same dollar-rounding tolerance computed above */
+			$total_tendered_cordobas = $non_cash_total + $cash_cordoba_raw + ( $cash_dolar_raw * floatval($exchange->sell_price) );
+
+			if( $remaining_cordobas - $total_tendered_cordobas > $payment_tolerance_cordobas ){
+
+				$response['type'] = 'error';
+				$response['message'] = 'El efectivo entregado es menor que el total de la factura';
 				echo json_encode($response);
 				exit();
 			}
@@ -786,18 +811,18 @@ class Sales extends Admin_Controller{
 			}
 
 			ob_start();
-			$pdf_name = $this->generateReceiptPdf( $id_sale, $birthday_ceiling_writeoff_cordobas, $birthday_ceiling_max );
+			$pdf_name = $this->generateReceiptPdf( $id_sale, $birthday_ceiling_writeoff_cordobas, $birthday_ceiling_max, $loyalty_discount_cordobas );
 			ob_end_clean();
 
 			if( $pdf_name )
 				$this->sales_mdl->setFile( $id_sale, $pdf_name );
 
 			ob_start();
-			$prnt = $this->printInvoice( $id_sale, FALSE, $birthday_ceiling_writeoff_cordobas, $birthday_ceiling_max );
+			$prnt = $this->printInvoice( $id_sale, FALSE, $birthday_ceiling_writeoff_cordobas, $birthday_ceiling_max, $loyalty_discount_cordobas );
 			ob_end_clean();
 
 			ob_start();
-			$prnt = $this->printInvoice( $id_sale, TRUE, $birthday_ceiling_writeoff_cordobas, $birthday_ceiling_max );
+			$prnt = $this->printInvoice( $id_sale, TRUE, $birthday_ceiling_writeoff_cordobas, $birthday_ceiling_max, $loyalty_discount_cordobas );
 			ob_end_clean();
 
 			$message = '<p>Venta registrada</p>';
@@ -832,7 +857,7 @@ class Sales extends Admin_Controller{
 		}
 	}
 
-	private function generateReceiptPdf( $id_sale, $birthday_writeoff_cordobas = 0, $birthday_ceiling_max = 0 ){
+	private function generateReceiptPdf( $id_sale, $birthday_writeoff_cordobas = 0, $birthday_ceiling_max = 0, $loyalty_discount_cordobas = 0 ){
 
 		$sale = $this->sales_mdl->getSale( $id_sale );
 		$details = $this->sales_mdl->getDetails( $id_sale );
@@ -866,22 +891,29 @@ class Sales extends Admin_Controller{
 				$subtotal -= $subtotal * $d->discount / 100;
 
 			$total_dol += $subtotal;
+			$subtotal_cor = $subtotal * $sale->dollar_ex_sell;
 
-			// cap the name at 22 chars so the auto-sized "Descripción" column can never
-			// grow past this width and push the price column out of alignment
-			$name = mb_strlen($d->name,'UTF-8') > 22 ? mb_substr($d->name,0,21,'UTF-8').'…' : $d->name;
+			// cap the name at 34 chars so the auto-sized "Descripción" column can never
+			// grow past this width and push the price column out of alignment. Widened from 24 to
+			// 34 (+10 chars of dot-leader) so this column's auto-computed width eats 10 more
+			// characters' worth of the row (~40.5pt at this font) that the unstyled, unconstrained
+			// Subtotal column would otherwise absorb entirely as trailing blank space — the Subtotal
+			// column still auto-stretches to fill whatever remains, so its content shifts right into
+			// that space instead of sitting in a mostly-empty cell
+			$name = mb_strlen($d->name,'UTF-8') > 34 ? mb_substr($d->name,0,33,'UTF-8').'…' : $d->name;
 
 			$items_html .= '
 				<tr>
 					<td class="left">'.$d->quantity.'</td>
-					<td class="left">'.htmlspecialchars(str_pad($name,22,".",STR_PAD_RIGHT)).'</td>
-					<td class="left">'.number_format($subtotal,2).'</td>
+					<td class="left">'.htmlspecialchars(str_pad($name,34,".",STR_PAD_RIGHT)).'</td>
+					<td class="left">C$'.number_format($subtotal_cor,2).str_repeat('&nbsp;',3).'</td>
 				</tr>
 			';
 		}
 
 		$total_cor = $total_dol * $sale->dollar_ex_sell;
-		$_total_cor = $total_cor;
+		$total_a_pagar_cor = $total_cor - $birthday_writeoff_cordobas - $loyalty_discount_cordobas;
+		$_total_cor = $total_a_pagar_cor;
 
 		// mirrors printInvoice()'s payment-method loop exactly (non-cash rows individually, cash aggregated with change)
 		$payments_html = '';
@@ -940,14 +972,14 @@ class Sales extends Admin_Controller{
 				$change_dollars = floatval($pay->change_dollar_given);
 
 				if( $change_cordobas > 0 || $change_dollars > 0 ){
-					$payments_html .= '<tr><td class="left label-col">Cambio:</td><td class="left">C$'.number_format($change_cordobas,2).' + $'.number_format($change_dollars,2).'</td></tr>';
+					$payments_html .= '<tr class="total-highlight"><td class="left label-col">Cambio:</td><td class="left">C$'.number_format($change_cordobas,2).' + $'.number_format($change_dollars,2).'</td></tr>';
 				}
 			}else{
 
 				$change_cordobas = $total_cordobas - $_total_cor;
 				$change_dollars = $change_cordobas / $sale->dollar_ex_buy;
 
-				$payments_html .= '<tr><td class="left label-col">Cambio:</td><td class="left">$'.number_format($change_dollars,2).' (C$'.number_format($change_cordobas,2).')</td></tr>';
+				$payments_html .= '<tr class="total-highlight"><td class="left label-col">Cambio:</td><td class="left">$'.number_format($change_dollars,2).' (C$'.number_format($change_cordobas,2).')</td></tr>';
 			}
 		}
 
@@ -980,6 +1012,10 @@ class Sales extends Admin_Controller{
 		.tagline{
 			text-decoration: underline;
 			font-style: italic;
+		}
+		.total-highlight td{
+			font-size: 12px;
+			font-weight: bold;
 		}
 		#logo{
 			width: 140px;
@@ -1018,13 +1054,19 @@ class Sales extends Admin_Controller{
 			<div class="divider"></div>
 
 			<table>
-				<tr><td class="left label-col">Total en Dolares:</td><td class="left">$<?php echo number_format($total_dol,2); ?></td></tr>
+				<!-- <tr><td class="left label-col">Total en Dolares:</td><td class="left">$<?php echo number_format($total_dol,2); ?></td></tr> -->
 				<tr><td class="left label-col">Total en Cordobas:</td><td class="left">C$<?php echo number_format($total_cor,2); ?></td></tr>
 				<?php if( $birthday_writeoff_cordobas > 0 ): ?>
 				<tr><td class="left label-col">Desc. cumpleaños:</td><td class="left">-C$<?php echo number_format($birthday_writeoff_cordobas,2); ?></td></tr>
 				<tr><td class="left label-col">&nbsp;&nbsp;(tope max.):</td><td class="left">C$<?php echo number_format($birthday_ceiling_max,2); ?></td></tr>
 				<?php endif; ?>
+				<?php if( $loyalty_discount_cordobas > 0 ): ?>
+				<tr><td class="left label-col">Desc. fidelidad:</td><td class="left">-C$<?php echo number_format($loyalty_discount_cordobas,2); ?></td></tr>
+				<?php endif; ?>
+				<tr class="total-highlight"><td class="left label-col">Total a pagar:</td><td class="left">C$<?php echo number_format($total_a_pagar_cor,2); ?></td></tr>
 			</table>
+
+			<div class="divider"></div>
 
 			<table>
 				<?php echo $payments_html; ?>
@@ -1065,7 +1107,7 @@ class Sales extends Admin_Controller{
 		}
 	}
 
-	private function printInvoice( $id_sale = 0, $copy = FALSE, $birthday_writeoff_cordobas = 0, $birthday_ceiling_max = 0 ){
+	private function printInvoice( $id_sale = 0, $copy = FALSE, $birthday_writeoff_cordobas = 0, $birthday_ceiling_max = 0, $loyalty_discount_cordobas = 0 ){
 
 		$sale = $this->sales_mdl->getSale( $id_sale );
 		$details = $this->sales_mdl->getDetails( $id_sale );
@@ -1122,8 +1164,8 @@ class Sales extends Admin_Controller{
 			//products header
 			$printer->setJustification(Printer::JUSTIFY_LEFT);
 			$printer->text( str_pad('Cant.', 4, ' ', STR_PAD_RIGHT) );
-			$printer->text( str_pad('Descripción', 22, ' ', STR_PAD_RIGHT) );
-			$printer->text( str_pad("Subtotal", 17, ' ', STR_PAD_LEFT) . "\n" );
+			$printer->text( str_pad('Descripción', 24, ' ', STR_PAD_RIGHT) );
+			$printer->text( str_pad("Subtotal", 12, ' ', STR_PAD_LEFT) . str_repeat(' ', 3) . "\n" );
 			$printer->text( "-------------------------------------------\n" );
 			$printer->selectPrintMode();
 
@@ -1138,29 +1180,40 @@ class Sales extends Admin_Controller{
 					$subtotal -= $subtotal * $d->discount / 100;
 
 				$total_dol += $subtotal;
+				$subtotal_cor = $subtotal * $sale->dollar_ex_sell;
 
 				$printer->text( $this->format_columns(
 
 					$d->quantity,
 					$d->name,
-					number_format( $subtotal,2)
+					"C$".number_format( $subtotal_cor,2)
 				));
 			}
 
 			$total_cor = $total_dol * $sale->dollar_ex_sell;
-			$_total_cor = $total_cor;
+			$total_a_pagar_cor = $total_cor - $birthday_writeoff_cordobas - $loyalty_discount_cordobas;
+			$_total_cor = $total_a_pagar_cor;
 
 			//totals
 			$printer->feed();
 			$printer->setJustification(Printer::JUSTIFY_LEFT);
 			$label_width = 20;
-			$printer->text(str_pad("Total en Dolares:", $label_width, ' ', STR_PAD_RIGHT)."$".number_format($total_dol,2)."\n" );
+			//$printer->text(str_pad("Total en Dolares:", $label_width, ' ', STR_PAD_RIGHT)."$".number_format($total_dol,2)."\n" );
 			$printer->text(str_pad("Total en Cordobas:", $label_width, ' ', STR_PAD_RIGHT)."C$".number_format($total_cor,2)."\n" );
 
 			if( $birthday_writeoff_cordobas > 0 ){
 				$printer->text(str_pad("Desc. cumpleaños:", $label_width, ' ', STR_PAD_RIGHT)."-C$".number_format($birthday_writeoff_cordobas,2)."\n" );
 				$printer->text("  (tope max. C$".number_format($birthday_ceiling_max,2).")\n" );
 			}
+
+			if( $loyalty_discount_cordobas > 0 ){
+				$printer->text(str_pad("Desc. fidelidad:", $label_width, ' ', STR_PAD_RIGHT)."-C$".number_format($loyalty_discount_cordobas,2)."\n" );
+			}
+
+			$printer->selectPrintMode(Printer::MODE_EMPHASIZED);
+			$printer->text(str_pad("Total a pagar:", $label_width, ' ', STR_PAD_RIGHT)."C$".number_format($total_a_pagar_cor,2)."\n" );
+			$printer->selectPrintMode();
+			$printer->text( "-------------------------------------------\n" );
 
 			$methods = [
 				'cash' => 'Efectivo',
@@ -1223,14 +1276,18 @@ class Sales extends Admin_Controller{
 					$change_dollars = floatval($pay->change_dollar_given);
 
 					if( $change_cordobas > 0 || $change_dollars > 0 ){
+						$printer->selectPrintMode(Printer::MODE_EMPHASIZED);
 						$printer->text(str_pad("Cambio:", $label_width, ' ', STR_PAD_RIGHT)."C$".number_format($change_cordobas,2)." + $".number_format($change_dollars,2)."\n" );
+						$printer->selectPrintMode();
 					}
 				}else{
 
 					$change_cordobas = $total_cordobas - $_total_cor;
 					$change_dollars = $change_cordobas / $sale->dollar_ex_buy;
 
+					$printer->selectPrintMode(Printer::MODE_EMPHASIZED);
 					$printer->text(str_pad("Cambio:", $label_width, ' ', STR_PAD_RIGHT)."$".number_format($change_dollars,2)." (C$".number_format($change_cordobas,2).")\n" );
+					$printer->selectPrintMode();
 				}
 			}
 

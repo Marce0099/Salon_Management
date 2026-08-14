@@ -482,6 +482,19 @@
 	var dollarBuyRate = <?php echo $exchange->buy_price; ?>;
 	var dollarSellRate = <?php echo $exchange->sell_price; ?>;
 
+	// Payment-sufficiency tolerance (córdobas) — must mirror paymentSufficiencyToleranceCordobas()
+	// in application/helpers/cash_helper.php exactly. See that function's comment for the full
+	// rationale: a dollar-denominated payment amount typed back from the rounded "Pendiente"
+	// display can miss the exact córdoba total by up to half a dollar-cent per dollar row.
+	var PAYMENT_TOLERANCE_BASE_CORDOBA = 0.01;
+	var PAYMENT_TOLERANCE_PER_DOLLAR_ROW = 0.005;
+	var PAYMENT_TOLERANCE_MAX_CORDOBA = 0.99;
+
+	function paymentSufficiencyTolerance(numDollarRows, sellRate){
+		var raw = numDollarRows * PAYMENT_TOLERANCE_PER_DOLLAR_ROW * sellRate;
+		return Math.max(PAYMENT_TOLERANCE_BASE_CORDOBA, Math.min(raw, PAYMENT_TOLERANCE_MAX_CORDOBA));
+	}
+
 	var appointmentPrefill = <?php echo json_encode($prefill); ?>;
 
 	// VIP/birthday client discounts (application/settings, admin-configurable via /settings) — auto-fill
@@ -900,7 +913,6 @@
 		// without deciding a discount yet, along with the three "representative" rates for the sale.
 		var rows = [];
 		var categoryRepresentative = 0;
-		var birthdayApplies = false;
 		var servicesTotalUndiscounted = 0;
 
 		$('#sales-list tr').each(function(){
@@ -919,7 +931,6 @@
 				undiscountedCordobas = subtotal_dollar * dollarSellRate;
 
 				if( categoryRate > categoryRepresentative ) categoryRepresentative = categoryRate;
-				if( birthdayEligible ) birthdayApplies = true;
 				servicesTotalUndiscounted += undiscountedCordobas;
 			}
 
@@ -928,6 +939,15 @@
 		});
 
 		var vipRepresentative = _selectedClientVip ? VIP_DISCOUNT_RATE : 0;
+
+		// Birthday enters the comparison whenever it qualifies for the sale at all (client's birthday
+		// today AND undiscounted services total >= ceiling min) — NOT tied to any row surviving the
+		// per-row ceiling walk in recalcBirthdayEligibility(). Once the total goes past the ceiling max,
+		// every row can end up excluded by that walk (e.g. a single row whose own amount alone already
+		// exceeds the max) while birthday still owes a flat write-off below; it must still win the sale
+		// for that write-off to happen, not fall back to discounting nothing (mirrors
+		// resolve_single_discount_source()'s $birthday_qualifies server-side).
+		var birthdayApplies = _selectedClientBirthday && servicesTotalUndiscounted >= BIRTHDAY_CEILING_MIN;
 		var birthdayRepresentative = birthdayApplies ? BIRTHDAY_DISCOUNT_RATE : 0;
 
 		// ascending precedence (category, then VIP, then birthday) checked with >=, so a later source
@@ -1193,22 +1213,11 @@
 		var total = 0;
 		$.each(system.payments, function(idx, p){ total += p.subtotal; });
 
-		if( total < system.total_invoice ){
-			new PNotify({
-		            title: 'Notificación',
-		            text: 'El efectivo entregado es menor que el total de la factura',
-		            type : 'error',
-		            styling : 'bootstrap3',
-		            delay : 4000
-		    });
-
-		    return false;
-		}
-
 		var couponError = null;
 		var seenCoupons = {};
 		var cuponSeenOnce = false;
 		var nonCashTotal = 0;
+		var dollarRowCount = 0;
 		var couponRemaining = system.total_services;
 
 		$('#payment-blocks').children('.payment_container').each(function(){
@@ -1216,6 +1225,9 @@
 			var $block  = $(this);
 			var method  = $block.find('.payment-method-select').val();
 			var amount  = system.payments[$block.data('idx')].subtotal;
+
+			if( method !== 'cupon' && ( numeral( $block.find('.dolar-input').val() || 0 ).value() > 0 ) )
+				dollarRowCount++;
 
 			if( method === 'cupon' ){
 
@@ -1271,7 +1283,21 @@
 		    return false;
 		}
 
-		if( nonCashTotal - system.total_invoice > 0.01 ){
+		var paymentTolerance = paymentSufficiencyTolerance(dollarRowCount, dollarSellRate);
+
+		if( total < system.total_invoice - paymentTolerance ){
+			new PNotify({
+		            title: 'Notificación',
+		            text: 'El efectivo entregado es menor que el total de la factura',
+		            type : 'error',
+		            styling : 'bootstrap3',
+		            delay : 4000
+		    });
+
+		    return false;
+		}
+
+		if( nonCashTotal - system.total_invoice > paymentTolerance ){
 			new PNotify({
 		            title: 'Notificación',
 		            text: 'El total de pagos con POS, transferencia y/o cupón no puede exceder el total de la factura. El efectivo debe cubrir cualquier excedente.',

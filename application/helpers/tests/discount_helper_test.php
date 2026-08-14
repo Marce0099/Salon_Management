@@ -148,7 +148,7 @@ check( 'boundary: coupon at +0.02 neutralizes discount', $r['discounts'], array(
 
 $category_rates = array( 0 => 0, 1 => 0 );
 $birthday_eligible = array( 0 => true, 1 => false );
-$r = resolve_single_discount_source( $category_rates, true, 15, $birthday_eligible, 50 );
+$r = resolve_single_discount_source( $category_rates, true, 15, $birthday_eligible, 50, true );
 check( 'bug repro: birthday wins the sale', $r['winning_source'], 'birthday' );
 check( 'bug repro: eligible line gets birthday rate, excluded line gets 0 (not VIP)', $r['discounts'], array(0 => 50, 1 => 0) );
 check( 'bug repro: winning_rate is 50', $r['winning_rate'], 50 );
@@ -160,7 +160,7 @@ check( 'bug repro: winning_rate is 50', $r['winning_rate'], 50 );
 
 $category_rates = array( 0 => 60, 1 => 20 );
 $birthday_eligible = array( 0 => false, 1 => false ); // client not having a birthday today
-$r = resolve_single_discount_source( $category_rates, true, 15, $birthday_eligible, 50 );
+$r = resolve_single_discount_source( $category_rates, true, 15, $birthday_eligible, 50, false );
 check( 'category wins: winning_source is category', $r['winning_source'], 'category' );
 check( 'category wins: each line keeps its own rate', $r['discounts'], array(0 => 60, 1 => 20) );
 
@@ -171,7 +171,7 @@ check( 'category wins: each line keeps its own rate', $r['discounts'], array(0 =
 
 $category_rates = array( 0 => 10, 1 => 5 );
 $birthday_eligible = array( 0 => false, 1 => false );
-$r = resolve_single_discount_source( $category_rates, true, 20, $birthday_eligible, 50 );
+$r = resolve_single_discount_source( $category_rates, true, 20, $birthday_eligible, 50, false );
 check( 'vip wins: winning_source is vip', $r['winning_source'], 'vip' );
 check( 'vip wins: every line gets the flat VIP rate', $r['discounts'], array(0 => 20, 1 => 20) );
 
@@ -181,21 +181,40 @@ check( 'vip wins: every line gets the flat VIP rate', $r['discounts'], array(0 =
 
 $category_rates = array( 0 => 0, 1 => 0 );
 $birthday_eligible = array( 0 => false, 1 => false );
-$r = resolve_single_discount_source( $category_rates, false, 15, $birthday_eligible, 50 );
+$r = resolve_single_discount_source( $category_rates, false, 15, $birthday_eligible, 50, false );
 check( 'nothing applies: winning_source is none', $r['winning_source'], 'none' );
 check( 'nothing applies: all discounts zero', $r['discounts'], array(0 => 0, 1 => 0) );
 
 // ---------------------------------------------------------------------------
-// Birthday is configured with a higher rate than VIP, but the ceiling excludes every line, so
-// birthday never actually applies anywhere. It must NOT "win" and discount nothing while
-// blocking VIP for no benefit — VIP should win instead.
+// Birthday genuinely doesn't qualify (client not having a birthday today, or the sale's total
+// never reached the ceiling minimum) — VIP should win instead. Different from the scenario below:
+// here $birthday_qualifies is false, not just "the per-line ceiling walk happened to exclude
+// every line while the sale still qualifies."
 // ---------------------------------------------------------------------------
 
 $category_rates = array( 0 => 0, 1 => 0 );
-$birthday_eligible = array( 0 => false, 1 => false ); // ceiling excluded every line
-$r = resolve_single_discount_source( $category_rates, true, 15, $birthday_eligible, 50 );
-check( 'birthday excluded everywhere: vip wins instead', $r['winning_source'], 'vip' );
-check( 'birthday excluded everywhere: both lines get the VIP rate', $r['discounts'], array(0 => 15, 1 => 15) );
+$birthday_eligible = array( 0 => false, 1 => false );
+$r = resolve_single_discount_source( $category_rates, true, 15, $birthday_eligible, 50, false );
+check( 'birthday does not qualify: vip wins instead', $r['winning_source'], 'vip' );
+check( 'birthday does not qualify: both lines get the VIP rate', $r['discounts'], array(0 => 15, 1 => 15) );
+
+// ---------------------------------------------------------------------------
+// Regression for the reported bug: a single service line's own undiscounted amount already
+// exceeds the ceiling max, so the per-line ceiling walk marks it (and everything after)
+// ineligible — $birthday_eligible is all false, same shape as the "doesn't qualify" scenario
+// above. But the sale DOES qualify ($birthday_qualifies = true: client's birthday, total >=
+// ceiling min), so birthday must still win the sale here (its rate beats VIP's), so that
+// resolve_birthday_ceiling_writeoff() can produce its flat write-off afterwards instead of the
+// bug's silent "discount nothing." VIP must NOT win by default just because no line survived
+// the per-line walk.
+// ---------------------------------------------------------------------------
+
+$category_rates = array( 0 => 0 );
+$birthday_eligible = array( 0 => false ); // this one line's own amount alone exceeds the ceiling max
+$r = resolve_single_discount_source( $category_rates, true, 15, $birthday_eligible, 50, true );
+check( 'bug repro, single oversized line: birthday still wins the sale', $r['winning_source'], 'birthday' );
+check( 'bug repro, single oversized line: winning_rate is 50 (birthday, not vip)', $r['winning_rate'], 50 );
+check( 'bug repro, single oversized line: line discount is 0 (excluded by the per-line walk)', $r['discounts'], array(0 => 0) );
 
 // ---------------------------------------------------------------------------
 // Exact ties: precedence is birthday > VIP > category.
@@ -203,13 +222,13 @@ check( 'birthday excluded everywhere: both lines get the VIP rate', $r['discount
 
 $category_rates = array( 0 => 20, 1 => 5 );
 $birthday_eligible = array( 0 => false, 1 => false );
-$r = resolve_single_discount_source( $category_rates, true, 20, $birthday_eligible, 50 ); // category 20 == vip 20
+$r = resolve_single_discount_source( $category_rates, true, 20, $birthday_eligible, 50, false ); // category 20 == vip 20
 check( 'tie category vs vip: vip wins', $r['winning_source'], 'vip' );
 check( 'tie category vs vip: uniform vip rate applied', $r['discounts'], array(0 => 20, 1 => 20) );
 
 $category_rates = array( 0 => 0 );
 $birthday_eligible = array( 0 => true );
-$r = resolve_single_discount_source( $category_rates, true, 20, $birthday_eligible, 20 ); // vip 20 == birthday 20
+$r = resolve_single_discount_source( $category_rates, true, 20, $birthday_eligible, 20, true ); // vip 20 == birthday 20
 check( 'tie vip vs birthday: birthday wins', $r['winning_source'], 'birthday' );
 check( 'tie vip vs birthday: birthday rate applied', $r['discounts'], array(0 => 20) );
 
@@ -222,7 +241,7 @@ check( 'tie vip vs birthday: birthday rate applied', $r['discounts'], array(0 =>
 
 $category_rates = array( 0 => 0, 1 => 0 );
 $birthday_eligible = array( 0 => true, 1 => false );
-$stage1 = resolve_single_discount_source( $category_rates, true, 15, $birthday_eligible, 50 );
+$stage1 = resolve_single_discount_source( $category_rates, true, 15, $birthday_eligible, 50, true );
 
 $undiscounted = array( 0 => 600, 1 => 500 );
 
@@ -327,7 +346,7 @@ check( 'extra arg combined: extra kept when coupon absent', $r['extra_discount_c
 
 $category_rates = array( 0 => 0, 1 => 0 );
 $birthday_eligible = array( 0 => true, 1 => false ); // old per-line walk: line 0 fits under 1000, line 1 doesn't
-$stage1 = resolve_single_discount_source( $category_rates, true, 15, $birthday_eligible, 50 );
+$stage1 = resolve_single_discount_source( $category_rates, true, 15, $birthday_eligible, 50, true );
 check( 'e2e ceiling: birthday still wins the sale', $stage1['winning_source'], 'birthday' );
 
 $undiscounted = array( 0 => 700, 1 => 900 );
