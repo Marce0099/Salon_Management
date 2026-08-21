@@ -78,14 +78,29 @@
             <input type="text" name="date_time" id="date_time" class="form-control dtpicker" required="true">
         </div>
 	</div>
-	<div class="form-group" style="margin-bottom: 20px;">
-		<div class="col-md-offset-2 col-sm-offset-3 col-md-6 col-sm-6" style="display: flex; align-items: center; flex-wrap: wrap; gap:10px;">
+	<div class="form-group" style="margin-bottom: 10px;">
+		<div class="col-md-offset-2 col-sm-offset-3 col-md-6 col-sm-6">
 			<button type="button" class="btn btn-warning" id="add_payment" style="white-space: nowrap;">Agregar mas forma de pago</button>
+		</div>
+	</div>
+	<div class="form-group" style="margin-bottom: 10px;">
+		<div class="col-md-offset-2 col-sm-offset-3 col-md-6 col-sm-6" style="display: flex; align-items: center; flex-wrap: wrap; gap:10px;">
+			<small class="text-muted" style="width:100%;">Estado de pago:</small>
 			<span id="payment-due-badge" class="label label-warning" style="font-size: 100%; white-space: nowrap;"></span>
 			<span id="payment-overpayment-badge" class="label label-info" style="font-size: 100%; white-space: nowrap; display: none;"></span>
+		</div>
+	</div>
+	<div class="form-group" style="margin-bottom: 10px;">
+		<div class="col-md-offset-2 col-sm-offset-3 col-md-6 col-sm-6" style="display: flex; align-items: center; flex-wrap: wrap; gap:10px;">
+			<small class="text-muted" style="width:100%;">Descuentos y créditos aplicados:</small>
 			<span id="deposit-applied-badge" class="label label-success" style="font-size: 100%; white-space: nowrap; display: none;"></span>
 			<span id="loyalty-applied-badge" class="label label-success" style="font-size: 100%; white-space: nowrap; display: none;"></span>
 			<span id="birthday-ceiling-applied-badge" class="label label-success" style="font-size: 100%; white-space: nowrap; display: none;"></span>
+		</div>
+	</div>
+	<div class="form-group" style="margin-bottom: 20px;">
+		<div class="col-md-offset-2 col-sm-offset-3 col-md-6 col-sm-6" style="display: flex; align-items: center; flex-wrap: wrap; gap:10px;">
+			<small class="text-muted" style="width:100%;">Tasas de cambio:</small>
 			<span class="label label-info" style="font-size: 100%; white-space: nowrap;">Tasa venta:C$<?php echo $exchange->sell_price; ?></span>
 			<span class="label label-info" style="font-size: 100%; white-space: nowrap;">Tasa compra:C$<?php echo $exchange->buy_price; ?></span>
 		</div>
