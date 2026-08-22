@@ -95,10 +95,18 @@ class Sales extends Admin_Controller{
 			$commission_rate = $this->input->post('commission_rate');
 			$my_product = $this->input->post('my_product');
 
-			// Line discounts are never trusted from the client — a posted value is only ever a UI
-			// convenience the browser happened to compute; the real value is recomputed below from
-			// server-side data (service category default / VIP rate) once the client is resolved,
-			// so a tampered or hand-crafted request can't apply a discount beyond what's legitimate.
+			// When checked, the employee typed every line's discount by hand and the automated VIP/
+			// birthday/category rules (and the coupon-vs-discount golden rule) are bypassed entirely —
+			// see the branch built around this flag below. Coupon payments are rejected outright in
+			// that mode instead (checked further down, alongside the other payment-method checks).
+			$manual_discount = (bool) $this->input->post('manual_discount');
+
+			// Line discounts are never trusted from the client UNLESS $manual_discount is set — normally
+			// a posted value is only a UI convenience the browser happened to compute, and the real value
+			// is recomputed below from server-side data (service category default / VIP rate) once the
+			// client is resolved, so a tampered or hand-crafted request can't apply a discount beyond
+			// what's legitimate. In manual mode the posted value IS the real value, but is still range-
+			// validated (0-100) before being trusted — see the branch below.
 			$discounts = array();
 
 			$sale['client'] = $this->input->post('id_client');
@@ -159,6 +167,18 @@ class Sales extends Admin_Controller{
 					$response['message'] = 'Metodo de pago no válido';
 					echo json_encode($response);
 					exit();
+				}
+			}
+
+			if( $manual_discount ){
+				foreach( $payment_methods as $pm ){
+					if( $pm === 'cupon' ){
+
+						$response['type'] = 'error';
+						$response['message'] = 'No se puede usar cupón cuando el descuento es manual';
+						echo json_encode($response);
+						exit();
+					}
 				}
 			}
 
@@ -270,76 +290,109 @@ class Sales extends Admin_Controller{
 				}
 			}
 
-			/* Pass 2a: candidate line discounts are server-computed, not read from the POST. Golden rule
-			   stage 1: category, VIP, and birthday compete as three whole-sale strategies (not per line
-			   independently) — whichever is worth the most wins and is applied everywhere it's eligible,
-			   every other line gets a flat 0. This is only a candidate: golden rule stage 2 below may
-			   still neutralize the winner in favor of a coupon payment worth more. */
-			$discounts = array_fill( 0, count($id_products), 0 );
+			if( $manual_discount ){
 
-			$category_rates_for_services = array();
-			$birthday_eligible_for_services = array();
-			foreach( $undiscounted_service_cordobas as $i => $undiscounted ){
-				$category_rates_for_services[$i] = $category_rates[$i];
-				$birthday_eligible_for_services[$i] = !empty($birthday_eligible[$i]);
+				/* Manual override: the automated golden rule (category/VIP/birthday competition, then
+				   coupon-vs-discount) is bypassed entirely. Every posted discount is trusted for the
+				   first time in this codebase, so it gets its own explicit 0-100 range validation here
+				   (mirrors the existing coupon-discount-rate check further down) — every line index is
+				   covered, not just service lines, unlike the automated path below. */
+				$posted_discounts = $this->input->post('discounts') ?: array();
+				$discounts = array_fill( 0, count($id_products), 0 );
+
+				for( $i=0; $i < count($id_products); $i++ ){
+
+					$raw = isset($posted_discounts[$i]) ? trim($posted_discounts[$i]) : '0';
+					if( $raw === '' ) $raw = '0';
+
+					if( !is_numeric($raw) || $raw < 0 || $raw > 100 ){
+
+						$response['type'] = 'error';
+						$response['message'] = 'El descuento manual debe ser un número entre 0 y 100';
+						echo json_encode($response);
+						exit();
+					}
+
+					$discounts[$i] = (int) round( (float) $raw );
+				}
+
+				$has_discounted_service = false;
+				$total_line_discount_cordobas = 0;
+				$birthday_ceiling_writeoff_cordobas = 0;
+
+			}else{
+
+				/* Pass 2a: candidate line discounts are server-computed, not read from the POST. Golden rule
+				   stage 1: category, VIP, and birthday compete as three whole-sale strategies (not per line
+				   independently) — whichever is worth the most wins and is applied everywhere it's eligible,
+				   every other line gets a flat 0. This is only a candidate: golden rule stage 2 below may
+				   still neutralize the winner in favor of a coupon payment worth more. */
+				$discounts = array_fill( 0, count($id_products), 0 );
+
+				$category_rates_for_services = array();
+				$birthday_eligible_for_services = array();
+				foreach( $undiscounted_service_cordobas as $i => $undiscounted ){
+					$category_rates_for_services[$i] = $category_rates[$i];
+					$birthday_eligible_for_services[$i] = !empty($birthday_eligible[$i]);
+				}
+
+				$source_resolution = resolve_single_discount_source(
+					$category_rates_for_services,
+					$sale_client_is_vip,
+					$vip_discount_rate,
+					$birthday_eligible_for_services,
+					$birthday_discount_rate,
+					$apply_birthday_ceiling
+				);
+
+				foreach( $source_resolution['discounts'] as $i => $rate ){
+					$discounts[$i] = $rate;
+				}
+
+				/* Birthday-ceiling cap: once birthday wins stage 1 above AND the sale's undiscounted services
+				   total goes beyond the configured maximum, the discount stops being granted per line — every
+				   service line's candidate is zeroed here and replaced by a single flat córdoba write-off
+				   (birthday_rate% of the MAXIMUM, not the actual total), which still competes against a coupon
+				   in stage 2 below just like a per-line discount would. No-op in every other case: a different
+				   source won, or birthday won within the ceiling (today's per-line behavior is unchanged). */
+				$candidate_discounts_for_resolution = array();
+				foreach( $undiscounted_service_cordobas as $i => $undiscounted ){
+					$candidate_discounts_for_resolution[$i] = $discounts[$i];
+				}
+
+				$ceiling_resolution = resolve_birthday_ceiling_writeoff(
+					$source_resolution['winning_source'],
+					$birthday_discount_rate,
+					$services_total_undiscounted_cordobas,
+					$birthday_ceiling_max,
+					$candidate_discounts_for_resolution
+				);
+
+				$candidate_discounts_for_resolution = $ceiling_resolution['discounts'];
+				foreach( $candidate_discounts_for_resolution as $i => $rate ){
+					$discounts[$i] = $rate;
+				}
+
+				/* Pass 2b, golden rule stage 2: only one discount effect survives per sale. The winning line
+				   discount from stage 1 above (or the flat birthday-ceiling write-off just resolved) competes
+				   against a coupon payment: whichever is worth more in córdobas wins, the other is neutralized.
+				   Coupon tender total is a single row's amount since more than one coupon payment per sale is
+				   already rejected above. */
+				$coupon_tender_total = 0;
+				foreach( $payment_methods as $pm_i => $pm ){
+					if( $pm === 'cupon' ) $coupon_tender_total += floatval(str_replace(',', '', $cupon_amounts[$pm_i]));
+				}
+
+				$resolution = resolve_coupon_vs_line_discounts( $candidate_discounts_for_resolution, $undiscounted_service_cordobas, $coupon_tender_total, $ceiling_resolution['writeoff_cordobas'] );
+
+				foreach( $resolution['discounts'] as $i => $final_rate ){
+					$discounts[$i] = $final_rate;
+				}
+
+				$has_discounted_service = !$resolution['coupon_allowed'];
+				$total_line_discount_cordobas = $resolution['total_line_discount_cordobas'];
+				$birthday_ceiling_writeoff_cordobas = $resolution['extra_discount_cordobas'];
 			}
-
-			$source_resolution = resolve_single_discount_source(
-				$category_rates_for_services,
-				$sale_client_is_vip,
-				$vip_discount_rate,
-				$birthday_eligible_for_services,
-				$birthday_discount_rate,
-				$apply_birthday_ceiling
-			);
-
-			foreach( $source_resolution['discounts'] as $i => $rate ){
-				$discounts[$i] = $rate;
-			}
-
-			/* Birthday-ceiling cap: once birthday wins stage 1 above AND the sale's undiscounted services
-			   total goes beyond the configured maximum, the discount stops being granted per line — every
-			   service line's candidate is zeroed here and replaced by a single flat córdoba write-off
-			   (birthday_rate% of the MAXIMUM, not the actual total), which still competes against a coupon
-			   in stage 2 below just like a per-line discount would. No-op in every other case: a different
-			   source won, or birthday won within the ceiling (today's per-line behavior is unchanged). */
-			$candidate_discounts_for_resolution = array();
-			foreach( $undiscounted_service_cordobas as $i => $undiscounted ){
-				$candidate_discounts_for_resolution[$i] = $discounts[$i];
-			}
-
-			$ceiling_resolution = resolve_birthday_ceiling_writeoff(
-				$source_resolution['winning_source'],
-				$birthday_discount_rate,
-				$services_total_undiscounted_cordobas,
-				$birthday_ceiling_max,
-				$candidate_discounts_for_resolution
-			);
-
-			$candidate_discounts_for_resolution = $ceiling_resolution['discounts'];
-			foreach( $candidate_discounts_for_resolution as $i => $rate ){
-				$discounts[$i] = $rate;
-			}
-
-			/* Pass 2b, golden rule stage 2: only one discount effect survives per sale. The winning line
-			   discount from stage 1 above (or the flat birthday-ceiling write-off just resolved) competes
-			   against a coupon payment: whichever is worth more in córdobas wins, the other is neutralized.
-			   Coupon tender total is a single row's amount since more than one coupon payment per sale is
-			   already rejected above. */
-			$coupon_tender_total = 0;
-			foreach( $payment_methods as $pm_i => $pm ){
-				if( $pm === 'cupon' ) $coupon_tender_total += floatval(str_replace(',', '', $cupon_amounts[$pm_i]));
-			}
-
-			$resolution = resolve_coupon_vs_line_discounts( $candidate_discounts_for_resolution, $undiscounted_service_cordobas, $coupon_tender_total, $ceiling_resolution['writeoff_cordobas'] );
-
-			foreach( $resolution['discounts'] as $i => $final_rate ){
-				$discounts[$i] = $final_rate;
-			}
-
-			$has_discounted_service = !$resolution['coupon_allowed'];
-			$total_line_discount_cordobas = $resolution['total_line_discount_cordobas'];
-			$birthday_ceiling_writeoff_cordobas = $resolution['extra_discount_cordobas'];
 
 			/* totals accumulation runs after the golden-rule resolution above so it reflects the final
 			   (possibly neutralized) discount, not the raw per-line candidate */
