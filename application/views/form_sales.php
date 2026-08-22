@@ -14,7 +14,7 @@
 				<th>Precio</th>
 				<th>Cantidad</th>
 				<th>Descuento</th>
-				<th>Mi Producto</th>
+				<th>Atendido por</th>
 				<th>Valor C$</th>
 				<th>Valor $</th>
 			</tr>
@@ -262,11 +262,9 @@
 	    	</div>
 	    </td>
 		<td>
-			<div>
-				<select name="my_product[]" class="p-my_product form-control">
-					<option value="0">No</option>
-					<option value="1">Si</option>
-				</select>
+			<div class="tr-input p-atendido">
+				<input type="text" class="form-control atendido-name" placeholder="Atendido por" readonly="true" style="cursor:pointer;background-color:#fff;">
+				<input type="hidden" class="atendido-id" name="attended_employees[]" value="">
 			</div>
 		</td>
 		<td>
@@ -359,7 +357,8 @@
 
 <style>
 	#prod-picker-results tr.picker-selected td,
-	#client-picker-results tr.picker-selected td { background-color: #337ab7 !important; color: #fff; }
+	#client-picker-results tr.picker-selected td,
+	#atendido-picker-results tr.picker-selected td { background-color: #337ab7 !important; color: #fff; }
 </style>
 
 <!-- Product picker modal (#barcode) -->
@@ -467,6 +466,43 @@
 			<div class="modal-footer">
 				<button type="button" class="btn btn-default" data-dismiss="modal">Cancelar</button>
 				<button type="button" class="btn btn-primary" id="client-picker-ok" disabled>OK</button>
+			</div>
+
+		</div>
+	</div>
+</div>
+
+<!-- Atendido por (servicing employee) picker modal -->
+<div class="modal fade" id="atendido-picker-modal" tabindex="-1" role="dialog">
+	<div class="modal-dialog" role="document">
+		<div class="modal-content">
+
+			<div class="modal-header">
+				<button type="button" class="close" data-dismiss="modal"><span>&times;</span></button>
+				<h4 class="modal-title">Seleccionar Empleado</h4>
+			</div>
+
+			<div class="modal-body">
+				<div class="row" style="margin-bottom:10px;">
+					<div class="col-sm-12">
+						<input type="text" id="atendido-picker-search" class="form-control" placeholder="Buscar por nombre">
+					</div>
+				</div>
+				<div style="max-height:350px;overflow-y:auto;">
+					<table class="table table-bordered table-hover table-condensed">
+						<thead>
+							<tr>
+								<th>Empleado</th>
+							</tr>
+						</thead>
+						<tbody id="atendido-picker-results"></tbody>
+					</table>
+				</div>
+			</div>
+
+			<div class="modal-footer">
+				<button type="button" class="btn btn-default" data-dismiss="modal">Cancelar</button>
+				<button type="button" class="btn btn-primary" id="atendido-picker-ok" disabled>OK</button>
 			</div>
 
 		</div>
@@ -668,7 +704,7 @@
 			row.addClass('p-service');
 		}
 		else{
-			row.find('.p-my_product').addClass('hide');
+			row.find('.p-atendido').addClass('hide');
 		}
 
 		row.find('.p-name').html( p.barcode ? (p.barcode+' : '+p.name) : p.name );
@@ -680,6 +716,14 @@
 
 			var categoryRate = (p.category_discount_rate !== null && p.category_discount_rate !== undefined && p.category_discount_rate !== '') ? numeral(p.category_discount_rate).value() : 0;
 			row.data('category-discount-rate', categoryRate);
+
+			// defaults "Atendido por" to the currently-selected Vendedor; cashier only needs to
+			// open the picker to override it for a line a different employee actually served
+			var $vendedor = $('#id_employee option:selected');
+			if( $vendedor.val() ){
+				row.find('.atendido-name').val($vendedor.text().trim());
+				row.find('.atendido-id').val($vendedor.val());
+			}
 		}
 
 		if( _manualDiscountMode ){
@@ -932,6 +976,101 @@
 		updateTotal();
 
 		$('#client-picker-modal').modal('hide');
+	});
+
+	// ----- Atendido por (servicing employee) picker modal -----
+	// One modal instance shared by every service row's readonly "Atendido por" input; the row that
+	// was clicked is remembered in _atendidoPickerTargetRow and only written to on OK.
+
+	var _atendidoPickerTargetRow = null;
+	var _atendidoPickerSelected  = null;
+	var _atendidoPickerListBuilt = false;
+
+	// Employees are already fully rendered server-side into the "Vendedor" select (#id_employee) —
+	// reuse that instead of a new AJAX endpoint or duplicating the list.
+	function buildAtendidoPickerList(){
+
+		if( _atendidoPickerListBuilt ) return;
+		_atendidoPickerListBuilt = true;
+
+		var $tbody = $('#atendido-picker-results').empty();
+
+		$('#id_employee option').each(function(){
+
+			var id = $(this).val();
+			var name = $(this).text().trim();
+
+			if( !id ) return; // skip the blank "---" placeholder option
+
+			$('<tr>').data('employee', { id : id, name : name })
+				.append($('<td>').text(name))
+				.appendTo($tbody);
+		});
+	}
+
+	$(document).on('click', '.atendido-name', function(){
+
+		_atendidoPickerTargetRow = $(this).closest('tr');
+		_atendidoPickerSelected = null;
+
+		buildAtendidoPickerList();
+
+		$('#atendido-picker-search').val('');
+		$('#atendido-picker-results tr').show().removeClass('picker-selected');
+		$('#atendido-picker-ok').prop('disabled', true);
+
+		// pre-highlight the row's current selection, if any
+		var currentId = _atendidoPickerTargetRow.find('.atendido-id').val();
+		if( currentId ){
+			$('#atendido-picker-results tr').each(function(){
+				var e = $(this).data('employee');
+				if( e && e.id == currentId ){
+					$(this).addClass('picker-selected');
+					_atendidoPickerSelected = e;
+					$('#atendido-picker-ok').prop('disabled', false);
+				}
+			});
+		}
+
+		$('#atendido-picker-modal').modal('show');
+
+		$('#atendido-picker-modal').one('shown.bs.modal', function(){
+			$('#atendido-picker-search').focus();
+		});
+	});
+
+	// Plain client-side substring filter — the employee list is small and already fully loaded,
+	// unlike the client/product pickers which query potentially large tables via AJAX.
+	$(document).on('input', '#atendido-picker-search', function(){
+
+		var term = $.trim( $(this).val() ).toLowerCase();
+
+		$('#atendido-picker-results tr').each(function(){
+			var e = $(this).data('employee');
+			var match = !term || ( e && e.name.toLowerCase().indexOf(term) !== -1 );
+			$(this).toggle(!!match);
+		});
+	});
+
+	// Row highlight on click
+	$(document).on('click', '#atendido-picker-results tr', function(){
+		var e = $(this).data('employee');
+		if( !e ) return;
+		$('#atendido-picker-results tr').removeClass('picker-selected');
+		$(this).addClass('picker-selected');
+		_atendidoPickerSelected = e;
+		$('#atendido-picker-ok').prop('disabled', false);
+	});
+
+	// OK: write the selected employee into the row that opened the modal
+	$('#atendido-picker-ok').on('click', function(){
+
+		if( !_atendidoPickerSelected || !_atendidoPickerTargetRow ) return;
+
+		_atendidoPickerTargetRow.find('.atendido-name').val(_atendidoPickerSelected.name);
+		_atendidoPickerTargetRow.find('.atendido-id').val(_atendidoPickerSelected.id);
+
+		$('#atendido-picker-modal').modal('hide');
 	});
 
 	// Full recompute over every row in the sale, not just the one that triggered the change: birthday-

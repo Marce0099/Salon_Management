@@ -50,10 +50,15 @@ class Employees_mdl extends CI_Model{
 		$date_start = date('Y-m-d',strtotime($date_start));
 		$date_end = date('Y-m-d',strtotime($date_end));
 
-		$sql = 'select S.* from sales S where id_employee = ? and
-		date(date_time) between ? and ?';
+		// an invoice belongs to this employee's report either as its main Vendedor (legacy behavior,
+		// and the fallback attribution for lines with no explicit servicing employee) or because they
+		// actually served at least one line on it via sale_products.id_employee
+		$sql = 'select distinct S.* from sales S
+		left join sale_products SP on SP.id_sale = S.id_sale
+		where ( S.id_employee = ? or SP.id_employee = ? ) and
+		date(S.date_time) between ? and ?';
 
-		$data['sales'] = $this->db->query($sql, array( (int) $id_employee, $date_start, $date_end ))->result();
+		$data['sales'] = $this->db->query($sql, array( (int) $id_employee, (int) $id_employee, $date_start, $date_end ))->result();
 
 		/*foreach( $data['sales'] as $s ){
 
@@ -79,7 +84,7 @@ class Employees_mdl extends CI_Model{
 		return $data['sales'];
 	}
 
-	public function getSaleDetail( $id_sale ){
+	public function getSaleDetail( $id_sale, $id_employee = NULL ){
 
 		$data = array(
 			'totalSale' => 0,
@@ -87,6 +92,9 @@ class Employees_mdl extends CI_Model{
 			'commissionUsd' => 0,
 			'realProfit' => 0
 		);
+
+		$sale_row = $this->db->query("SELECT id_employee, dollar_ex_sell FROM `sales` WHERE id_sale='{$id_sale}';")->row();
+		$sale_employee = $sale_row ? $sale_row->id_employee : NULL;
 
 		$sql = "SELECT * FROM `sale_products` WHERE id_sale='{$id_sale}';";
 		$products = $this->db->query($sql)->result();
@@ -98,15 +106,14 @@ class Employees_mdl extends CI_Model{
 			$sold = $p->price * $p->quantity;
 			$discounted = $sold - ($sold * ($p->discount/100));
 
-			if(!is_null($p->commission_rate)){
+			// a line's servicing employee is whoever actually performed it; lines that predate this
+			// feature (or product lines, which never carry it) fall back to the invoice's Vendedor
+			$effective_employee = $p->id_employee ? $p->id_employee : $sale_employee;
+
+			if(!is_null($p->commission_rate) && ( is_null($id_employee) || $effective_employee == $id_employee )){
 				$cr = floatval($p->commission_rate) / 100;
 
-				// employee used their own product for this service: settled commission gets a 10% bump
-				if($p->my_product){
-					$cr *= 1.10;
-				}
-
-				// commission rate can never exceed 50%, regardless of configured rate or bonus
+				// commission rate can never exceed 50%, regardless of configured rate
 				if($cr > 0.5){
 					$cr = 0.5;
 				}
@@ -121,7 +128,6 @@ class Employees_mdl extends CI_Model{
 		// córdoba conversion uses this sale's own dollar_ex_sell snapshot — the rate
 		// every other córdoba conversion in the app uses (invoices, cash-drawer revenue,
 		// receipts), not today's live dollar_exchange rate
-		$sale_row = $this->db->query("SELECT dollar_ex_sell FROM `sales` WHERE id_sale='{$id_sale}';")->row();
 		$sell_rate = $sale_row ? floatval($sale_row->dollar_ex_sell) : 0;
 
 		$gross_cordobas = $total_usd * $sell_rate;
