@@ -93,7 +93,7 @@ class Sales extends Admin_Controller{
 			$quantities = $this->input->post('quantities');
 			$prices = $this->input->post('prices');
 			$commission_rate = $this->input->post('commission_rate');
-			$my_product = $this->input->post('my_product');
+			$attended_employees = $this->input->post('attended_employees');
 
 			// When checked, the employee typed every line's discount by hand and the automated VIP/
 			// birthday/category rules (and the coupon-vs-discount golden rule) are bypassed entirely —
@@ -841,7 +841,8 @@ class Sales extends Admin_Controller{
 				$sale_product['discount'] = $discounts[$i];
 				$cr = $commission_rate[$i] === "" ? NULL : $commission_rate[$i];
 				$sale_product['commission_rate'] = $cr;
-				$sale_product['my_product'] = $my_product[$i];
+				$ae = isset($attended_employees[$i]) && $attended_employees[$i] !== '' ? (int) $attended_employees[$i] : NULL;
+				$sale_product['id_employee'] = $ae;
 
 				$subtotal = $sale_product['price'] * $sale_product['quantity'];
 

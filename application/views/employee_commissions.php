@@ -33,7 +33,7 @@
 		<tbody>
 			<?php $com_total = 0; $com_total_usd = 0; foreach( $sales as $s ) : ?>
 
-			<?php $details = $interface->getSaleDetail($s->id_sale); ?>
+			<?php $details = $interface->getSaleDetail($s->id_sale, $id_employee); ?>
 			<tr>
 				<td><?php echo $s->id_sale; ?></td>
 				<td><?php echo date("d-m-Y",strtotime($s->date_time)); ?></td>
