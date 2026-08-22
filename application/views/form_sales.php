@@ -6,7 +6,10 @@
 	<table class="table table-hover table-bordered" id="products-sale">
 		<thead>
 			<tr>
-				<th></th>
+				<th>
+					<input type="checkbox" id="manual-discount-checkbox" name="manual_discount" value="1"
+						title="Al marcar esta casilla se desactivan los descuentos automáticos (VIP, cumpleaños, categoría) y podrá escribir el descuento manualmente en cada producto o servicio. No se podrá usar cupón mientras esté activa.">
+				</th>
 				<th width="30%">Producto</th>
 				<th>Precio</th>
 				<th>Cantidad</th>
@@ -254,7 +257,7 @@
 		</td>
 		<td>
 			<div class="tr-input">
-				<input type="text" name="discounts[]" class="form-control has-feedback-left p-discount readonly" data-parsley-type="integer" readonly="true">
+				<input type="text" name="discounts[]" class="form-control has-feedback-left p-discount readonly" data-parsley-type="integer" data-parsley-min="0" data-parsley-max="100" readonly="true" onkeyup="if(_manualDiscountMode) updateTotal($(this).parents('tr'));">
 	    		<span class="fa fa-percent form-control-feedback left"></span>
 	    	</div>
 	    </td>
@@ -494,6 +497,26 @@
 
 	var _paymentCounter = 1; // idx 0 is the permanent block already in the markup
 
+	// true while the manual-discount checkbox is checked: automated VIP/birthday/category discounts
+	// and the coupon-vs-discount golden rule are both bypassed — every row's discount is whatever the
+	// employee typed, and coupon payments are blocked outright (see updateTotal()'s manual branch below)
+	var _manualDiscountMode = false;
+
+	$(document).on('change', '#manual-discount-checkbox', function(){
+
+		_manualDiscountMode = $(this).is(':checked');
+
+		$('#sales-list .p-discount').each(function(){
+			$(this).prop('readonly', !_manualDiscountMode)
+				.toggleClass('readonly', !_manualDiscountMode)
+				.val(_manualDiscountMode ? '0' : '');
+		});
+
+		$('.payment-method-select option[value="cupon"]').prop('disabled', _manualDiscountMode);
+
+		updateTotal();
+	});
+
 	var dollarBuyRate = <?php echo $exchange->buy_price; ?>;
 	var dollarSellRate = <?php echo $exchange->sell_price; ?>;
 
@@ -657,6 +680,10 @@
 
 			var categoryRate = (p.category_discount_rate !== null && p.category_discount_rate !== undefined && p.category_discount_rate !== '') ? numeral(p.category_discount_rate).value() : 0;
 			row.data('category-discount-rate', categoryRate);
+		}
+
+		if( _manualDiscountMode ){
+			row.find('.p-discount').prop('readonly', false).removeClass('readonly').val('0');
 		}
 
 		$('#sales-list').append(row);
@@ -919,6 +946,59 @@
 	// entered — whichever is worth more in córdobas wins, the other is neutralized (mirrors
 	// resolve_coupon_vs_line_discounts()).
 	function updateTotal( row ){
+
+		// Manual-discount mode: skip the whole golden-rule computation below (category/VIP/birthday
+		// competition, coupon-vs-discount neutralization) entirely. Each row's discount is whatever the
+		// employee typed into its (now-editable) .p-discount input, clamped to 0-100; coupon payments
+		// are force-disallowed via system.coupon_allowed, reusing refreshCouponAvailability()'s existing
+		// revert-any-selected-coupon-row behavior.
+		if( _manualDiscountMode ){
+
+			system.coupon_allowed = false;
+			system.discount_neutralized_by_coupon = false;
+			system.birthday_ceiling_writeoff_cordobas = 0;
+			system.birthday_ceiling_rate = 0;
+
+			var total_dollar = 0, total_cordobas = 0, total_services = 0;
+
+			$('#sales-list tr').each(function(){
+
+				var r = $(this);
+				var price = numeral( r.find('.p-price').val() ).value();
+				var qt = numeral( r.find('.p-quantity').val() ).value();
+				var discount = Math.min( 100, Math.max( 0, numeral( r.find('.p-discount').val() ).value() || 0 ) );
+				var subtotal_dollar = price * qt;
+
+				if( discount ) subtotal_dollar -= subtotal_dollar * discount / 100;
+
+				var subtotal_cordobas = subtotal_dollar * dollarSellRate;
+
+				r.find('.subtotal-dollar').html( numeral(subtotal_dollar).format('0,0.00') );
+				r.find('.subtotal-cordobas').html( numeral(subtotal_cordobas).format('0,0.00') );
+
+				total_dollar += subtotal_dollar;
+				total_cordobas += subtotal_cordobas;
+
+				if( r.hasClass('p-service') ) total_services += subtotal_cordobas;
+			});
+
+			$('#total-dollar').html( numeral(total_dollar).format('0,0.00') );
+			$('#total-cordobas').html( numeral(total_cordobas).format('0,0.00') );
+
+			system.total_services = total_services;
+			refreshCouponAvailability();
+
+			var $loyaltyChk = $('#loyalty-claim-checkbox');
+			if( $loyaltyChk.length && $loyaltyChk.is(':checked') ){
+				var claimedTier = $loyaltyChk.data('tier');
+				system.loyalty_discount_cordobas = system.total_services * claimedTier.rate / 100;
+			}
+
+			system.total_invoice = Math.max( total_cordobas - system.deposit_credit_cordobas - system.loyalty_discount_cordobas, 0 );
+
+			updateDueAmount();
+			return;
+		}
 
 		recalcBirthdayEligibility();
 
@@ -1247,7 +1327,9 @@
 			if( method === 'cupon' ){
 
 				if( !system.coupon_allowed ){
-					couponError = 'El descuento de los servicios es mayor o igual al monto del cupón; no se puede usar el cupón';
+					couponError = _manualDiscountMode
+						? 'No se puede usar cupón cuando el descuento es manual'
+						: 'El descuento de los servicios es mayor o igual al monto del cupón; no se puede usar el cupón';
 					return false;
 				}
 
