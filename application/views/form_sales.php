@@ -6,12 +6,15 @@
 	<table class="table table-hover table-bordered" id="products-sale">
 		<thead>
 			<tr>
-				<th></th>
+				<th>
+					<input type="checkbox" id="manual-discount-checkbox" name="manual_discount" value="1"
+						title="Al marcar esta casilla se desactivan los descuentos automáticos (VIP, cumpleaños, categoría) y podrá escribir el descuento manualmente en cada producto o servicio. No se podrá usar cupón mientras esté activa.">
+				</th>
 				<th width="30%">Producto</th>
 				<th>Precio</th>
 				<th>Cantidad</th>
 				<th>Descuento</th>
-				<th>Mi Producto</th>
+				<th>Atendido por</th>
 				<th>Valor C$</th>
 				<th>Valor $</th>
 			</tr>
@@ -78,14 +81,29 @@
             <input type="text" name="date_time" id="date_time" class="form-control dtpicker" required="true">
         </div>
 	</div>
-	<div class="form-group" style="margin-bottom: 20px;">
-		<div class="col-md-offset-2 col-sm-offset-3 col-md-6 col-sm-6" style="display: flex; align-items: center; flex-wrap: wrap; gap:10px;">
+	<div class="form-group" style="margin-bottom: 10px;">
+		<div class="col-md-offset-2 col-sm-offset-3 col-md-6 col-sm-6">
 			<button type="button" class="btn btn-warning" id="add_payment" style="white-space: nowrap;">Agregar mas forma de pago</button>
+		</div>
+	</div>
+	<div class="form-group" style="margin-bottom: 10px;">
+		<div class="col-md-offset-2 col-sm-offset-3 col-md-6 col-sm-6" style="display: flex; align-items: center; flex-wrap: wrap; gap:10px;">
+			<small class="text-muted" style="width:100%;">Estado de pago:</small>
 			<span id="payment-due-badge" class="label label-warning" style="font-size: 100%; white-space: nowrap;"></span>
 			<span id="payment-overpayment-badge" class="label label-info" style="font-size: 100%; white-space: nowrap; display: none;"></span>
+		</div>
+	</div>
+	<div class="form-group" style="margin-bottom: 10px;">
+		<div class="col-md-offset-2 col-sm-offset-3 col-md-6 col-sm-6" style="display: flex; align-items: center; flex-wrap: wrap; gap:10px;">
+			<small class="text-muted" style="width:100%;">Descuentos y créditos aplicados:</small>
 			<span id="deposit-applied-badge" class="label label-success" style="font-size: 100%; white-space: nowrap; display: none;"></span>
 			<span id="loyalty-applied-badge" class="label label-success" style="font-size: 100%; white-space: nowrap; display: none;"></span>
 			<span id="birthday-ceiling-applied-badge" class="label label-success" style="font-size: 100%; white-space: nowrap; display: none;"></span>
+		</div>
+	</div>
+	<div class="form-group" style="margin-bottom: 20px;">
+		<div class="col-md-offset-2 col-sm-offset-3 col-md-6 col-sm-6" style="display: flex; align-items: center; flex-wrap: wrap; gap:10px;">
+			<small class="text-muted" style="width:100%;">Tasas de cambio:</small>
 			<span class="label label-info" style="font-size: 100%; white-space: nowrap;">Tasa venta:C$<?php echo $exchange->sell_price; ?></span>
 			<span class="label label-info" style="font-size: 100%; white-space: nowrap;">Tasa compra:C$<?php echo $exchange->buy_price; ?></span>
 		</div>
@@ -239,16 +257,14 @@
 		</td>
 		<td>
 			<div class="tr-input">
-				<input type="text" name="discounts[]" class="form-control has-feedback-left p-discount readonly" data-parsley-type="integer" readonly="true">
+				<input type="text" name="discounts[]" class="form-control has-feedback-left p-discount readonly" data-parsley-type="integer" data-parsley-min="0" data-parsley-max="100" readonly="true" onkeyup="if(_manualDiscountMode) updateTotal($(this).parents('tr'));">
 	    		<span class="fa fa-percent form-control-feedback left"></span>
 	    	</div>
 	    </td>
 		<td>
-			<div>
-				<select name="my_product[]" class="p-my_product form-control">
-					<option value="0">No</option>
-					<option value="1">Si</option>
-				</select>
+			<div class="tr-input p-atendido">
+				<input type="text" class="form-control atendido-name" placeholder="Atendido por" readonly="true" style="cursor:pointer;background-color:#fff;">
+				<input type="hidden" class="atendido-id" name="attended_employees[]" value="">
 			</div>
 		</td>
 		<td>
@@ -341,7 +357,8 @@
 
 <style>
 	#prod-picker-results tr.picker-selected td,
-	#client-picker-results tr.picker-selected td { background-color: #337ab7 !important; color: #fff; }
+	#client-picker-results tr.picker-selected td,
+	#atendido-picker-results tr.picker-selected td { background-color: #337ab7 !important; color: #fff; }
 </style>
 
 <!-- Product picker modal (#barcode) -->
@@ -455,6 +472,43 @@
 	</div>
 </div>
 
+<!-- Atendido por (servicing employee) picker modal -->
+<div class="modal fade" id="atendido-picker-modal" tabindex="-1" role="dialog">
+	<div class="modal-dialog" role="document">
+		<div class="modal-content">
+
+			<div class="modal-header">
+				<button type="button" class="close" data-dismiss="modal"><span>&times;</span></button>
+				<h4 class="modal-title">Seleccionar Empleado</h4>
+			</div>
+
+			<div class="modal-body">
+				<div class="row" style="margin-bottom:10px;">
+					<div class="col-sm-12">
+						<input type="text" id="atendido-picker-search" class="form-control" placeholder="Buscar por nombre">
+					</div>
+				</div>
+				<div style="max-height:350px;overflow-y:auto;">
+					<table class="table table-bordered table-hover table-condensed">
+						<thead>
+							<tr>
+								<th>Empleado</th>
+							</tr>
+						</thead>
+						<tbody id="atendido-picker-results"></tbody>
+					</table>
+				</div>
+			</div>
+
+			<div class="modal-footer">
+				<button type="button" class="btn btn-default" data-dismiss="modal">Cancelar</button>
+				<button type="button" class="btn btn-primary" id="atendido-picker-ok" disabled>OK</button>
+			</div>
+
+		</div>
+	</div>
+</div>
+
 <script>
 
 	var system = {
@@ -478,6 +532,26 @@
 	};
 
 	var _paymentCounter = 1; // idx 0 is the permanent block already in the markup
+
+	// true while the manual-discount checkbox is checked: automated VIP/birthday/category discounts
+	// and the coupon-vs-discount golden rule are both bypassed — every row's discount is whatever the
+	// employee typed, and coupon payments are blocked outright (see updateTotal()'s manual branch below)
+	var _manualDiscountMode = false;
+
+	$(document).on('change', '#manual-discount-checkbox', function(){
+
+		_manualDiscountMode = $(this).is(':checked');
+
+		$('#sales-list .p-discount').each(function(){
+			$(this).prop('readonly', !_manualDiscountMode)
+				.toggleClass('readonly', !_manualDiscountMode)
+				.val(_manualDiscountMode ? '0' : '');
+		});
+
+		$('.payment-method-select option[value="cupon"]').prop('disabled', _manualDiscountMode);
+
+		updateTotal();
+	});
 
 	var dollarBuyRate = <?php echo $exchange->buy_price; ?>;
 	var dollarSellRate = <?php echo $exchange->sell_price; ?>;
@@ -630,7 +704,7 @@
 			row.addClass('p-service');
 		}
 		else{
-			row.find('.p-my_product').addClass('hide');
+			row.find('.p-atendido').addClass('hide');
 		}
 
 		row.find('.p-name').html( p.barcode ? (p.barcode+' : '+p.name) : p.name );
@@ -642,6 +716,18 @@
 
 			var categoryRate = (p.category_discount_rate !== null && p.category_discount_rate !== undefined && p.category_discount_rate !== '') ? numeral(p.category_discount_rate).value() : 0;
 			row.data('category-discount-rate', categoryRate);
+
+			// defaults "Atendido por" to the currently-selected Vendedor; cashier only needs to
+			// open the picker to override it for a line a different employee actually served
+			var $vendedor = $('#id_employee option:selected');
+			if( $vendedor.val() ){
+				row.find('.atendido-name').val($vendedor.text().trim());
+				row.find('.atendido-id').val($vendedor.val());
+			}
+		}
+
+		if( _manualDiscountMode ){
+			row.find('.p-discount').prop('readonly', false).removeClass('readonly').val('0');
 		}
 
 		$('#sales-list').append(row);
@@ -892,6 +978,101 @@
 		$('#client-picker-modal').modal('hide');
 	});
 
+	// ----- Atendido por (servicing employee) picker modal -----
+	// One modal instance shared by every service row's readonly "Atendido por" input; the row that
+	// was clicked is remembered in _atendidoPickerTargetRow and only written to on OK.
+
+	var _atendidoPickerTargetRow = null;
+	var _atendidoPickerSelected  = null;
+	var _atendidoPickerListBuilt = false;
+
+	// Employees are already fully rendered server-side into the "Vendedor" select (#id_employee) —
+	// reuse that instead of a new AJAX endpoint or duplicating the list.
+	function buildAtendidoPickerList(){
+
+		if( _atendidoPickerListBuilt ) return;
+		_atendidoPickerListBuilt = true;
+
+		var $tbody = $('#atendido-picker-results').empty();
+
+		$('#id_employee option').each(function(){
+
+			var id = $(this).val();
+			var name = $(this).text().trim();
+
+			if( !id ) return; // skip the blank "---" placeholder option
+
+			$('<tr>').data('employee', { id : id, name : name })
+				.append($('<td>').text(name))
+				.appendTo($tbody);
+		});
+	}
+
+	$(document).on('click', '.atendido-name', function(){
+
+		_atendidoPickerTargetRow = $(this).closest('tr');
+		_atendidoPickerSelected = null;
+
+		buildAtendidoPickerList();
+
+		$('#atendido-picker-search').val('');
+		$('#atendido-picker-results tr').show().removeClass('picker-selected');
+		$('#atendido-picker-ok').prop('disabled', true);
+
+		// pre-highlight the row's current selection, if any
+		var currentId = _atendidoPickerTargetRow.find('.atendido-id').val();
+		if( currentId ){
+			$('#atendido-picker-results tr').each(function(){
+				var e = $(this).data('employee');
+				if( e && e.id == currentId ){
+					$(this).addClass('picker-selected');
+					_atendidoPickerSelected = e;
+					$('#atendido-picker-ok').prop('disabled', false);
+				}
+			});
+		}
+
+		$('#atendido-picker-modal').modal('show');
+
+		$('#atendido-picker-modal').one('shown.bs.modal', function(){
+			$('#atendido-picker-search').focus();
+		});
+	});
+
+	// Plain client-side substring filter — the employee list is small and already fully loaded,
+	// unlike the client/product pickers which query potentially large tables via AJAX.
+	$(document).on('input', '#atendido-picker-search', function(){
+
+		var term = $.trim( $(this).val() ).toLowerCase();
+
+		$('#atendido-picker-results tr').each(function(){
+			var e = $(this).data('employee');
+			var match = !term || ( e && e.name.toLowerCase().indexOf(term) !== -1 );
+			$(this).toggle(!!match);
+		});
+	});
+
+	// Row highlight on click
+	$(document).on('click', '#atendido-picker-results tr', function(){
+		var e = $(this).data('employee');
+		if( !e ) return;
+		$('#atendido-picker-results tr').removeClass('picker-selected');
+		$(this).addClass('picker-selected');
+		_atendidoPickerSelected = e;
+		$('#atendido-picker-ok').prop('disabled', false);
+	});
+
+	// OK: write the selected employee into the row that opened the modal
+	$('#atendido-picker-ok').on('click', function(){
+
+		if( !_atendidoPickerSelected || !_atendidoPickerTargetRow ) return;
+
+		_atendidoPickerTargetRow.find('.atendido-name').val(_atendidoPickerSelected.name);
+		_atendidoPickerTargetRow.find('.atendido-id').val(_atendidoPickerSelected.id);
+
+		$('#atendido-picker-modal').modal('hide');
+	});
+
 	// Full recompute over every row in the sale, not just the one that triggered the change: birthday-
 	// ceiling eligibility depends on the whole set of service rows and their order, so a row being added,
 	// removed, or having its quantity edited can shift which OTHER rows qualify for the birthday discount.
@@ -904,6 +1085,59 @@
 	// entered — whichever is worth more in córdobas wins, the other is neutralized (mirrors
 	// resolve_coupon_vs_line_discounts()).
 	function updateTotal( row ){
+
+		// Manual-discount mode: skip the whole golden-rule computation below (category/VIP/birthday
+		// competition, coupon-vs-discount neutralization) entirely. Each row's discount is whatever the
+		// employee typed into its (now-editable) .p-discount input, clamped to 0-100; coupon payments
+		// are force-disallowed via system.coupon_allowed, reusing refreshCouponAvailability()'s existing
+		// revert-any-selected-coupon-row behavior.
+		if( _manualDiscountMode ){
+
+			system.coupon_allowed = false;
+			system.discount_neutralized_by_coupon = false;
+			system.birthday_ceiling_writeoff_cordobas = 0;
+			system.birthday_ceiling_rate = 0;
+
+			var total_dollar = 0, total_cordobas = 0, total_services = 0;
+
+			$('#sales-list tr').each(function(){
+
+				var r = $(this);
+				var price = numeral( r.find('.p-price').val() ).value();
+				var qt = numeral( r.find('.p-quantity').val() ).value();
+				var discount = Math.min( 100, Math.max( 0, numeral( r.find('.p-discount').val() ).value() || 0 ) );
+				var subtotal_dollar = price * qt;
+
+				if( discount ) subtotal_dollar -= subtotal_dollar * discount / 100;
+
+				var subtotal_cordobas = subtotal_dollar * dollarSellRate;
+
+				r.find('.subtotal-dollar').html( numeral(subtotal_dollar).format('0,0.00') );
+				r.find('.subtotal-cordobas').html( numeral(subtotal_cordobas).format('0,0.00') );
+
+				total_dollar += subtotal_dollar;
+				total_cordobas += subtotal_cordobas;
+
+				if( r.hasClass('p-service') ) total_services += subtotal_cordobas;
+			});
+
+			$('#total-dollar').html( numeral(total_dollar).format('0,0.00') );
+			$('#total-cordobas').html( numeral(total_cordobas).format('0,0.00') );
+
+			system.total_services = total_services;
+			refreshCouponAvailability();
+
+			var $loyaltyChk = $('#loyalty-claim-checkbox');
+			if( $loyaltyChk.length && $loyaltyChk.is(':checked') ){
+				var claimedTier = $loyaltyChk.data('tier');
+				system.loyalty_discount_cordobas = system.total_services * claimedTier.rate / 100;
+			}
+
+			system.total_invoice = Math.max( total_cordobas - system.deposit_credit_cordobas - system.loyalty_discount_cordobas, 0 );
+
+			updateDueAmount();
+			return;
+		}
 
 		recalcBirthdayEligibility();
 
@@ -1232,7 +1466,9 @@
 			if( method === 'cupon' ){
 
 				if( !system.coupon_allowed ){
-					couponError = 'El descuento de los servicios es mayor o igual al monto del cupón; no se puede usar el cupón';
+					couponError = _manualDiscountMode
+						? 'No se puede usar cupón cuando el descuento es manual'
+						: 'El descuento de los servicios es mayor o igual al monto del cupón; no se puede usar el cupón';
 					return false;
 				}
 

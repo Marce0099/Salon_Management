@@ -161,6 +161,7 @@ class Employees extends Admin_Controller{
 			$data['employee'] = $this->employees_mdl->getEmployee($id_employee);
 			$data['sales'] = $this->employees_mdl->getSales($id_employee,$date_start,$date_end);
 			$data['interface'] = $this->employees_mdl;
+			$data['id_employee'] = $id_employee;
 			$data['date_start'] = $date_start;
 			$data['date_end'] = $date_end;
 
