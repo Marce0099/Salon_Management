@@ -56,7 +56,7 @@
             z-index: 2;
         }
     </style>
-    <?php if($_SERVER["PATH_INFO"] == "/panel") { ?>
+    <?php if($_SERVER["PATH_INFO"] == "/panel" || $_SERVER["PATH_INFO"] == "/sales_report") { ?>
     <link href="<?php echo base_url('assets/css/chart.css'); ?>" rel="stylesheet">
     <?php } ?>
     <!-- jQuery -->
@@ -96,6 +96,7 @@
 
                       <?php if($this->controller->is_admin()){ ?>
                       <li><a href="<?php echo base_url('sale_goals'); ?>">Meta Mensual</a></li>
+                      <li><a href="<?php echo base_url('sales_report'); ?>">Reporte Detallado</a></li>
                       <?php } ?>
                       <!--<li><a href="<?php //echo base_url('sales/returns'); ?>">Devoluciones</a></li>-->
                     </ul>
