@@ -95,9 +95,21 @@ class Cash extends Admin_Controller{
 				$data['open_id_admin'] = $this->id_admin;
 
 				try {
-					
+
 					$this->cash_mdl->save_open( $data );
 				} catch (\Throwable $th) {
+					log_message('error', sprintf(
+						'Cash::open save_open failed | admin_id=%s quantity=%s quantity_dollar=%s | %s: %s | %s:%d | trace=%s',
+						$this->id_admin,
+						$data['open_quantity'],
+						$data['open_quantity_dollar'],
+						get_class($th),
+						$th->getMessage(),
+						$th->getFile(),
+						$th->getLine(),
+						str_replace(["\r\n", "\n"], ' ', $th->getTraceAsString())
+					));
+
 					$sess_data['status'] = array( 'message' => 'Ha ocurrido un error al abrir caja', 'class' => 'error' );
 					$this->session->set_userdata('view_data',$sess_data);
 					redirect('cash/open');

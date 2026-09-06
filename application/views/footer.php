@@ -22,6 +22,10 @@
     <?php if($_SERVER["PATH_INFO"] === "/panel"){ ?>
       <script src="<?php echo base_url("assets/js/PanelChart.js"); ?>"></script>
     <?php } ?>
+    <!-- SalesReport.js -->
+    <?php if($_SERVER["PATH_INFO"] === "/sales_report"){ ?>
+      <script src="<?php echo base_url("assets/js/SalesReport.js"); ?>"></script>
+    <?php } ?>
     <!-- gauge.js -->
     <script src="<?php echo base_url("assets/gentelella/vendors/gauge.js/dist/gauge.min.js"); ?>"></script>
     <!-- bootstrap-progressbar -->
