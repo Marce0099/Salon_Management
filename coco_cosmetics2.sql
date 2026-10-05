@@ -1023,6 +1023,21 @@ ALTER TABLE `sale_payments`
 ALTER TABLE `sale_products`
   ADD CONSTRAINT `sale_products_ibfk_1` FOREIGN KEY (`id_sale`) REFERENCES `sales` (`id_sale`) ON DELETE CASCADE,
   ADD CONSTRAINT `sale_products_ibfk_2` FOREIGN KEY (`id_product`) REFERENCES `products` (`id_product`) ON DELETE CASCADE;
+--
+-- Estructura de tabla para la tabla `sale_comments`
+--
+CREATE TABLE IF NOT EXISTS `sale_comments` (
+  `id_sale_comment` int(11) NOT NULL AUTO_INCREMENT,
+  `id_sale` int(10) UNSIGNED NOT NULL,
+  `id_admin` int(11) DEFAULT NULL,
+  `comment` text NOT NULL,
+  `created_at` datetime NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`id_sale_comment`),
+  KEY `idx_sale_comments_sale` (`id_sale`,`created_at`),
+  CONSTRAINT `fk_sale_comments_sale` FOREIGN KEY (`id_sale`) REFERENCES `sales` (`id_sale`) ON DELETE CASCADE,
+  CONSTRAINT `fk_sale_comments_admin` FOREIGN KEY (`id_admin`) REFERENCES `admins` (`id_admin`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 COMMIT;
 
 /*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;

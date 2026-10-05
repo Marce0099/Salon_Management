@@ -1491,6 +1491,7 @@ class Sales extends Admin_Controller{
 		$view_data['sale'] = $this->sales_mdl->getSale($id_sale);
 		$view_data['details'] = $this->sales_mdl->getDetails($id_sale);
 		$view_data['payments'] = $payments;
+			$view_data['current_admin_id'] = (int) $this->id_admin;
 		
 		$view_data['payment_methods'] = [
 			'cash' => 'Efectivo',
