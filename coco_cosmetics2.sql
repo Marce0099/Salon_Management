@@ -140,7 +140,7 @@ CREATE TABLE `cash` (
   `open_id_admin` int(11) DEFAULT NULL,
   `close_id_admin` int(11) DEFAULT NULL,
   `close_quantity_cancelled_deposits` varchar(20) DEFAULT NULL,
-  `open_date` date GENERATED ALWAYS AS (cast(`open_date_time` as date)) VIRTUAL
+  `open_date` date GENERATED ALWAYS AS (cast(`open_date_time` as date)) STORED
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 -- --------------------------------------------------------
