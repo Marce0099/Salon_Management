@@ -139,6 +139,7 @@
                       <li><a href="<?php echo base_url('cash/historial'); ?>">Historial</a></li>
                     </ul>
                   </li>
+                  <?php if($this->controller->is_admin()){ ?>
                   <li><a><i class="fa fa-users"></i> Vendedores <span class="fa fa-chevron-down"></span></a>
                     <ul class="nav child_menu">
                       <li><a href="<?php echo base_url('employees'); ?>">Listado</a></li>
@@ -146,6 +147,7 @@
                       <li><a href="<?php echo base_url('employees/commissions'); ?>">Comisiones</a></li>
                     </ul>
                   </li>
+                  <?php } ?>
                   <li><a><i class="fa fa-users"></i> Clientes <span class="fa fa-chevron-down"></span></a>
                     <ul class="nav child_menu">
                       <li><a href="<?php echo base_url('clients'); ?>">Listado</a></li>

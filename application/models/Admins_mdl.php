@@ -25,7 +25,30 @@ class Admins_mdl extends CI_Model{
 
 	public function save($data){
 
-		$this->db->insert('admins', $data);
+		// UNIQUE(username) backstops the controller's usernameExists() pre-check against two
+		// concurrent saves racing past it; surface that as the same friendly message
+		$debug = $this->db->db_debug;
+		$this->db->db_debug = FALSE;
+
+		try {
+			$ok = $this->db->insert('admins', $data);
+			$err = $this->db->error();
+		} catch (\Throwable $th) {
+			$ok = FALSE;
+			$err = array('code' => $th->getCode(), 'message' => $th->getMessage());
+		}
+
+		$this->db->db_debug = $debug;
+
+		if( !$ok ){
+
+			if( (int) $err['code'] === 1062 || stripos((string) $err['message'], 'duplicate entry') !== FALSE ){
+
+				throw new \Exception('Ya existe un usuario con ese nombre');
+			}
+
+			throw new \Exception('Ha ocurrido un error guardando los datos');
+		}
 
 		return $this->db->insert_id();
 	}
