@@ -39,25 +39,52 @@
 
 			if( formPosted() ){
 
-				$invoice['invoice_no'] = $this->input->post('invoice_no');
-				$invoice['id_provider'] = $this->input->post('id_provider') ? $this->input->post('id_provider') : NULL;
-				$dt = str_replace('/', '-', $this->input->post('date_time'));
-				$dt .= ' '.date('H:i:s');
-				$invoice['date_time'] = date('Y-m-d H:i:s', strtotime($dt));
+				// every POST must carry the session form token (CSRF)
+				if( !formSubmited() ){
+
+					$this->registerError('Sesión inválida, recargue la página e intente de nuevo');
+				}
+
+				$invoice_no = trim((string)$this->input->post('invoice_no'));
+				$raw_provider = trim((string)$this->input->post('id_provider'));
+
+				if( $invoice_no === '' || strlen($invoice_no) > 50 ){
+
+					$this->registerError('Número de factura inválido');
+				}
+
+				$id_provider = NULL;
+				if( $raw_provider !== '' ){
+
+					if( !ctype_digit($raw_provider) || (int)$raw_provider < 1 || !$this->db->get_where('providers',array('id_provider'=>(int)$raw_provider,'active'=>1))->row() ){
+
+						$this->registerError('Proveedor inválido');
+					}
+					$id_provider = (int)$raw_provider;
+				}
+
+				$date = DateTime::createFromFormat('d/m/Y', trim((string)$this->input->post('date_time')));
+				$date_errors = DateTime::getLastErrors();
+				if( !$date || ($date_errors && ($date_errors['warning_count'] || $date_errors['error_count'])) ){
+
+					$this->registerError('Fecha inválida');
+				}
+
+				$invoice['invoice_no'] = $invoice_no;
+				$invoice['id_provider'] = $id_provider;
+				$invoice['date_time'] = $date->format('Y-m-d').' '.date('H:i:s');
+
+				$lines = $this->validatedLines(
+					(array)$this->input->post('id_products'),
+					(array)$this->input->post('quantities'),
+					(array)$this->input->post('prices_cost'),
+					(array)$this->input->post('prices_sell')
+				);
 
 				if( $this->invoices_mdl->invoiceNumberExists( $invoice['invoice_no'], NULL, $invoice['id_provider'] ) ){
 
-					$view_data['type'] = 'error';
-					$view_data['message'] = 'El numero de factura ingresado ya existe';
-
-					echo json_encode($view_data);
-					exit();
+					$this->registerError('El numero de factura ingresado ya existe');
 				}
-
-				$id_products = $this->input->post('id_products');
-				$quantities = $this->input->post('quantities');
-				$prices_cost = $this->input->post('prices_cost');
-				$prices_sell = $this->input->post('prices_sell');
 
 				$this->db->trans_begin();
 
@@ -65,20 +92,19 @@
 
 					$id_invoice = $this->invoices_mdl->saveInvoice($invoice);
 
-					for( $i=0; $i < count($id_products); $i++ ){
+					foreach( $lines as $line ){
 
-						if( !empty( $id_products[$i] ) ){
+						$invoice_details = array(
+							'id_invoice' => $id_invoice,
+							'id_product' => $line['id_product'],
+							'quantity' => $line['quantity'],
+							'price_cost' => $line['price_cost'],
+							'price_sell' => $line['price_sell']
+						);
 
-							$invoice_details['id_product'] = $id_products[$i];
-							$invoice_details['id_invoice'] = $id_invoice;
-							$invoice_details['quantity'] = $quantities[$i];
-							$invoice_details['price_cost'] = $prices_cost[$i];
-							$invoice_details['price_sell'] = $prices_sell[$i];
+						$this->invoices_mdl->saveInvoiceDetails( $invoice_details );
 
-							$this->invoices_mdl->saveInvoiceDetails( $invoice_details );
-
-							$this->invoices_mdl->updateStockPrice( $id_products[$i], $quantities[$i], $prices_sell[$i], $prices_cost[$i], $invoice['id_provider'] );
-						}
+						$this->invoices_mdl->updateStockPrice( $line['id_product'], $line['quantity'], $line['price_sell'], $line['price_cost'], $line['is_service'] );
 					}
 
 					if( $this->db->trans_status() === FALSE ){
@@ -87,19 +113,16 @@
 
 					$this->db->trans_commit();
 
-					$view_data['type'] = 'success';
-					$view_data['message'] = 'Factura ingresada e inventario actualizado';
+					$new_tk = generateToken();
+					$this->session->set_userdata('tk', $new_tk);
 
-					echo json_encode($view_data);
+					echo json_encode(array( 'type' => 'success', 'message' => 'Factura ingresada e inventario actualizado', 'tk' => $new_tk ));
 				}
 				catch( Exception $e ){
 
 					$this->db->trans_rollback();
 
-					$view_data['type'] = 'error';
-					$view_data['message'] = $e->getMessage();
-
-					echo json_encode($view_data);
+					echo json_encode(array( 'type' => 'error', 'message' => 'No se ha podido registrar la factura' ));
 				}
 			}
 			else{
@@ -108,9 +131,68 @@
 			}
 		}
 
+		private function registerError( $message ){
+
+			echo json_encode(array( 'type' => 'error', 'message' => $message ));
+			exit();
+		}
+
+		// Validates the posted line arrays; returns clean lines or answers with an error and exits.
+		private function validatedLines( $ids, $quantities, $costs, $sells ){
+
+			$lines = array();
+
+			for( $i = 0; $i < count($ids); $i++ ){
+
+				$id = isset($ids[$i]) ? trim((string)$ids[$i]) : '';
+
+				if( $id === '' ){
+					continue;
+				}
+
+				$qty = isset($quantities[$i]) ? trim((string)$quantities[$i]) : '';
+				$cost = isset($costs[$i]) ? trim((string)$costs[$i]) : '';
+				$sell = isset($sells[$i]) ? trim((string)$sells[$i]) : '';
+
+				if( !ctype_digit($id) || (int)$id < 1 ){
+					$this->registerError('Producto inválido');
+				}
+				if( !ctype_digit($qty) || (int)$qty < 1 || (int)$qty > 1000000 ){
+					$this->registerError('La cantidad debe ser un número entero mayor a cero');
+				}
+				if( $sell === '' || !is_numeric($sell) || (float)$sell < 0 || (float)$sell > 99999999 ){
+					$this->registerError('El precio de venta debe ser un número válido');
+				}
+				if( $cost !== '' && ( !is_numeric($cost) || (float)$cost < 0 || (float)$cost > 99999999 ) ){
+					$this->registerError('El precio de costo debe ser un número válido');
+				}
+
+				$product = $this->db->get_where('products',array('id_product'=>(int)$id,'active'=>1))->row();
+				if( !$product ){
+					$this->registerError('El producto seleccionado no existe');
+				}
+
+				$lines[] = array(
+					'id_product' => (int)$id,
+					'quantity' => (int)$qty,
+					'price_cost' => $cost,
+					'price_sell' => $sell,
+					'is_service' => (int)$product->is_service
+				);
+			}
+
+			if( !$lines ){
+				$this->registerError('Debe agregar al menos un producto a la factura');
+			}
+
+			return $lines;
+		}
+
 		private function form( $view_data = array() ){
 
 			$view_data['providers'] = $this->db->get_where('providers',["active" => 1])->result();
+			$view_data['tk'] = generateToken();
+			$this->session->set_userdata('tk', $view_data['tk']);
 			$this->content_data = $view_data;
 			$this->renderPanel('form_invoice');
 		}
@@ -129,13 +211,14 @@
 
 		public function details( $id_invoice = 0 ){
 
+			$id_invoice = (int)$id_invoice;
 			$view_data['invoice'] = $this->invoices_mdl->invoiceIDExists( $id_invoice );
 
 			if( !$view_data['invoice'] ){
 
-				$sess_data['status'] = array( 'type' => 'error', 'message' => 'La factura especificada no existe' );
+				$sess_data['status'] = array( 'class' => 'error', 'message' => 'La factura especificada no existe' );
 
-				$this->session->set_userdata('view_data', $view_data);
+				$this->session->set_userdata('view_data', $sess_data);
 
 				redirect('invoices');
 				exit();

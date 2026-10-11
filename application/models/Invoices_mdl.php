@@ -28,23 +28,27 @@
 		public function invoiceIDExists( $id_invoice ){
 
 			$sql = 'select I.*,P.provider from invoices I left outer join providers P
-			on I.id_provider = P.id_provider where I.id_invoice = '.$id_invoice;
+			on I.id_provider = P.id_provider where I.id_invoice = ?';
 
-			return $this->db->query($sql)->row();
+			return $this->db->query($sql, array((int)$id_invoice))->row();
 		}
 
 		public function invoiceNumberExists( $invoice_no, $id_invoice = NULL, $id_provider = NULL ){
 
-			$sql = 'select * from invoices where invoice_no = "'.$invoice_no.'"';
+			$sql = 'select * from invoices where invoice_no = ?';
+			$binds = array((string)$invoice_no);
+
 			if( $id_invoice ){
 
-				$sql .= ' and id_invoice !='.$id_invoice;
+				$sql .= ' and id_invoice != ?';
+				$binds[] = (int)$id_invoice;
 			}
 			if( $id_provider ){
 
-				$sql .= ' and id_provider = '.$id_provider;
+				$sql .= ' and id_provider = ?';
+				$binds[] = (int)$id_provider;
 			}
-			return $this->db->query( $sql )->row();
+			return $this->db->query( $sql, $binds )->row();
 		}
 
 		public function saveInvoiceDetails( $data ){
@@ -52,18 +56,28 @@
 			return $this->db->insert( 'invoice_products', $data );
 		}
 
-		public function updateStockPrice( $id_product, $quantity, $price_sell, $price_cost, $id_provider ){
+		// Arguments are validated by Invoices::register(); still bound, never concatenated.
+		// Services carry no stock, so only their prices are updated.
+		public function updateStockPrice( $id_product, $quantity, $price_sell, $price_cost, $is_service = 0 ){
 
-			if( empty($price_cost) ){
+			$set = array();
+			$binds = array();
 
-				$sql = 'update products set stock=stock+'.$quantity.', price_sell = '.$price_sell.'   where id_product = '.$id_product;
-				$this->db->query($sql);
+			if( !$is_service ){
+
+				$set[] = 'stock = stock + ?';
+				$binds[] = (int)$quantity;
 			}
-			else{
+			if( $price_cost !== '' && $price_cost !== NULL ){
 
-				$sql = 'update products set stock=stock+'.$quantity.', price_cost = '.$price_cost.', price_sell = '.$price_sell.'   where id_product = '.$id_product;
-				$this->db->query($sql);
+				$set[] = 'price_cost = ?';
+				$binds[] = $price_cost;
 			}
+			$set[] = 'price_sell = ?';
+			$binds[] = $price_sell;
+			$binds[] = (int)$id_product;
+
+			$this->db->query('update products set '.implode(', ',$set).' where id_product = ?', $binds);
 
 			/*$product = $this->db->get_where( 'products', array( 'id_product' => $id_product ) )->row();
 
@@ -100,9 +114,9 @@
 		public function getProductsInvoice( $id_invoice ){
 
 			$sql = 'select P.name,P.barcode,IP.* from products P inner join invoice_products IP
-			on P.id_product = IP.id_product where IP.id_invoice = '.$id_invoice;
+			on P.id_product = IP.id_product where IP.id_invoice = ?';
 
-			return $this->db->query($sql)->result();
+			return $this->db->query($sql, array((int)$id_invoice))->result();
 		}
 
 		/*public function updateEditStockPrice( $id_invoice, $id_product, $quantity, $price ){
