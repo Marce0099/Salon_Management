@@ -78,7 +78,17 @@ class Returns extends Admin_Controller{
                     return;
                 }
 
-                $date = date('Y-m-d', strtotime( str_replace('/', '-', $data['date_time']) ));
+                $dt = DateTime::createFromFormat('d/m/Y', trim((string)$data['date_time']));
+                $dt_errors = DateTime::getLastErrors();
+
+                if( !$dt || ($dt_errors && ($dt_errors['warning_count'] || $dt_errors['error_count'])) ){
+
+                    $view_data['status'] = array( 'class' => 'error', 'message' => 'Fecha inválida' );
+                    $this->form($view_data);
+                    return;
+                }
+
+                $date = $dt->format('Y-m-d');
 
                 $this->db->trans_begin();
 
