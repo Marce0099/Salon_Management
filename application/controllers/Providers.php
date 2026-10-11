@@ -157,6 +157,7 @@ class Providers extends Admin_Controller{
 
 	}
 
+	/* DISABLED: purchase orders (Pedidos) are no longer part of the project; kept as a backup, unreachable.
 	public function order( $id_provider = 0 ){
 
 		$provider = $this->db->get_where('providers',array('id_provider'=>$id_provider))->row();
@@ -173,4 +174,5 @@ class Providers extends Admin_Controller{
 		$this->content_data = $data;
 		$this->renderPanel('form_orders');
 	}
+	*/
 }
