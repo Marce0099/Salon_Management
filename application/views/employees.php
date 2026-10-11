@@ -14,8 +14,8 @@
 	<tbody>
 		<?php foreach( $employees as $e ) : ?>
 		<tr>
-			<td><?php echo $e->name; ?></td>
-			<td><?php echo $e->phone; ?></td>
+			<td><?php echo htmlspecialchars($e->name); ?></td>
+			<td><?php echo htmlspecialchars((string) $e->phone); ?></td>
 			<td>
 				<div class="btn-group">
 					<a href="#" data-toggle="dropdown" class="dropdown-toggle"><i class="fa fa-cog"></i></a>
@@ -25,7 +25,7 @@
 						</li>
 						<li class="divider"></li>
 						<li>
-							<a class="confirm-action" data-msg="Confirma eliminar el vendedor?" href="<?php echo base_url("employees/delete/{$e->id_employee}"); ?>"><i class="fa fa-times"></i> Eliminar</a>
+							<a class="confirm-action" data-msg="Confirma eliminar el vendedor?" href="<?php echo base_url("employees/delete/{$e->id_employee}") . '?tk=' . $tk; ?>"><i class="fa fa-times"></i> Eliminar</a>
 						</li>
 					</ul>
 				</div>

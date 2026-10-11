@@ -10,7 +10,7 @@
 	</thead>
 	<tbody>
 		<tr>
-			<td><?php echo $employee->name; ?></td>
+			<td><?php echo htmlspecialchars($employee->name); ?></td>
 			<td><?php echo $date_start; ?></td>
 			<td><?php echo $date_end; ?></td>
 		</tr>

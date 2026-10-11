@@ -19,17 +19,38 @@ class Employees extends Admin_Controller{
 		$data = $this->easysearch->search($search);
 		
 		$this->content_data = array_merge($data,$view_data);
+		$this->content_data['tk'] = $this->issueToken();
 
 		$this->renderPanel('employees');
 	}
 
+	private function issueToken(){
+
+		$tk = generateToken();
+		$this->session->set_userdata('tk', $tk);
+
+		return $tk;
+	}
+
 	private function setFormRules(){
 
-		$this->form_validation->set_rules('name','trim|required');
+		$this->form_validation->set_rules('name','Nombre','trim|required|max_length[200]');
+		$this->form_validation->set_rules('phone','Teléfono','trim|max_length[100]');
+	}
+
+	// only these columns may be written from the form (the raw POST used to be passed straight to
+	// the model, so `active` or `id_employee` could be overwritten)
+	private function formData(){
+
+		return array(
+			'name' => $this->input->post('name'),
+			'phone' => $this->input->post('phone'),
+		);
 	}
 
 	public function form_employees( $view_data = array() ){
 
+		$view_data['tk'] = $this->issueToken();
 		$this->content_data = $view_data;
 		$this->renderPanel('form_employees');
 	}
@@ -42,13 +63,16 @@ class Employees extends Admin_Controller{
 
 			try{
 
+				if( !formSubmited() ){
+
+					throw new Exception('Sesión inválida, recargue la página e intente de nuevo');
+				}
+
 				if( $this->form_validation->run() ){
 
-					$data = $this->input->post();
+					$employee_code = $this->employees_mdl->save( $this->formData() );
 
-					$employee_code = $this->employees_mdl->save( $data );
-
-					$response = array( 'type' => 'success', 'message' => 'Empleado registrado con el código: '.$employee_code );
+					$response = array( 'type' => 'success', 'message' => 'Empleado registrado con el código: '.$employee_code, 'tk' => $this->issueToken() );
 
 					echo json_encode( $response );
 				}
@@ -75,7 +99,7 @@ class Employees extends Admin_Controller{
 
 			$view_data['employee'] = $this->employees_mdl->getEmployee($id_employee);
 
-			if( !$view_data['employee'] ){
+			if( !$view_data['employee'] || !$view_data['employee']->active ){
 
 				throw new Exception('Vendedor inválido',1);
 			}
@@ -84,13 +108,16 @@ class Employees extends Admin_Controller{
 
 				$this->setFormRules();
 
+				if( !formSubmited() ){
+
+					throw new Exception('Sesión inválida, recargue la página e intente de nuevo');
+				}
+
 				if( $this->form_validation->run() ){
 
-					$data = $this->input->post();
+					$this->employees_mdl->edit( $id_employee, $this->formData() );
 
-					$this->employees_mdl->edit( $id_employee, $data );
-
-					$response = array( 'type' => 'success', 'message' => 'Vendedor editado', 'edit' => true );
+					$response = array( 'type' => 'success', 'message' => 'Vendedor editado', 'edit' => true, 'tk' => $this->issueToken() );
 
 					echo json_encode( $response );
 				}
@@ -126,14 +153,21 @@ class Employees extends Admin_Controller{
 
 		try{
 
+			// state-changing GET: the link carries the page's form token (?tk=)
+			if( !$this->input->get('tk') || $this->input->get('tk') !== $this->session->userdata('tk') ){
+
+				throw new Exception('Sesión inválida, recargue la página e intente de nuevo');
+			}
+
 			$employee = $this->employees_mdl->getEmployee( $id_employee );
 
-			if( !$employee ){
+			if( !$employee || !$employee->active ){
 
 				throw new Exception('Empleado inválido');
 			}
 
 			$this->employees_mdl->delete($id_employee);
+			$this->issueToken();
 
 			$view_data['status'] = array( 'class' => 'success', 'message' => 'Empleado eliminado' );
 
@@ -158,7 +192,30 @@ class Employees extends Admin_Controller{
 			$date_start = $this->input->post('date_start');
 			$date_end = $this->input->post('date_end');
 
-			$data['employee'] = $this->employees_mdl->getEmployee($id_employee);
+			$employee = $this->employees_mdl->getEmployee($id_employee);
+			$start = DateTime::createFromFormat('!d-m-Y', (string) $date_start);
+			$end = DateTime::createFromFormat('!d-m-Y', (string) $date_end);
+
+			$error = NULL;
+
+			if( !$employee ){
+				$error = 'Vendedor inválido';
+			}
+			elseif( !$start || !$end || $start->format('d-m-Y') !== $date_start || $end->format('d-m-Y') !== $date_end ){
+				$error = 'Fecha inválida';
+			}
+			elseif( $start > $end ){
+				$error = 'La fecha inicial no puede ser posterior a la final';
+			}
+
+			if( $error ){
+
+				$sess_data['status'] = array( 'class' => 'error', 'message' => $error );
+				$this->session->set_userdata( 'view_data', $sess_data );
+				redirect('employees/commissions');
+			}
+
+			$data['employee'] = $employee;
 			$data['sales'] = $this->employees_mdl->getSales($id_employee,$date_start,$date_end);
 			$data['interface'] = $this->employees_mdl;
 			$data['id_employee'] = $id_employee;
@@ -172,7 +229,7 @@ class Employees extends Admin_Controller{
 
 			$data['employees'] = $this->employees_mdl->getActiveEmployees();
 			$data['test'] = $this->employees_mdl;
-			$this->content_data = $data;
+			$this->content_data = array_merge($data, load_data($this->session));
 			$this->renderPanel('form_commissions');
 		}
 	}

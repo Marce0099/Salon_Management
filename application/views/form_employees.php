@@ -14,6 +14,7 @@
 <h4 class="section-title">Formulario de vendedores</h4>
 
 <form id="form" action="" method="post" class="form-horizontal form-label-left" data-parsley-validate autocomplete="off" onsubmit="return false;" spellcheck="false">
+	<input type="hidden" name="tk" id="tk" value="<?php echo $tk; ?>">
 	<?php if( $employee ) : ?>
 	<div class="form-group">
 		<label class="control-label col-md-3 col-sm-3 col-xs-12" for="barcode">Código
@@ -27,14 +28,14 @@
 		<label class="control-label col-md-3 col-sm-3 col-xs-12" for="name">Nombre <span class="required">*</span>
         </label>
 		<div class="col-md-6 col-sm-6 col-xs-12">
-            <input type="text" name="name" id="name" required="required" class="form-control col-md-7 col-xs-12" value="<?php if($employee){ echo $employee->name; } ?>">
+            <input type="text" name="name" id="name" required="required" class="form-control col-md-7 col-xs-12" value="<?php if($employee){ echo htmlspecialchars($employee->name); } ?>">
         </div>
 	</div>
 	<div class="form-group">
 		<label class="control-label col-md-3 col-sm-3 col-xs-12" for="phone">Teléfono
         </label>
 		<div class="col-md-6 col-sm-6 col-xs-12">
-            <input type="text" name="phone" id="phone" class="form-control col-md-7 col-xs-12" value="<?php if($employee){ echo $employee->phone; } ?>">
+            <input type="text" name="phone" id="phone" class="form-control col-md-7 col-xs-12" value="<?php if($employee){ echo htmlspecialchars((string) $employee->phone); } ?>">
         </div>
 	</div>
 	<div class="form-group">
@@ -77,8 +78,11 @@
 
 		        btn.removeAttr('disabled');
 
+		        if( data.tk )
+		        	$('#tk').val(data.tk);
+
 		        if( data.type == 'success' && !data.edit )
-		        	$('#form input').val('');
+		        	$('#form input').not('#tk').val('');
 	  		},
 	  		error : function(){
 
