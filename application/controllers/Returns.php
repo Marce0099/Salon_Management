@@ -53,6 +53,14 @@ class Returns extends Admin_Controller{
             $this->form_validation->set_rules('id_products[]',       '', 'required');
             $this->form_validation->set_rules('quantities_returns[]','', 'required');
 
+            if( !formSubmited() ){
+
+                // CSRF: the form's session token is missing or stale
+                $view_data['status'] = array( 'class' => 'error', 'message' => 'Sesión inválida, recargue la página e intente de nuevo' );
+                $this->form($view_data);
+                return;
+            }
+
             if( $this->form_validation->run() ){
 
                 $data        = $this->input->post();
@@ -70,7 +78,17 @@ class Returns extends Admin_Controller{
                     return;
                 }
 
-                $date = date('Y-m-d', strtotime( str_replace('/', '-', $data['date_time']) ));
+                $dt = DateTime::createFromFormat('d/m/Y', trim((string)$data['date_time']));
+                $dt_errors = DateTime::getLastErrors();
+
+                if( !$dt || ($dt_errors && ($dt_errors['warning_count'] || $dt_errors['error_count'])) ){
+
+                    $view_data['status'] = array( 'class' => 'error', 'message' => 'Fecha inválida' );
+                    $this->form($view_data);
+                    return;
+                }
+
+                $date = $dt->format('Y-m-d');
 
                 $this->db->trans_begin();
 
@@ -113,6 +131,8 @@ class Returns extends Admin_Controller{
     private function form( $view_data = array() ){
 
         $this->footer_data = $view_data;
+        $this->content_data['tk'] = generateToken();
+        $this->session->set_userdata('tk', $this->content_data['tk']);
         $this->content_data['providers'] = $this->db->get_where('providers', array( 'active' => 1 ))->result();
         $this->renderPanel('form_returns');
     }
@@ -137,11 +157,11 @@ class Returns extends Admin_Controller{
 
     public function details( $id_return = 0 ){
 
-        $data['return'] = $this->returns_mdl->getReturnsDetails($id_return);
+        $data['return'] = $this->returns_mdl->getReturnsDetails((int)$id_return);
 
         if( !$data['return'] ){
 
-            $view_data = array( 'class' => 'error', 'message' => 'Datos invalidos' );
+            $view_data['status'] = array( 'class' => 'error', 'message' => 'Datos invalidos' );
             $this->session->set_userdata('view_data',$view_data);
             redirect('returns');
             exit();

@@ -1,4 +1,13 @@
 <?php if( !defined('BASEPATH') ){ exit(); }
+/*
+ * DISABLED: the purchase-order (Pedidos) feature is no longer part of the project.
+ * The original code is kept below as a backup and is intentionally unreachable:
+ * the class is commented out, so /orders/* no longer resolves to a controller.
+ * Do not re-enable without also restoring the Orders_mdl model, the orders views
+ * and Providers::order().
+ *
+ */
+/*
 
 class Orders extends Admin_Controller{
 
@@ -235,3 +244,4 @@ class Orders extends Admin_Controller{
 		}
 	}
 }
+*/

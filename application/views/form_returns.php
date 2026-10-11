@@ -1,6 +1,7 @@
 <h4 class="section-title">Formulario de devoluciones</h4>
 
 <form action="<?php echo base_url('returns/register'); ?>" method="post" class="form-horizontal" autocomplete="off" id="form">
+	<input type="hidden" name="tk" value="<?php echo isset($tk) ? $tk : ''; ?>">
 	<div class="row">
 		<div class="col-md-4">
 			<div class="form-group">

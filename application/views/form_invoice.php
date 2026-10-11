@@ -14,6 +14,7 @@
 <h4 class="section-title">Formulario de facturas</h4>
 
 <form id="form" action="" method="post" class="form-horizontal" autocomplete="off" spellcheck="false" data-parsley-validate="">
+	<input type="hidden" name="tk" id="invoice-tk" value="<?php echo isset($tk) ? $tk : ''; ?>">
 	<div class="row">
 		<div class="col-md-4">
 			<div class="form-group">
@@ -420,6 +421,8 @@
 				            styling : 'bootstrap3',
 				            delay : 2000
 				        });
+
+						if( data.tk ){ $('#invoice-tk').val(data.tk); }
 
 						<?php if( !$invoice ) : ?>
 						if( data.type == 'success' ){
