@@ -160,6 +160,7 @@
     async function showGoalsGraph(){
         const graph = "showGoalsGraph";
         const canvas = document.querySelector(`#${graph} canvas`);
+        if( !canvas ) return; // admin-only graph, not rendered for workers
 
         const dato = {
             labels: [],
@@ -309,6 +310,7 @@
     async function showSalesByEmployeeGraph(){
         const graph = "showSalesByEmployeeGraph";
         const canvas = document.querySelector(`#${graph} canvas`);
+        if( !canvas ) return; // admin-only graph, not rendered for workers
 
         const res = await fetchGraph(graph);
         chart[graph]['source'] = res;

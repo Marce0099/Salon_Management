@@ -22,7 +22,10 @@
 			$data['cash_movements'] = $data['open_cash'] ? $this->cash_mdl->getCashMovements($data['open_cash']) : NULL;
 			$data['low_stock_count'] = $this->products_mdl->getLowStockCount();
 			$data['upcoming_appointments'] = $this->appointments_mdl->getUpcomingCount(7);
-			$data['goal_progress'] = $this->statistics_mdl->getCurrentMonthGoalProgress();
+			// monthly goals and per-employee sales are admin-only everywhere else
+			// (Sale_goals, Employees), so the dashboard does not leak them to workers
+			$data['is_admin'] = $this->is_admin();
+			$data['goal_progress'] = $data['is_admin'] ? $this->statistics_mdl->getCurrentMonthGoalProgress() : NULL;
 
 			$this->content_data = $data;
 			$this->renderPanel();
@@ -43,8 +46,19 @@
 			exit;
 		}
 
+		private function denyUnlessAdmin(){
+
+			if( !$this->is_admin() ){
+
+				http_response_code(403);
+				echo json_encode(array());
+				exit;
+			}
+		}
+
 		public function showGoalsGraph(){
 			if($_SERVER["REQUEST_METHOD"] !== "POST") exit;
+			$this->denyUnlessAdmin();
 
 			echo json_encode($this->statistics_mdl->getGoalsVsActual());
 			exit;
@@ -59,6 +73,7 @@
 
 		public function showSalesByEmployeeGraph(){
 			if($_SERVER["REQUEST_METHOD"] !== "POST") exit;
+			$this->denyUnlessAdmin();
 
 			echo json_encode($this->statistics_mdl->getSalesByEmployee(10));
 			exit;
