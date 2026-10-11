@@ -12,7 +12,7 @@ class Statistics_mdl extends CI_Model{
 		$query = 'SELECT
 		YEAR(S.date_time) AS Año,
 		MONTH(S.date_time) AS Mes,
-		DATE(S.date_time) AS Fecha,
+		MIN(DATE(S.date_time)) AS Fecha,
 		SUM(ROUND(SP.quantity * (SP.price - (SP.price * (SP.discount / 100))),2)) AS "Ventas"
 		FROM sales as S
 		INNER JOIN sale_products as SP on S.id_sale = SP.id_sale
@@ -32,7 +32,7 @@ class Statistics_mdl extends CI_Model{
 		INNER JOIN sale_products as SP on S.id_sale = SP.id_sale
         INNER JOIN products AS P on P.id_product=SP.id_product
         GROUP BY P.barcode, P.name
-        ORDER BY units_sold DESC
+        ORDER BY units_sold DESC, P.name ASC
         LIMIT '.(int)$limit.';';
 
 		return $this->db->query($query)->result();
@@ -80,7 +80,7 @@ class Statistics_mdl extends CI_Model{
 		INNER JOIN sales S ON S.id_sale = SPAY.id_sale
 		WHERE S.date_time >= DATE_SUB(CURRENT_DATE(), INTERVAL 12 MONTH)
 		GROUP BY Año, Mes, Metodo
-		ORDER BY Año ASC, Mes ASC;';
+		ORDER BY Año ASC, Mes ASC, Metodo ASC;';
 
 		return $this->db->query($query)->result();
 	}
@@ -98,7 +98,7 @@ class Statistics_mdl extends CI_Model{
 		INNER JOIN sale_products as SP on S.id_sale = SP.id_sale
 		INNER JOIN employees as E on E.id_employee = S.id_employee
 		GROUP BY E.id_employee, E.name
-		ORDER BY Ventas DESC
+		ORDER BY Ventas DESC, E.name ASC
 		LIMIT '.(int)$limit.';';
 
 		return $this->db->query($query)->result();
@@ -109,7 +109,7 @@ class Statistics_mdl extends CI_Model{
 		$query = 'SELECT
 		YEAR(registered_client) AS Año,
 		MONTH(registered_client) AS Mes,
-		DATE(registered_client) AS Fecha,
+		MIN(DATE(registered_client)) AS Fecha,
 		COUNT(*) AS Clientes
 		FROM clients
 		GROUP BY Año, Mes

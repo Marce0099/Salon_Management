@@ -45,6 +45,7 @@
       </a>
     </div>
 
+    <?php if( $is_admin ) : ?>
     <div class="col-md-3">
       <a href="<?php echo base_url('sale_goals'); ?>" style="text-decoration:none; color:inherit;">
         <div class="panel panel-default kpi-tile">
@@ -59,14 +60,15 @@
             ?>
               <div class="kpi-value <?php echo $pct_class; ?>"><?php echo number_format($pct,1); ?>%</div>
               <div class="kpi-sub">
-                C$<?php echo number_format($goal_progress['sales'],2); ?> de
-                C$<?php echo number_format($goal_progress['amount'],2); ?>
+                $<?php echo number_format($goal_progress['sales'],2); ?> de
+                $<?php echo number_format($goal_progress['amount'],2); ?>
               </div>
             <?php endif; ?>
           </div>
         </div>
       </a>
     </div>
+    <?php endif; ?>
 
   </div>
 
@@ -85,6 +87,7 @@
       </div> <!-- .graph -->
     </div>
 
+    <?php if( $is_admin ) : ?>
     <div class="col-md-6">
       <div class="graph" id="showGoalsGraph">
         <h3 class="graph_tittle">Meta vs. ventas reales</h3>
@@ -99,6 +102,8 @@
         <canvas></canvas>
       </div> <!-- .graph -->
     </div>
+
+    <?php endif; ?>
 
     <div class="col-md-6">
       <div class="graph" id="showTopSoldGraph">
