@@ -6,6 +6,12 @@ class Employees extends Admin_Controller{
 
 		parent::__construct();
 		$this->load->model('employees_mdl');
+
+		// vendedores, their data and everyone's commissions are admin-only
+		if( !$this->is_admin() ){
+			echo "No se encontro resultado para esta pagina";
+			exit;
+		}
 	}
 
 	public function index(){
