@@ -8,7 +8,7 @@
 				<select name="id_employee" class="form-control" required="true">
 				<option value="">---</option>
 				<?php foreach( $employees as $e ) : ?>
-				<option value="<?php echo $e->id_employee; ?>"><?php echo $e->name; ?></option>
+				<option value="<?php echo $e->id_employee; ?>"><?php echo htmlspecialchars($e->name); ?></option>
 				<?php endforeach; ?>
 				</select>
 			</div>

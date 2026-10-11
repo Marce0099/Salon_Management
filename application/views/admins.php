@@ -11,8 +11,8 @@
 	<tbody>
 		<?php foreach($admins as $a): ?>
 			<tr>
-				<td><?php echo $a->username; ?></td>
-				<td><?php echo $a->name; ?></td>
+				<td><?php echo htmlspecialchars($a->username); ?></td>
+				<td><?php echo htmlspecialchars($a->name); ?></td>
 				<td><?php
 					$role_labels = array( 'super' => 'Super', 'administrador' => 'Administrador', 'trabajador' => 'Trabajador' );
 					echo isset($role_labels[$a->role]) ? $role_labels[$a->role] : $a->role;
@@ -22,7 +22,7 @@
 						<a href="#" data-toggle="dropdown" class="dropdown-toggle"><i class="fa fa-cog"></i></a>
 						<ul class="dropdown-menu pull-right text-left">
 							<li>
-								<a class="confirm-action" data-msg="Confirma eliminar este usuario?" href="<?php echo base_url("admins/delete/{$a->id_admin}"); ?>"><i class="fa fa-times"></i> Eliminar</a>
+								<a class="confirm-action" data-msg="Confirma eliminar este usuario?" href="<?php echo base_url("admins/delete/{$a->id_admin}") . '?tk=' . $tk; ?>"><i class="fa fa-times"></i> Eliminar</a>
 							</li>
 						</ul>
 					</div>
@@ -35,6 +35,7 @@
 <h4 class="section-title">Registrar Usuario</h4>
 
 <form id="form" action="" method="post" class="form-horizontal form-label-left" data-parsley-validate autocomplete="off" onsubmit="return false;" spellcheck="false">
+	<input type="hidden" name="tk" id="tk" value="<?php echo $tk; ?>">
 	<div class="form-group">
 		<label class="control-label col-md-3 col-sm-3 col-xs-12" for="username">Usuario <span class="required">*</span>
         </label>

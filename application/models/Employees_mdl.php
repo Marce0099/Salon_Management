@@ -56,7 +56,8 @@ class Employees_mdl extends CI_Model{
 		$sql = 'select distinct S.* from sales S
 		left join sale_products SP on SP.id_sale = S.id_sale
 		where ( S.id_employee = ? or SP.id_employee = ? ) and
-		date(S.date_time) between ? and ?';
+		date(S.date_time) between ? and ?
+			order by S.date_time, S.id_sale';
 
 		$data['sales'] = $this->db->query($sql, array( (int) $id_employee, (int) $id_employee, $date_start, $date_end ))->result();
 

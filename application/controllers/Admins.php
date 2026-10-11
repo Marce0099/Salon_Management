@@ -18,15 +18,24 @@ class Admins extends Admin_Controller{
 		$view_data = load_data($this->session);
 
 		$this->content_data['admins'] = $this->admins_mdl->getAll();
+		$this->content_data['tk'] = $this->issueToken();
 		$this->content_data = array_merge($this->content_data, $view_data);
 
 		$this->renderPanel('admins');
 	}
 
+	private function issueToken(){
+
+		$tk = generateToken();
+		$this->session->set_userdata('tk', $tk);
+
+		return $tk;
+	}
+
 	private function setFormRules(){
 
 		$this->form_validation->set_rules('username','', 'trim|required|max_length[50]');
-		$this->form_validation->set_rules('password','', 'required|min_length[6]');
+		$this->form_validation->set_rules('password','', 'required|min_length[6]|max_length[72]');
 		$this->form_validation->set_rules('name','', 'trim|required|max_length[100]');
 		$this->form_validation->set_rules('role','', 'required|in_list[super,administrador,trabajador]');
 	}
@@ -36,9 +45,19 @@ class Admins extends Admin_Controller{
 		$this->setFormRules();
 
 		try {
-			if( formPosted() && $this->form_validation->run() ){
+			if( !formSubmited() ){
+
+				throw new \Exception('Sesión inválida, recargue la página e intente de nuevo');
+			}
+
+			if( $this->form_validation->run() ){
 
 				$username = $this->input->post('username');
+
+				if( $this->input->post('password') !== $this->input->post('password_confirm') ){
+
+					throw new \Exception('Las contraseñas no coinciden');
+				}
 
 				if( $this->admins_mdl->usernameExists($username) ){
 
@@ -54,7 +73,7 @@ class Admins extends Admin_Controller{
 
 				$this->admins_mdl->save($data);
 
-				$response = array( 'type' => 'success', 'message' => 'Usuario registrado' );
+				$response = array( 'type' => 'success', 'message' => 'Usuario registrado', 'tk' => $this->issueToken() );
 				echo json_encode($response);
 			}
 			else{
@@ -71,6 +90,19 @@ class Admins extends Admin_Controller{
 	public function delete($id_admin = 0){
 
 		try {
+
+			// state-changing GET: the link carries the page's form token (?tk=)
+			if( !$this->input->get('tk') || $this->input->get('tk') !== $this->session->userdata('tk') ){
+
+				throw new \Exception('Sesión inválida, recargue la página e intente de nuevo');
+			}
+
+			$id_admin = ctype_digit((string) $id_admin) ? (int) $id_admin : 0;
+
+			if( $id_admin === (int) $this->id_admin ){
+
+				throw new \Exception('No puede eliminar su propio usuario');
+			}
 
 			$admin = $this->admins_mdl->getAdmin($id_admin);
 
@@ -95,6 +127,7 @@ class Admins extends Admin_Controller{
 			}
 
 			$this->admins_mdl->delete($id_admin);
+			$this->issueToken();
 
 			$view_data['status'] = array( 'class' => 'success', 'message' => 'Usuario eliminado' );
 			$this->session->set_userdata( 'view_data', $view_data );
