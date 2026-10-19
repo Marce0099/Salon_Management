@@ -233,6 +233,11 @@ class Settings extends Admin_Controller{
 			return false;
 		}
 
+		if( $ext === 'png' ){
+			imagealphablending($img, false);
+			imagesavealpha($img, true);
+		}
+
 		if( $width > $this->max_logo_dimension || $height > $this->max_logo_dimension ){
 
 			$ratio = min($this->max_logo_dimension / $width, $this->max_logo_dimension / $height);
