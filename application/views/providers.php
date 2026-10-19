@@ -1,5 +1,12 @@
 <h3 class="section-title">Listado de proveedores</h3>
 
+<?php $this->load->view('partials/bulk_import', array(
+	'import_url'   => base_url('providers/import'),
+	'template_url' => base_url('providers/template'),
+	'tk'           => $tk,
+	'entity_label' => 'proveedores',
+)); ?>
+
 <form action="<?php echo base_url('/providers'); ?>" class="form-horizontal" autocomplete="off" spellcheck="false" style="margin-bottom:15px;">
 	<div class="row">
 		<div class="col-md-3">

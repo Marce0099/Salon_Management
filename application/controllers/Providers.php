@@ -24,9 +24,89 @@ class Providers extends Admin_Controller{
 		$data = $this->easysearch->search($search);
 
 		$this->content_data = $data;
+		$this->content_data['tk'] = generateToken();
+		$this->session->set_userdata('tk', $this->content_data['tk']);
 		$this->footer_data = load_data($this->session);
-		
+
 		$this->renderPanel('providers');
+	}
+
+	private function importColumns(){
+
+		return array(
+			array('key' => 'provider',       'label' => 'Empresa',       'required' => FALSE, 'text' => TRUE, 'width' => 30, 'note' => 'Texto, máximo 150 caracteres'),
+			array('key' => 'representative', 'label' => 'Representante', 'required' => TRUE,  'text' => TRUE, 'width' => 30, 'note' => 'Texto, máximo 150 caracteres'),
+			array('key' => 'phone_provider', 'label' => 'Teléfono',      'required' => FALSE, 'text' => TRUE, 'width' => 18, 'note' => 'Números, espacios, + o -; entre 3 y 20 caracteres'),
+			array('key' => 'email_provider', 'label' => 'Email',         'required' => FALSE, 'text' => TRUE, 'width' => 32, 'note' => 'Correo válido, máximo 100 caracteres'),
+		);
+	}
+
+	public function template(){
+
+		$this->load->library('excel_import');
+		$this->excel_import->sendTemplate('plantilla_proveedores.xlsx', $this->importColumns(), array(
+			'Un proveedor se considera repetido cuando coinciden Empresa y Representante.',
+		));
+	}
+
+	public function import(){
+
+		$this->load->library('excel_import');
+
+		if( !formSubmited() ){
+			echo json_encode(array('type' => 'error', 'message' => 'Sesión inválida, recargue la página e intente de nuevo'));
+			return;
+		}
+
+		$db = $this->db;
+
+		$key = function($d){ return mb_strtolower(trim($d['provider']).'|'.trim($d['representative']), 'UTF-8'); };
+
+		$response = $this->excel_import->run(array(
+			'columns' => $this->importColumns(),
+			'db' => $db,
+			'validate' => function(&$d){
+
+				if( $d['representative'] === '' ) return 'El representante es obligatorio';
+				if( mb_strlen($d['representative'], 'UTF-8') > 150 ) return 'El representante supera 150 caracteres';
+				if( mb_strlen($d['provider'], 'UTF-8') > 150 ) return 'La empresa supera 150 caracteres';
+				if( $d['phone_provider'] !== '' && !preg_match('/^[0-9 +\-]{3,20}$/', $d['phone_provider']) ) return 'Teléfono inválido';
+				if( $d['email_provider'] !== '' && ( mb_strlen($d['email_provider'], 'UTF-8') > 100 || !filter_var($d['email_provider'], FILTER_VALIDATE_EMAIL) ) ) return 'Email inválido';
+
+				return NULL;
+			},
+			'key' => $key,
+			'existing' => function() use ($db, $key){
+
+				$keys = array();
+				foreach( $db->select('provider, representative')->get('providers')->result_array() as $r ){
+					$keys[] = $key(array('provider' => (string) $r['provider'], 'representative' => (string) $r['representative']));
+				}
+				return $keys;
+			},
+			'insert' => function($rows) use ($db){
+
+				$batch = array();
+				foreach( $rows as $d ){
+					$batch[] = array(
+						'provider'       => $d['provider'] !== '' ? $d['provider'] : NULL,
+						'representative' => $d['representative'],
+						'phone_provider' => $d['phone_provider'] !== '' ? $d['phone_provider'] : NULL,
+						'email_provider' => $d['email_provider'] !== '' ? $d['email_provider'] : NULL,
+					);
+				}
+
+				if( $db->insert_batch('providers', $batch) !== count($batch) ){
+					throw new Exception('insert_batch failed');
+				}
+			},
+		));
+
+		$new_tk = generateToken();
+		$this->session->set_userdata('tk', $new_tk);
+		$response['tk'] = $new_tk;
+
+		echo json_encode($response);
 	}
 
 	private function set_rules(){

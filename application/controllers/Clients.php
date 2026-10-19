@@ -38,8 +38,8 @@ class Clients extends Admin_Controller{
 		if (!empty($_POST['id_card_client'])) {
 			$this->form_validation->set_rules('id_card_client', '', 'max_length[50]|regex_match[/^[a-zA-Z0-9]+$/]');
 		}
-		$this->form_validation->set_rules('name_client','','required|min_length[3]|max_length[50]|regex_match[/^[a-zA-Z ]*$/]');
-		$this->form_validation->set_rules('surname_client','','required|min_length[3]|max_length[50]|regex_match[/^[a-zA-Z ]*$/]');
+		$this->form_validation->set_rules('name_client','','required|min_length[3]|max_length[50]|regex_match[/^[\p{L} ]*$/u]');
+		$this->form_validation->set_rules('surname_client','','required|min_length[3]|max_length[50]|regex_match[/^[\p{L} ]*$/u]');
 
 		if(!empty($_POST['phone_client']))
 		$this->form_validation->set_rules('phone_client','','regex_match[/^[0-9 -]{3,20}$/]');
@@ -69,8 +69,106 @@ class Clients extends Admin_Controller{
 		$data = $this->easysearch->search($search);
 		
 		$this->content_data = array_merge($data,$view_data);
+		$this->content_data['tk'] = generateToken();
+		$this->session->set_userdata('tk', $this->content_data['tk']);
 
 		$this->renderPanel('clients');
+	}
+
+	private function importColumns(){
+
+		return array(
+			array('key' => 'id_card_client', 'label' => 'Cédula',   'required' => FALSE, 'text' => TRUE, 'width' => 20, 'note' => 'Letras y números sin espacios ni guiones, máximo 50'),
+			array('key' => 'name_client',    'label' => 'Nombre',   'required' => TRUE,  'text' => TRUE, 'width' => 22, 'note' => 'Solo letras y espacios, entre 3 y 50 caracteres'),
+			array('key' => 'surname_client', 'label' => 'Apellido', 'required' => TRUE,  'text' => TRUE, 'width' => 22, 'note' => 'Solo letras y espacios, entre 3 y 50 caracteres'),
+			array('key' => 'phone_client',   'label' => 'Teléfono', 'required' => FALSE, 'text' => TRUE, 'width' => 18, 'note' => 'Números, espacios o -; entre 3 y 20 caracteres'),
+			array('key' => 'email_client',   'label' => 'Email',    'required' => FALSE, 'text' => TRUE, 'width' => 30, 'note' => 'Correo válido, máximo 100 caracteres'),
+			array('key' => 'birth_client',   'label' => 'Fecha de nacimiento (dd/mm/aaaa)', 'required' => TRUE, 'text' => TRUE, 'date' => TRUE, 'width' => 32, 'note' => 'Formato dd/mm/aaaa, no puede ser futura'),
+		);
+	}
+
+	public function template(){
+
+		$this->load->library('excel_import');
+		$this->excel_import->sendTemplate('plantilla_clientes.xlsx', $this->importColumns(), array(
+			'Un cliente se considera repetido cuando coincide la Cédula; si no tiene cédula, cuando coinciden Nombre, Apellido y Fecha de nacimiento.',
+		));
+	}
+
+	public function import(){
+
+		$this->load->library('excel_import');
+
+		if( !formSubmited() ){
+			echo json_encode(array('type' => 'error', 'message' => 'Sesión inválida, recargue la página e intente de nuevo'));
+			return;
+		}
+
+		$db = $this->db;
+
+		$nameKey = function($name, $surname, $birth){ return 'nm:'.mb_strtolower(trim($name).'|'.trim($surname).'|'.$birth, 'UTF-8'); };
+		$key = function($d) use ($nameKey){
+			return $d['id_card_client'] !== '' ? 'id:'.$d['id_card_client'] : $nameKey($d['name_client'], $d['surname_client'], $d['birth_client']);
+		};
+
+		$response = $this->excel_import->run(array(
+			'columns' => $this->importColumns(),
+			'db' => $db,
+			'validate' => function(&$d){
+
+				$d['id_card_client'] = strtolower($d['id_card_client']);
+
+				if( $d['id_card_client'] !== '' && ( strlen($d['id_card_client']) > 50 || !preg_match('/^[a-z0-9]+$/', $d['id_card_client']) ) ) return 'Cédula inválida (solo letras y números, máximo 50)';
+				if( !preg_match('/^[\p{L} ]{3,50}$/u', $d['name_client']) ) return 'Nombre inválido (solo letras y espacios, entre 3 y 50 caracteres)';
+				if( !preg_match('/^[\p{L} ]{3,50}$/u', $d['surname_client']) ) return 'Apellido inválido (solo letras y espacios, entre 3 y 50 caracteres)';
+				if( $d['phone_client'] !== '' && !preg_match('/^[0-9 -]{3,20}$/', $d['phone_client']) ) return 'Teléfono inválido';
+				if( $d['email_client'] !== '' && ( strlen($d['email_client']) > 100 || !filter_var($d['email_client'], FILTER_VALIDATE_EMAIL) ) ) return 'Email inválido';
+
+				if( $d['birth_client'] === '' ) return 'La fecha de nacimiento es obligatoria';
+				$birth = Excel_import::parseDate($d['birth_client']);
+				if( $birth === NULL ) return 'Fecha de nacimiento inválida (use dd/mm/aaaa)';
+				if( $birth > date('Y-m-d') || $birth < '1900-01-01' ) return 'Fecha de nacimiento fuera de rango';
+				$d['birth_client'] = $birth;
+
+				return NULL;
+			},
+			'key' => $key,
+			'existing' => function() use ($db, $nameKey){
+
+				$keys = array();
+				foreach( $db->select('id_card_client, name_client, surname_client, birth_client')->get('clients')->result_array() as $r ){
+					if( $r['id_card_client'] !== NULL && $r['id_card_client'] !== '' ){
+						$keys[] = 'id:'.strtolower($r['id_card_client']);
+					}
+					$keys[] = $nameKey((string) $r['name_client'], (string) $r['surname_client'], $r['birth_client']);
+				}
+				return $keys;
+			},
+			'insert' => function($rows) use ($db){
+
+				$batch = array();
+				foreach( $rows as $d ){
+					$batch[] = array(
+						'id_card_client' => $d['id_card_client'] !== '' ? $d['id_card_client'] : NULL,
+						'name_client'    => $d['name_client'],
+						'surname_client' => $d['surname_client'],
+						'phone_client'   => $d['phone_client'] !== '' ? $d['phone_client'] : NULL,
+						'email_client'   => $d['email_client'] !== '' ? $d['email_client'] : NULL,
+						'birth_client'   => $d['birth_client'],
+					);
+				}
+
+				if( $db->insert_batch('clients', $batch) !== count($batch) ){
+					throw new Exception('insert_batch failed');
+				}
+			},
+		));
+
+		$new_tk = generateToken();
+		$this->session->set_userdata('tk', $new_tk);
+		$response['tk'] = $new_tk;
+
+		echo json_encode($response);
 	}
 
     public function form_clients( $view_data = array() ){
