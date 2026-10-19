@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Servidor: 127.0.0.1
--- Tiempo de generación: 31-07-2026 a las 06:48:17
+-- Tiempo de generación: 19-10-2026 (esquema sincronizado con la base de datos actual; solo datos de configuración)
 -- Versión del servidor: 10.4.22-MariaDB
 -- Versión de PHP: 8.3.30
 
@@ -107,17 +107,6 @@ CREATE TABLE `bank_account` (
   `active` tinyint(1) NOT NULL DEFAULT 1
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
---
--- Volcado de datos para la tabla `bank_account`
---
-
-INSERT INTO `bank_account` (`id_account`, `token_account`, `name_account`, `type`, `buy_rate`, `sell_rate`, `active`) VALUES
-(1, '00000000000001', 'Banpro cordoba', 'cordobas', '36.40', '37.00', 1),
-(3, '00000000000002', 'Banpro dolar', 'dolares', '36.40', '37.00', 1),
-(4, '000000001', 'BAC cordoba', 'cordobas', '36.30', '37.40', 1),
-(5, '000000002', 'BAC dolar', 'dolares', '36.30', '37.40', 1),
-(6, '0000000000001', 'tbanco', 'cordobas', '36.40', '37.00', 1);
-
 -- --------------------------------------------------------
 
 --
@@ -191,7 +180,7 @@ CREATE TABLE `dollar_exchange` (
 --
 
 INSERT INTO `dollar_exchange` (`buy_price`, `sell_price`) VALUES
-('36.40', '37.00');
+('36.40', '37.10');
 
 -- --------------------------------------------------------
 
@@ -475,7 +464,8 @@ CREATE TABLE `sale_products` (
   `price` varchar(20) COLLATE utf8_unicode_ci NOT NULL,
   `discount` int(11) DEFAULT NULL,
   `commission_rate` decimal(5,2) DEFAULT NULL,
-  `my_product` tinyint(4) DEFAULT 0
+  `my_product` tinyint(4) DEFAULT 0,
+  `id_employee` int(3) UNSIGNED ZEROFILL DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
 
 -- --------------------------------------------------------
@@ -510,19 +500,19 @@ CREATE TABLE `settings` (
 INSERT INTO `settings` (`id_setting`, `setting_key`, `setting_value`, `description`) VALUES
 (1, 'vip_discount_rate', '15', 'Descuento (%) aplicado automaticamente a los servicios cuando el cliente es VIP'),
 (2, 'birthday_discount_rate', '50', 'Descuento (%) aplicado automaticamente a los servicios cuando es el cumpleanos del cliente'),
-(3, 'company_name', 'Conceptos', 'Nombre de la empresa mostrado en el tÝtulo y reportes'),
+(3, 'company_name', 'Solinsa', 'Nombre de la empresa mostrado en el tÝtulo y reportes'),
 (4, 'logo_header', NULL, 'Nombre de archivo del logo del panel administrativo (vacio = usar imagen por defecto)'),
 (5, 'logo_login', NULL, 'Nombre de archivo del logo de la pantalla de inicio de sesion'),
 (6, 'logo_receipt', NULL, 'Nombre de archivo del logo impreso en los recibos termicos'),
 (7, 'logo_purchase_order', NULL, 'Nombre de archivo del logo en los PDF de ordenes de compra'),
 (8, 'receipt_ruc', '2811201760006N', 'RUC impreso en el encabezado del recibo'),
-(9, 'receipt_address', 'Costado sur funeraria monte\nlos olivos 2 1/2c al este,\nManagua-Nicaragua.', 'Direccion impresa en el encabezado del recibo (una linea por salto de linea)'),
-(10, 'receipt_phone', '8885-1430', 'Telefono impreso en el encabezado del recibo'),
+(9, 'receipt_address', 'Iglesia El Calvario 1C y\n10vrs al Este,\nLeon-Nicaragua.', 'Direccion impresa en el encabezado del recibo (una linea por salto de linea)'),
+(10, 'receipt_phone', '8860-3490', 'Telefono impreso en el encabezado del recibo'),
 (11, 'receipt_tagline', 'Siente la Diferencia', 'Eslogan impreso en el encabezado del recibo (sin comillas, se agregan al imprimir)'),
 (12, 'receipt_footer_notice', 'No se aceptan devoluciones', 'Aviso impreso en el pie del recibo'),
-(13, 'receipt_footer_thanks', 'Gracias por preferirnos!!\nLe esperamos pronto.', 'Mensaje de agradecimiento impreso en el pie del recibo (una linea por salto de linea)'),
-(14, 'birthday_discount_ceiling_min', '0', 'Monto minimo (C$) del total de servicios sin descuento para que aplique el descuento de cumpleanos'),
-(15, 'birthday_discount_ceiling_max', '999999999', 'Monto maximo (C$) del total de servicios sin descuento que puede recibir el descuento de cumpleanos');
+(13, 'receipt_footer_thanks', 'Gracias por preferirnos!!\nLe esperamos pronto.', 'Mensaje de agradecimiento impreso en el pie del recibo (una linea por salto de linea)'),
+(14, 'birthday_discount_ceiling_min', '1000', 'Monto minimo (C$) del total de servicios sin descuento para que aplique el descuento de cumpleanos'),
+(15, 'birthday_discount_ceiling_max', '2000', 'Monto maximo (C$) del total de servicios sin descuento que puede recibir el descuento de cumpleanos');
 
 --
 -- Índices para tablas volcadas
@@ -532,7 +522,8 @@ INSERT INTO `settings` (`id_setting`, `setting_key`, `setting_value`, `descripti
 -- Indices de la tabla `admins`
 --
 ALTER TABLE `admins`
-  ADD PRIMARY KEY (`id_admin`);
+  ADD PRIMARY KEY (`id_admin`),
+  ADD UNIQUE KEY `uq_admins_username` (`username`);
 
 --
 -- Indices de la tabla `appointments`
@@ -720,7 +711,8 @@ ALTER TABLE `sale_payments`
 ALTER TABLE `sale_products`
   ADD PRIMARY KEY (`id_sale_product`),
   ADD KEY `id_sale` (`id_sale`),
-  ADD KEY `id_product` (`id_product`);
+  ADD KEY `id_product` (`id_product`),
+  ADD KEY `fk_sale_products_employee` (`id_employee`);
 
 --
 -- Indices de la tabla `service_category`
@@ -768,7 +760,7 @@ ALTER TABLE `appointment_services`
 -- AUTO_INCREMENT de la tabla `bank_account`
 --
 ALTER TABLE `bank_account`
-  MODIFY `id_account` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=7;
+  MODIFY `id_account` int(11) NOT NULL AUTO_INCREMENT;
 
 --
 -- AUTO_INCREMENT de la tabla `cash`
@@ -894,7 +886,7 @@ ALTER TABLE `service_category`
 -- AUTO_INCREMENT de la tabla `settings`
 --
 ALTER TABLE `settings`
-  MODIFY `id_setting` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=14;
+  MODIFY `id_setting` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=16;
 
 --
 -- Restricciones para tablas volcadas
@@ -1021,6 +1013,7 @@ ALTER TABLE `sale_payments`
 -- Filtros para la tabla `sale_products`
 --
 ALTER TABLE `sale_products`
+  ADD CONSTRAINT `fk_sale_products_employee` FOREIGN KEY (`id_employee`) REFERENCES `employees` (`id_employee`) ON DELETE SET NULL,
   ADD CONSTRAINT `sale_products_ibfk_1` FOREIGN KEY (`id_sale`) REFERENCES `sales` (`id_sale`) ON DELETE CASCADE,
   ADD CONSTRAINT `sale_products_ibfk_2` FOREIGN KEY (`id_product`) REFERENCES `products` (`id_product`) ON DELETE CASCADE;
 --
