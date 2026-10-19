@@ -1,5 +1,12 @@
 <h3 class="section-title">Listado de clientes</h3>
 
+<?php $this->load->view('partials/bulk_import', array(
+	'import_url'   => base_url('clients/import'),
+	'template_url' => base_url('clients/template'),
+	'tk'           => $tk,
+	'entity_label' => 'clientes',
+)); ?>
+
 <div class="panel panel-default">
 	<div class="panel-heading">Búsqueda
 	</div>

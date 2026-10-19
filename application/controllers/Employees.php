@@ -30,6 +30,73 @@ class Employees extends Admin_Controller{
 		$this->renderPanel('employees');
 	}
 
+	private function importColumns(){
+
+		return array(
+			array('key' => 'name',  'label' => 'Nombre',   'required' => TRUE,  'text' => TRUE, 'width' => 35, 'note' => 'Texto, máximo 200 caracteres'),
+			array('key' => 'phone', 'label' => 'Teléfono', 'required' => FALSE, 'text' => TRUE, 'width' => 20, 'note' => 'Texto, máximo 100 caracteres'),
+		);
+	}
+
+	public function template(){
+
+		$this->load->library('excel_import');
+		$this->excel_import->sendTemplate('plantilla_vendedores.xlsx', $this->importColumns(), array(
+			'Un vendedor se considera repetido cuando coincide el Nombre.',
+		));
+	}
+
+	public function import(){
+
+		$this->load->library('excel_import');
+
+		if( !formSubmited() ){
+			echo json_encode(array('type' => 'error', 'message' => 'Sesión inválida, recargue la página e intente de nuevo'));
+			return;
+		}
+
+		$db = $this->db;
+
+		$key = function($d){ return mb_strtolower(trim($d['name']), 'UTF-8'); };
+
+		$response = $this->excel_import->run(array(
+			'columns' => $this->importColumns(),
+			'db' => $db,
+			'validate' => function(&$d){
+
+				if( $d['name'] === '' ) return 'El nombre es obligatorio';
+				if( mb_strlen($d['name'], 'UTF-8') > 200 ) return 'El nombre supera 200 caracteres';
+				if( mb_strlen($d['phone'], 'UTF-8') > 100 ) return 'El teléfono supera 100 caracteres';
+
+				return NULL;
+			},
+			'key' => $key,
+			'existing' => function() use ($db, $key){
+
+				$keys = array();
+				foreach( $db->select('name')->get('employees')->result_array() as $r ){
+					$keys[] = $key(array('name' => (string) $r['name']));
+				}
+				return $keys;
+			},
+			'insert' => function($rows) use ($db){
+
+				$batch = array();
+				foreach( $rows as $d ){
+					$batch[] = array( 'name' => $d['name'], 'phone' => $d['phone'] !== '' ? $d['phone'] : NULL );
+				}
+
+				if( $db->insert_batch('employees', $batch) !== count($batch) ){
+					throw new Exception('insert_batch failed');
+				}
+			},
+		));
+
+		$response['tk'] = $this->issueToken();
+
+		echo json_encode($response);
+	}
+
 	private function issueToken(){
 
 		$tk = generateToken();

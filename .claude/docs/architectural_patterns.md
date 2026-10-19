@@ -92,3 +92,12 @@ See `Sales::printInvoice()` at `application/controllers/Sales.php:298`.
 `application/config/autoload.php:63,91` registers these for every request:
 - **Libraries:** `database`, `session`, `form_validation`
 - **Helpers:** `url`, `data`, `misc`, `date`
+
+## Excel Bulk Import
+
+`/providers`, `/employees` and `/clients` have "Descargar plantilla" / "Subir datos desde Excel" buttons (partial `views/partials/bulk_import.php`, JS modal with spinner, AJAX `FormData` upload).
+- Each controller defines `importColumns()`, `template()` (GET, streams xlsx) and `import()` (POST, JSON, same `tk` token as other forms).
+- Shared engine: `application/libraries/Excel_import.php` (`sendTemplate()`, `readUpload()`, `run()`), PHPExcel-1.8 with `error_reporting` lowered for the request (PHP 8 noise).
+- `run()`: file checks (xlsx, ≤5 MB, ≤2000 rows, headers must match) → validate ALL rows (any invalid row aborts, nothing written) → drop duplicates (in-file and already in DB, incl. soft-deleted) → `insert_batch` in one transaction; any failure rolls back and returns a generic error. 4-byte chars (emoji) are rejected because the connection is 3-byte utf8 on a non-strict server. After a failed `insert_batch`, `$db->reset_query()` is required or the session shutdown write breaks.
+- Duplicate keys: providers = empresa+representante, employees = nombre, clients = cédula (else nombre+apellido+nacimiento).
+- Hardening in `Excel_import`: zip-bomb guard (≤50 MB expanded), memory/time limits raised for the request, cell text normalised (NBSP/line breaks/double spaces), cells rejected if they contain `<`/`>`/control chars/emoji or start with `=`/`@` (several list views echo values unescaped and Excel content bypasses `global_xss_filtering`), insert count verified against the batch size. The page JS blocks concurrent uploads, pre-checks extension/size, and tells the user when the session expired.
