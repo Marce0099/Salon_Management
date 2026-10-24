@@ -1150,13 +1150,22 @@ class Sales extends Admin_Controller{
 
 			$pdf_path = $receipts_dir.$pdf_name;
 
+			// html2pdf/TCPDF are PHP 5 era code; any leftover deprecation would be logged once per
+			// pixel/glyph (thousands of file writes per sale), so keep them out of the log here
+			$prev_error_reporting = error_reporting( error_reporting() & ~E_DEPRECATED );
+
 			$html2pdf = new HTML2PDF('P', array(80,200), 'es', true, 'UTF-8', array(0,0,0,0) );
 			$html2pdf->writeHTML($content);
 			$html2pdf->Output($pdf_path, 'F');
 
+			error_reporting( $prev_error_reporting );
+
 			return $pdf_name;
 		}
 		catch( Exception $e ){
+
+			if( isset($prev_error_reporting) )
+				error_reporting( $prev_error_reporting );
 
 			return NULL;
 		}

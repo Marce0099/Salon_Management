@@ -14,6 +14,7 @@ require_once(dirname(__FILE__).'/../_tcpdf_'.HTML2PDF_USED_TCPDF_VERSION.'/tcpdf
 
 class HTML2PDF_myPdf extends TCPDF
 {
+    public $ws = 0;
     protected $_footerParam = array();
     protected $_transf      = array();
     protected $_myLastPageGroup = null;
