@@ -8,7 +8,6 @@
 
 			$this->load->model('cash_mdl');
 			$this->load->model('products_mdl');
-			$this->load->model('appointments_mdl');
 			$this->load->model('statistics_mdl');
 		}
 
@@ -21,7 +20,6 @@
 			$data['open_cash'] = $this->cash_mdl->getOpenedCash();
 			$data['cash_movements'] = $data['open_cash'] ? $this->cash_mdl->getCashMovements($data['open_cash']) : NULL;
 			$data['low_stock_count'] = $this->products_mdl->getLowStockCount();
-			$data['upcoming_appointments'] = $this->appointments_mdl->getUpcomingCount(7);
 			// monthly goals and per-employee sales are admin-only everywhere else
 			// (Sale_goals, Employees), so the dashboard does not leak them to workers
 			$data['is_admin'] = $this->is_admin();

@@ -135,7 +135,7 @@ class Products_mdl extends CI_Model{
 	public function searchAvailable($barcode = '', $name = '', $type = 'all'){
 
 		$sql = 'SELECT products.id_product, products.barcode, products.name, products.price_sell,
-		               products.is_service, products.commisssion_rate, service_category.discount_rate AS category_discount_rate
+		               products.is_service, products.commisssion_rate, NULL AS category_discount_rate
 		        FROM products
 		        LEFT JOIN service_category USING(id_service_category)
 		        WHERE products.active = 1 AND (products.is_service = 1 OR products.stock > 0)';

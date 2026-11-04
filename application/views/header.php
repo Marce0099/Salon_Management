@@ -111,13 +111,9 @@
                       <li><a href="<?php echo base_url('products/internal_use_list'); ?>">Historial de uso interno</a></li>
                     </ul>
                   </li>
-                  <li><a><i class="fa fa-cut"></i> Servicios <span class="fa fa-chevron-down"></span></a>
+                  <li><a><i class="fa fa-cutlery"></i> Categorías de menú <span class="fa fa-chevron-down"></span></a>
                     <ul class="nav child_menu">
-                      <li><a href="<?php echo base_url('services'); ?>">Lista</a></li>
-                      <?php if($this->controller->is_admin()){ ?>
-                      <li><a href="<?php echo base_url('products/register?is_service=1'); ?>">Crear Servicio</a></li>
-                      <?php } ?>
-                      <li><a href="<?php echo base_url('service_categories'); ?>">Categorias</a></li>
+                      <li><a href="<?php echo base_url('service_categories'); ?>">Lista</a></li>
                     </ul>
                   </li>
                   <li><a><i class="fa fa-truck"></i> Proveedores <span class="fa fa-chevron-down"></span></a>
@@ -163,12 +159,10 @@
                       <?php } ?>
                       <?php if($this->controller->is_super()){ ?>
                       <li><a href="<?php echo base_url('admins/list'); ?>">Administradores</a></li>
-                      <li><a href="<?php echo base_url('loyalty_points'); ?>">Programa de puntos</a></li>
                       <?php } ?>
                     </ul>
                   </li>
                   <!--<li><a href="<?php //echo base_url('dollar_exchange'); ?>"><i class="fa fa-cog"></i> Tipo de cambio</a></li>-->
-                  <li><a href="<?php echo base_url('appointments'); ?>"><i class="fa fa-calendar"></i> Reservas</a></li>
                 </ul>
               </div>
 

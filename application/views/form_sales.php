@@ -818,6 +818,8 @@
 		$('#loyalty-claim-options').empty();
 		$('#loyalty-balance-display').text('');
 
+		return; // loyalty program removed (restaurant conversion)
+
 		if( !id_client ) return;
 
 		$.post( '<?php echo base_url('loyalty_points/getClientBalance'); ?>', { id_client : id_client }, function(data){

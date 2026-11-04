@@ -33,18 +33,6 @@
       </a>
     </div>
 
-    <div class="col-md-3">
-      <a href="<?php echo base_url('appointments'); ?>" style="text-decoration:none; color:inherit;">
-        <div class="panel panel-default kpi-tile">
-          <div class="panel-heading"><i class="fa fa-calendar"></i> Próximas reservas</div>
-          <div class="panel-body">
-            <div class="kpi-value"><?php echo $upcoming_appointments; ?></div>
-            <div class="kpi-sub">En los próximos 7 días</div>
-          </div>
-        </div>
-      </a>
-    </div>
-
     <?php if( $is_admin ) : ?>
     <div class="col-md-3">
       <a href="<?php echo base_url('sale_goals'); ?>" style="text-decoration:none; color:inherit;">

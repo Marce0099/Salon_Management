@@ -25,18 +25,6 @@ class Sales_mdl extends CI_Model{
 			$sql = 'update products set stock = stock - '.$data['quantity'].' where id_product = '.$data['id_product'];
 			$this->db->query($sql);
 
-			$sale_balance = $data['quantity'] * $data['price'];
-			$actual_balance = $product->stock * $product->price_sell;
-
-			if( $product->stock - $data['quantity'] > 0 ){
-				
-				$new_price = ( $actual_balance - $sale_balance ) / ( $product->stock - $data['quantity'] );
-				$new_price = str_replace(",", ".", $new_price);
-				
-				$sql = 'update products set price_sell = "'.$new_price.'" where id_product = '.$data['id_product'];
-
-				$this->db->query($sql);
-			}
 		}
 	}
 
@@ -46,11 +34,6 @@ class Sales_mdl extends CI_Model{
 		on SP.id_product = P.id_product where SP.id_sale = '.$id_sale;
 
 		return $this->db->query($sql)->result();
-	}
-
-	public function getByAppointment( $id_appointment ){
-
-		return $this->db->get_where( 'sales', array( 'id_appointment' => $id_appointment ) )->row();
 	}
 
 	public function getSale($id_sale){

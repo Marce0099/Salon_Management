@@ -17,10 +17,6 @@ class Sales extends Admin_Controller{
 		$this->load->model('cash_mdl');
 		$this->load->model('payments_mdl');
 		$this->load->model('bank_account_mdl');
-		$this->load->model('appointments_mdl');
-		$this->load->model('appointment_payments_mdl');
-		$this->load->model('loyalty_points_mdl');
-		$this->load->helper('discount');
 	}
 
 	private function format_columns( $col_1, $col_2, $col_3 ){
@@ -77,7 +73,7 @@ class Sales extends Admin_Controller{
 		$this->renderPanel('sales',$data);
 	}
 
-	public function register( $id_appointment = 0 ){
+	public function register(){
 
 		if( !$this->cash_mdl->getOpenedCash() ){
 
@@ -95,19 +91,6 @@ class Sales extends Admin_Controller{
 			$commission_rate = $this->input->post('commission_rate');
 			$attended_employees = $this->input->post('attended_employees');
 
-			// When checked, the employee typed every line's discount by hand and the automated VIP/
-			// birthday/category rules (and the coupon-vs-discount golden rule) are bypassed entirely —
-			// see the branch built around this flag below. Coupon payments are rejected outright in
-			// that mode instead (checked further down, alongside the other payment-method checks).
-			$manual_discount = (bool) $this->input->post('manual_discount');
-
-			// Line discounts are never trusted from the client UNLESS $manual_discount is set — normally
-			// a posted value is only a UI convenience the browser happened to compute, and the real value
-			// is recomputed below from server-side data (service category default / VIP rate) once the
-			// client is resolved, so a tampered or hand-crafted request can't apply a discount beyond
-			// what's legitimate. In manual mode the posted value IS the real value, but is still range-
-			// validated (0-100) before being trusted — see the branch below.
-			$discounts = array();
 
 			$sale['client'] = $this->input->post('id_client');
 			$sale['id_employee'] = $this->input->post('id_employee') ? $this->input->post('id_employee') : NULL;
@@ -115,8 +98,14 @@ class Sales extends Admin_Controller{
 
 			if( !$sale['client'] ){
 
+				$this->load->model('settings_mdl');
+				$sale['client'] = $this->settings_mdl->get('default_client_id', 0);
+			}
+
+			if( !$sale['client'] ){
+
 				$response['type'] = 'error';
-				$response['message'] = 'Debe seleccionar un cliente';
+				$response['message'] = 'No hay un cliente por defecto configurado';
 				echo json_encode($response);
 				exit();
 			}
@@ -124,32 +113,9 @@ class Sales extends Admin_Controller{
 			if( !$sale['id_employee'] ){
 
 				$response['type'] = 'error';
-				$response['message'] = 'Debe seleccionar un vendedor';
+				$response['message'] = 'Debe seleccionar un mesero';
 				echo json_encode($response);
 				exit();
-			}
-
-			/* continuation of an appointment's booking deposit into a full sale, if posted */
-			$posted_id_appointment = (int) $this->input->post('id_appointment');
-			$appointment_deposit = null;
-
-			if( $posted_id_appointment > 0 ){
-
-				if( $this->sales_mdl->getByAppointment( $posted_id_appointment ) ){
-
-					$response['type'] = 'error';
-					$response['message'] = 'Esta reserva ya fue facturada';
-					echo json_encode($response);
-					exit();
-				}
-
-				$posted_appointment = $this->appointments_mdl->getAppointment( $posted_id_appointment );
-
-				if( $posted_appointment ){
-					$sale['client'] = $posted_appointment->id_client;
-				}
-
-				$appointment_deposit = $this->appointment_payments_mdl->getForAppointment( $posted_id_appointment );
 			}
 
 			$payment_methods = $this->input->post('payment_method') ?: array();
@@ -167,18 +133,6 @@ class Sales extends Admin_Controller{
 					$response['message'] = 'Metodo de pago no válido';
 					echo json_encode($response);
 					exit();
-				}
-			}
-
-			if( $manual_discount ){
-				foreach( $payment_methods as $pm ){
-					if( $pm === 'cupon' ){
-
-						$response['type'] = 'error';
-						$response['message'] = 'No se puede usar cupón cuando el descuento es manual';
-						echo json_encode($response);
-						exit();
-					}
 				}
 			}
 
@@ -222,85 +176,35 @@ class Sales extends Admin_Controller{
 			$sale['dollar_ex_buy'] = $exchange->buy_price;
 			$sale['dollar_ex_sell'] = $exchange->sell_price;
 
-			/* VIP/birthday discount: resolved once from the now-final sale client, never trusted from the client */
-			$this->load->model('settings_mdl');
-			$vip_discount_rate = (float) $this->settings_mdl->get('vip_discount_rate', 0);
-			$birthday_discount_rate = (float) $this->settings_mdl->get('birthday_discount_rate', 0);
-			$birthday_ceiling_min = (float) $this->settings_mdl->get('birthday_discount_ceiling_min', 0);
-			$birthday_ceiling_max = (float) $this->settings_mdl->get('birthday_discount_ceiling_max', 999999999);
-			$sale_client_row = $this->db->get_where('clients', array( 'id_client' => $sale['client'] ))->row();
-			$sale_client_is_vip = $sale_client_row && $sale_client_row->is_vip_client == 1;
-			$sale_client_is_birthday = $sale_client_row && !empty($sale_client_row->birth_client)
-				&& date('m-d', strtotime($sale_client_row->birth_client)) === date('m-d');
-
-			/* invoice total + services-only subtotal, needed unconditionally for the coupon overpay check below */
+			/* Line discounts are courtesies: only admins may grant them (range-validated 0-100); anyone else always gets 0 */
+			$posted_discounts = $this->input->post('discounts') ?: array();
+			$discounts = array_fill( 0, count($id_products), 0 );
 			$total_cordobas = 0;
-			$services_total_cordobas = 0;
 			$sale_products_cache = array();
 
-			/* Pass 1: fetch each line's product, resolve its category discount rate, and — for service
-			   lines only — compute the undiscounted córdoba subtotal. Birthday eligibility (pass 2 below)
-			   depends on the sale's whole undiscounted-services total, so it can't be decided line-by-line
-			   in a single pass. */
-			$category_rates = array();
-			$undiscounted_service_cordobas = array();
-			$services_total_undiscounted_cordobas = 0;
+			if( !is_array($id_products) || count($id_products) == 0 ){
+
+				$response['type'] = 'error';
+				$response['message'] = 'Debe agregar al menos un producto';
+				echo json_encode($response);
+				exit();
+			}
 
 			for( $i=0; $i < count($id_products); $i++ ){
 
 				$product = $this->db->get_where('products', array( 'id_product' => $id_products[$i] ))->row();
+
+				if( !$product ){
+
+					$response['type'] = 'error';
+					$response['message'] = 'Producto no válido';
+					echo json_encode($response);
+					exit();
+				}
+
 				$sale_products_cache[$i] = $product;
 
-				$category_rates[$i] = 0;
-
-				if( $product && $product->is_service ){
-
-					if( $product->id_service_category ){
-						$category = $this->db->get_where('service_category', array( 'id_service_category' => $product->id_service_category ))->row();
-						if( $category && $category->discount_rate !== null ) $category_rates[$i] = (float) $category->discount_rate;
-					}
-
-					$price = str_replace(',', '', $prices[$i] );
-					$undiscounted_service_cordobas[$i] = $price * $quantities[$i] * $exchange->sell_price;
-					$services_total_undiscounted_cordobas += $undiscounted_service_cordobas[$i];
-				}
-			}
-
-			/* Birthday ceiling: only eligible at all once the sale's undiscounted services total meets the
-			   minimum; lines are then walked in submission order (matches on-screen order) accumulating a
-			   running total, and marked eligible while it stays within the maximum (both bounds inclusive).
-			   The first line that would push the running total past the max — and every line after it —
-			   is excluded from the birthday discount (no skip-ahead to a later, smaller line). */
-			$birthday_eligible = array();
-			$apply_birthday_ceiling = $sale_client_is_birthday && $services_total_undiscounted_cordobas >= $birthday_ceiling_min;
-			$running_cordobas = 0;
-			$ceiling_exceeded = false;
-
-			for( $i=0; $i < count($id_products); $i++ ){
-
-				if( !isset($undiscounted_service_cordobas[$i]) ) continue;
-
-				if( $apply_birthday_ceiling && !$ceiling_exceeded && ( $running_cordobas + $undiscounted_service_cordobas[$i] ) <= $birthday_ceiling_max ){
-					$birthday_eligible[$i] = true;
-					$running_cordobas += $undiscounted_service_cordobas[$i];
-				}
-				else{
-					$birthday_eligible[$i] = false;
-					if( $apply_birthday_ceiling ) $ceiling_exceeded = true;
-				}
-			}
-
-			if( $manual_discount ){
-
-				/* Manual override: the automated golden rule (category/VIP/birthday competition, then
-				   coupon-vs-discount) is bypassed entirely. Every posted discount is trusted for the
-				   first time in this codebase, so it gets its own explicit 0-100 range validation here
-				   (mirrors the existing coupon-discount-rate check further down) — every line index is
-				   covered, not just service lines, unlike the automated path below. */
-				$posted_discounts = $this->input->post('discounts') ?: array();
-				$discounts = array_fill( 0, count($id_products), 0 );
-
-				for( $i=0; $i < count($id_products); $i++ ){
+				if( $this->is_admin() ){
 
 					$raw = isset($posted_discounts[$i]) ? trim($posted_discounts[$i]) : '0';
 					if( $raw === '' ) $raw = '0';
@@ -308,7 +212,7 @@ class Sales extends Admin_Controller{
 					if( !is_numeric($raw) || $raw < 0 || $raw > 100 ){
 
 						$response['type'] = 'error';
-						$response['message'] = 'El descuento manual debe ser un número entre 0 y 100';
+						$response['message'] = 'El descuento debe ser un número entre 0 y 100';
 						echo json_encode($response);
 						exit();
 					}
@@ -316,152 +220,16 @@ class Sales extends Admin_Controller{
 					$discounts[$i] = (int) round( (float) $raw );
 				}
 
-				$has_discounted_service = false;
-				$total_line_discount_cordobas = 0;
-				$birthday_ceiling_writeoff_cordobas = 0;
-
-			}else{
-
-				/* Pass 2a: candidate line discounts are server-computed, not read from the POST. Golden rule
-				   stage 1: category, VIP, and birthday compete as three whole-sale strategies (not per line
-				   independently) — whichever is worth the most wins and is applied everywhere it's eligible,
-				   every other line gets a flat 0. This is only a candidate: golden rule stage 2 below may
-				   still neutralize the winner in favor of a coupon payment worth more. */
-				$discounts = array_fill( 0, count($id_products), 0 );
-
-				$category_rates_for_services = array();
-				$birthday_eligible_for_services = array();
-				foreach( $undiscounted_service_cordobas as $i => $undiscounted ){
-					$category_rates_for_services[$i] = $category_rates[$i];
-					$birthday_eligible_for_services[$i] = !empty($birthday_eligible[$i]);
-				}
-
-				$source_resolution = resolve_single_discount_source(
-					$category_rates_for_services,
-					$sale_client_is_vip,
-					$vip_discount_rate,
-					$birthday_eligible_for_services,
-					$birthday_discount_rate,
-					$apply_birthday_ceiling
-				);
-
-				foreach( $source_resolution['discounts'] as $i => $rate ){
-					$discounts[$i] = $rate;
-				}
-
-				/* Birthday-ceiling cap: once birthday wins stage 1 above AND the sale's undiscounted services
-				   total goes beyond the configured maximum, the discount stops being granted per line — every
-				   service line's candidate is zeroed here and replaced by a single flat córdoba write-off
-				   (birthday_rate% of the MAXIMUM, not the actual total), which still competes against a coupon
-				   in stage 2 below just like a per-line discount would. No-op in every other case: a different
-				   source won, or birthday won within the ceiling (today's per-line behavior is unchanged). */
-				$candidate_discounts_for_resolution = array();
-				foreach( $undiscounted_service_cordobas as $i => $undiscounted ){
-					$candidate_discounts_for_resolution[$i] = $discounts[$i];
-				}
-
-				$ceiling_resolution = resolve_birthday_ceiling_writeoff(
-					$source_resolution['winning_source'],
-					$birthday_discount_rate,
-					$services_total_undiscounted_cordobas,
-					$birthday_ceiling_max,
-					$candidate_discounts_for_resolution
-				);
-
-				$candidate_discounts_for_resolution = $ceiling_resolution['discounts'];
-				foreach( $candidate_discounts_for_resolution as $i => $rate ){
-					$discounts[$i] = $rate;
-				}
-
-				/* Pass 2b, golden rule stage 2: only one discount effect survives per sale. The winning line
-				   discount from stage 1 above (or the flat birthday-ceiling write-off just resolved) competes
-				   against a coupon payment: whichever is worth more in córdobas wins, the other is neutralized.
-				   Coupon tender total is a single row's amount since more than one coupon payment per sale is
-				   already rejected above. */
-				$coupon_tender_total = 0;
-				foreach( $payment_methods as $pm_i => $pm ){
-					if( $pm === 'cupon' ) $coupon_tender_total += floatval(str_replace(',', '', $cupon_amounts[$pm_i]));
-				}
-
-				$resolution = resolve_coupon_vs_line_discounts( $candidate_discounts_for_resolution, $undiscounted_service_cordobas, $coupon_tender_total, $ceiling_resolution['writeoff_cordobas'] );
-
-				foreach( $resolution['discounts'] as $i => $final_rate ){
-					$discounts[$i] = $final_rate;
-				}
-
-				$has_discounted_service = !$resolution['coupon_allowed'];
-				$total_line_discount_cordobas = $resolution['total_line_discount_cordobas'];
-				$birthday_ceiling_writeoff_cordobas = $resolution['extra_discount_cordobas'];
-			}
-
-			/* totals accumulation runs after the golden-rule resolution above so it reflects the final
-			   (possibly neutralized) discount, not the raw per-line candidate */
-			for( $i=0; $i < count($id_products); $i++ ){
-
-				$product = $sale_products_cache[$i];
 				$price = str_replace(',', '', $prices[$i] );
 				$subtotal = $price * $quantities[$i];
 
 				if( $discounts[$i] )
 					$subtotal -= $subtotal * $discounts[$i] / 100;
 
-				$subtotal_cordobas = $subtotal * $exchange->sell_price;
-				$total_cordobas += $subtotal_cordobas;
-
-				if( $product && $product->is_service )
-					$services_total_cordobas += $subtotal_cordobas;
+				$total_cordobas += $subtotal * $exchange->sell_price;
 			}
 
-			/* loyalty program: if the client marked "claim reward" and currently qualifies, burn the
-			   threshold for the highest tier they qualify for and discount this sale's services by that
-			   tier's rate; balance/eligibility are always re-validated server-side, never trusted from the client */
-			$loyalty_settings = $this->loyalty_points_mdl->getSettings();
-			$claim_tier = (int) $this->input->post('claim_loyalty_tier');
-			$loyalty_balance_before = 0;
-			$loyalty_tier_threshold = 0;
-			$loyalty_tier_rate = null;
-			$loyalty_discount_cordobas = 0;
-
-			if( $loyalty_settings && $loyalty_settings->enabled ){
-
-				// always the client's true current balance — needed unconditionally as the accrual's
-				// ceiling-capping base below, not just when a reward is being claimed
-				$loyalty_balance_before = $this->loyalty_points_mdl->getClientBalance( $sale['client'] );
-
-				if( $claim_tier >= 1 && $claim_tier <= 4 ){
-
-					$threshold = round( $loyalty_settings->points_ceiling * $claim_tier / 4, 2 );
-
-					if( $loyalty_balance_before >= $threshold ){
-
-						$loyalty_tier_threshold = $threshold;
-						$loyalty_tier_rate = $loyalty_settings->{"tier{$claim_tier}_discount_rate"};
-						$loyalty_discount_cordobas = round( $services_total_cordobas * $loyalty_tier_rate / 100, 2 );
-					}
-				}
-			}
-
-			if( $loyalty_discount_cordobas <= 0 ) $claim_tier = 0; // nothing eligible/claimed — silently ignored, no error
-
-			/* an appointment's frozen booking deposit is credited against the invoice total before any
-			   payment-sufficiency math runs below; it was fixed at booking time and never re-validated
-			   against overpay rules here since it's already-collected money, not a new payment decision */
-			$deposit_cordoba_equivalent = 0;
 			$remaining_cordobas = $total_cordobas;
-
-			if( $appointment_deposit ){
-
-				$deposit_cordoba_equivalent = floatval($appointment_deposit->cordoba) + ( floatval($appointment_deposit->dolar) * $exchange->sell_price );
-				$remaining_cordobas = max( $total_cordobas - $deposit_cordoba_equivalent, 0 );
-			}
-
-			$remaining_cordobas = max( $remaining_cordobas - $loyalty_discount_cordobas, 0 );
-
-			/* birthday-ceiling write-off (resolved above, alongside the golden rule): same pure córdoba
-			   deduction pattern as the loyalty discount just above — never touches sale_products.discount
-			   or $total_cordobas/the receipt line items, only what's actually owed. Already 0 if a coupon
-			   neutralized it in stage 2. */
-			$remaining_cordobas = max( $remaining_cordobas - $birthday_ceiling_writeoff_cordobas, 0 );
 
 			/* coupon uniqueness + sequential coverage + aggregate non-cash overpay rejection (mirrors the JS check);
 			   also gathers the raw cash tendered while we're already looping payment methods */
@@ -470,24 +238,13 @@ class Sales extends Admin_Controller{
 			$cash_cordoba_raw = 0;
 			$cash_dolar_raw = 0;
 			$dollar_row_count = 0;
-			// coupons may only be redeemed against the services portion of the invoice, not products; the
-			// loyalty discount is subtracted first so a coupon can't validate against services value already
-			// given away as a loyalty reward
-			$coupon_remaining = max( $services_total_cordobas - $loyalty_discount_cordobas, 0 );
+			$coupon_remaining = $remaining_cordobas;
 
 			for( $i=0; $i < count($payment_methods); $i++ ){
 
 				$method = $payment_methods[$i];
 
 				if( $method === 'cupon' ){
-
-					if( $has_discounted_service ){
-
-						$response['type'] = 'error';
-						$response['message'] = 'El descuento de los servicios (C$'.number_format($total_line_discount_cordobas, 2).') es mayor o igual al monto del cupón; no se puede usar el cupón';
-						echo json_encode($response);
-						exit();
-					}
 
 					$code = trim($cupon_codes[$i]);
 					$amount = floatval(str_replace(',', '', $cupon_amounts[$i]));
@@ -521,7 +278,7 @@ class Sales extends Admin_Controller{
 					if( $coupon_remaining <= 0.01 ){
 
 						$response['type'] = 'error';
-						$response['message'] = 'Los cupones solo se pueden aplicar sobre servicios, y esta factura no tiene servicios';
+						$response['message'] = 'La factura no tiene saldo pendiente para aplicar un cupón';
 						echo json_encode($response);
 						exit();
 					}
@@ -529,7 +286,7 @@ class Sales extends Admin_Controller{
 					if( $amount - $coupon_remaining > 0.01 ){
 
 						$response['type'] = 'error';
-						$response['message'] = 'El cupón "'.$code.'" excede el total disponible de servicios en la factura (disponible: C$'.number_format($coupon_remaining,2).')';
+						$response['message'] = 'El cupón "'.$code.'" excede el total pendiente de la factura (pendiente: C$'.number_format($coupon_remaining,2).')';
 						echo json_encode($response);
 						exit();
 					}
@@ -671,18 +428,8 @@ class Sales extends Admin_Controller{
 				}
 			}
 
-			$sale['id_appointment'] = $posted_id_appointment > 0 ? $posted_id_appointment : NULL;
-
 			$this->db->trans_start();
 			$id_sale = $this->sales_mdl->saveSale( $sale );
-
-			$accrual_basis_cordobas = max( $services_total_cordobas - $loyalty_discount_cordobas, 0 );
-
-			$this->loyalty_points_mdl->recordSaleMovements(
-				$id_sale, $sale['client'], $this->id_admin,
-				$claim_tier, $loyalty_tier_threshold, $loyalty_tier_rate,
-				$loyalty_balance_before, $accrual_basis_cordobas
-			);
 
 			$payment = array();
 
@@ -781,23 +528,6 @@ class Sales extends Admin_Controller{
 				}
 			}unset($pay);
 
-			if( $appointment_deposit ){
-
-				$payment_to_save[] = array(
-					"id_sale" => $id_sale,
-					"payment_method" => "transfer",
-					"account" => $appointment_deposit->account,
-					"cupon_code" => null,
-					"cupon_discount_rate" => null,
-					"cordoba" => $appointment_deposit->cordoba,
-					"dolar" => $appointment_deposit->dolar,
-					"tax_rate" => null,
-					"change_cordoba_given" => null,
-					"change_dollar_given" => null,
-					"change_rounding_cordoba" => null,
-				);
-			}
-
 			try{
 
 				$this->payments_mdl->savePayment( $payment_to_save );
@@ -865,18 +595,18 @@ class Sales extends Admin_Controller{
 			}
 
 			ob_start();
-			$pdf_name = $this->generateReceiptPdf( $id_sale, $birthday_ceiling_writeoff_cordobas, $birthday_ceiling_max, $loyalty_discount_cordobas );
+			$pdf_name = $this->generateReceiptPdf( $id_sale );
 			ob_end_clean();
 
 			if( $pdf_name )
 				$this->sales_mdl->setFile( $id_sale, $pdf_name );
 
 			ob_start();
-			$prnt = $this->printInvoice( $id_sale, FALSE, $birthday_ceiling_writeoff_cordobas, $birthday_ceiling_max, $loyalty_discount_cordobas );
+			$prnt = $this->printInvoice( $id_sale, FALSE );
 			ob_end_clean();
 
 			ob_start();
-			$prnt = $this->printInvoice( $id_sale, TRUE, $birthday_ceiling_writeoff_cordobas, $birthday_ceiling_max, $loyalty_discount_cordobas );
+			$prnt = $this->printInvoice( $id_sale, TRUE );
 			ob_end_clean();
 
 			$message = '<p>Venta registrada</p>';
@@ -907,11 +637,11 @@ class Sales extends Admin_Controller{
 			echo json_encode($response);
 		}
 		else{
-			$this->sale_form( (int) $id_appointment );
+			$this->sale_form();
 		}
 	}
 
-	private function generateReceiptPdf( $id_sale, $birthday_writeoff_cordobas = 0, $birthday_ceiling_max = 0, $loyalty_discount_cordobas = 0 ){
+	private function generateReceiptPdf( $id_sale ){
 
 		$sale = $this->sales_mdl->getSale( $id_sale );
 		$details = $this->sales_mdl->getDetails( $id_sale );
@@ -966,7 +696,7 @@ class Sales extends Admin_Controller{
 		}
 
 		$total_cor = $total_dol * $sale->dollar_ex_sell;
-		$total_a_pagar_cor = $total_cor - $birthday_writeoff_cordobas - $loyalty_discount_cordobas;
+		$total_a_pagar_cor = $total_cor;
 		$_total_cor = $total_a_pagar_cor;
 
 		// mirrors printInvoice()'s payment-method loop exactly (non-cash rows individually, cash aggregated with change)
@@ -1110,13 +840,6 @@ class Sales extends Admin_Controller{
 			<table>
 				<!-- <tr><td class="left label-col">Total en Dolares:</td><td class="left">$<?php echo number_format($total_dol,2); ?></td></tr> -->
 				<tr><td class="left label-col">Total en Cordobas:</td><td class="left">C$<?php echo number_format($total_cor,2); ?></td></tr>
-				<?php if( $birthday_writeoff_cordobas > 0 ): ?>
-				<tr><td class="left label-col">Desc. cumpleaños:</td><td class="left">-C$<?php echo number_format($birthday_writeoff_cordobas,2); ?></td></tr>
-				<tr><td class="left label-col">&nbsp;&nbsp;(tope max.):</td><td class="left">C$<?php echo number_format($birthday_ceiling_max,2); ?></td></tr>
-				<?php endif; ?>
-				<?php if( $loyalty_discount_cordobas > 0 ): ?>
-				<tr><td class="left label-col">Desc. fidelidad:</td><td class="left">-C$<?php echo number_format($loyalty_discount_cordobas,2); ?></td></tr>
-				<?php endif; ?>
 				<tr class="total-highlight"><td class="left label-col">Total a pagar:</td><td class="left">C$<?php echo number_format($total_a_pagar_cor,2); ?></td></tr>
 			</table>
 
@@ -1171,7 +894,7 @@ class Sales extends Admin_Controller{
 		}
 	}
 
-	private function printInvoice( $id_sale = 0, $copy = FALSE, $birthday_writeoff_cordobas = 0, $birthday_ceiling_max = 0, $loyalty_discount_cordobas = 0 ){
+	private function printInvoice( $id_sale = 0, $copy = FALSE ){
 
 		$sale = $this->sales_mdl->getSale( $id_sale );
 		$details = $this->sales_mdl->getDetails( $id_sale );
@@ -1255,7 +978,7 @@ class Sales extends Admin_Controller{
 			}
 
 			$total_cor = $total_dol * $sale->dollar_ex_sell;
-			$total_a_pagar_cor = $total_cor - $birthday_writeoff_cordobas - $loyalty_discount_cordobas;
+			$total_a_pagar_cor = $total_cor;
 			$_total_cor = $total_a_pagar_cor;
 
 			//totals
@@ -1264,15 +987,6 @@ class Sales extends Admin_Controller{
 			$label_width = 20;
 			//$printer->text(str_pad("Total en Dolares:", $label_width, ' ', STR_PAD_RIGHT)."$".number_format($total_dol,2)."\n" );
 			$printer->text(str_pad("Total en Cordobas:", $label_width, ' ', STR_PAD_RIGHT)."C$".number_format($total_cor,2)."\n" );
-
-			if( $birthday_writeoff_cordobas > 0 ){
-				$printer->text(str_pad("Desc. cumpleaños:", $label_width, ' ', STR_PAD_RIGHT)."-C$".number_format($birthday_writeoff_cordobas,2)."\n" );
-				$printer->text("  (tope max. C$".number_format($birthday_ceiling_max,2).")\n" );
-			}
-
-			if( $loyalty_discount_cordobas > 0 ){
-				$printer->text(str_pad("Desc. fidelidad:", $label_width, ' ', STR_PAD_RIGHT)."-C$".number_format($loyalty_discount_cordobas,2)."\n" );
-			}
 
 			$printer->selectPrintMode(Printer::MODE_EMPHASIZED);
 			$printer->text(str_pad("Total a pagar:", $label_width, ' ', STR_PAD_RIGHT)."C$".number_format($total_a_pagar_cor,2)."\n" );
@@ -1401,7 +1115,7 @@ class Sales extends Admin_Controller{
 		}
 	}
 
-	public function sale_form( $id_appointment = 0 ){
+	public function sale_form(){
 
 		$this->load->model('settings_mdl');
 
@@ -1411,60 +1125,13 @@ class Sales extends Admin_Controller{
 		$this->session->set_userdata('tk', $data['tk']);
 		$this->content_data = $data;
 		$this->content_data['accounts'] = $this->bank_account_mdl->getAccounts();
-		$this->content_data['prefill'] = $this->buildAppointmentPrefill( (int) $id_appointment, $data['exchange'] );
-		$this->content_data['vip_discount_rate'] = $this->settings_mdl->get('vip_discount_rate', 15);
-		$this->content_data['birthday_discount_rate'] = $this->settings_mdl->get('birthday_discount_rate', 50);
-		$this->content_data['birthday_discount_ceiling_min'] = $this->settings_mdl->get('birthday_discount_ceiling_min', 0);
-		$this->content_data['birthday_discount_ceiling_max'] = $this->settings_mdl->get('birthday_discount_ceiling_max', 999999999);
+		$this->content_data['prefill'] = NULL;
+		// salon-era automatic discounts no longer exist; zeros keep form_sales.php's legacy JS inert
+		$this->content_data['vip_discount_rate'] = 0;
+		$this->content_data['birthday_discount_rate'] = 0;
+		$this->content_data['birthday_discount_ceiling_min'] = 0;
+		$this->content_data['birthday_discount_ceiling_max'] = 0;
 		$this->renderPanel('form_sales');
-	}
-
-	private function buildAppointmentPrefill( $id_appointment, $exchange ){
-
-		if( $id_appointment <= 0 ){
-
-			return NULL;
-		}
-
-		$appointment = $this->appointments_mdl->getAppointment( $id_appointment );
-
-		if( !$appointment || $this->appointments_mdl->isInvoiced( $id_appointment ) ){
-
-			return NULL;
-		}
-
-		$client = $this->db->get_where('clients', array( 'id_client' => $appointment->id_client ))->row();
-
-		if( $client && !empty($client->birth_client) ){
-			$client->is_birthday_today = ( date('m-d', strtotime($client->birth_client)) === date('m-d') ) ? 1 : 0;
-		}
-
-		$sql = 'select p.id_product, p.barcode, p.name, p.price_sell, p.is_service, p.commisssion_rate,
-		               sc.discount_rate as category_discount_rate
-		        from appointment_services aps
-		        join products p on p.id_product = aps.id_product
-		        left join service_category sc on sc.id_service_category = p.id_service_category
-		        where aps.id_appointment = '.(int) $id_appointment;
-
-		$products = $this->db->query( $sql )->result();
-
-		$deposit = $this->appointment_payments_mdl->getForAppointment( $id_appointment );
-		$deposit_credit_cordobas = 0;
-		$deposit_display = NULL;
-
-		if( $deposit ){
-
-			$deposit_credit_cordobas = floatval($deposit->cordoba) + ( floatval($deposit->dolar) * $exchange->sell_price );
-			$deposit_display = 'C$'.number_format($deposit->cordoba,2).' / $'.number_format($deposit->dolar,2);
-		}
-
-		return array(
-			'id_appointment' => $id_appointment,
-			'client' => $client,
-			'products' => $products,
-			'deposit_display' => $deposit_display,
-			'deposit_credit_cordobas' => $deposit_credit_cordobas,
-		);
 	}
 
 	public function returns(){

@@ -37,25 +37,9 @@ class Service_categories extends Admin_Controller{
 		return $this->db->query( $sql )->row();
 	}
 
-	private function resolveDiscountRate(){
-
-		$discount_rate = trim( $this->input->post('discount_rate') );
-
-		if( $discount_rate === '' ){
-			return NULL;
-		}
-
-		if( !is_numeric($discount_rate) || $discount_rate < 0 || $discount_rate > 100 ){
-
-			throw new Exception('El descuento debe ser un valor numérico entre 0 y 100');
-		}
-
-		return $discount_rate;
-	}
-
 	public function register(){
 
-		if( !$this->is_super() ){
+		if( !$this->is_admin() ){
 			echo "No se encontro resultado para esta pagina";
 			exit;
 		}
@@ -75,9 +59,7 @@ class Service_categories extends Admin_Controller{
 						throw new Exception('Esa categoría ya está registrada');
 					}
 
-					$discount_rate = $this->resolveDiscountRate();
-
-					$this->db->insert('service_category', array( 'name_category' => $name_category, 'discount_rate' => $discount_rate ));
+					$this->db->insert('service_category', array( 'name_category' => $name_category));
 
 					$new_tk = generateToken();
 					$this->session->set_userdata('tk', $new_tk);
@@ -105,7 +87,7 @@ class Service_categories extends Admin_Controller{
 
 	public function edit( $id_service_category = 0 ){
 
-		if( !$this->is_super() ){
+		if( !$this->is_admin() ){
 			echo "No se encontro resultado para esta pagina";
 			exit;
 		}
@@ -132,9 +114,7 @@ class Service_categories extends Admin_Controller{
 						throw new Exception('Esa categoría ya está registrada');
 					}
 
-					$discount_rate = $this->resolveDiscountRate();
-
-					$this->db->update('service_category', array( 'name_category' => $name_category, 'discount_rate' => $discount_rate ), array( 'id_service_category' => $id_service_category ));
+					$this->db->update('service_category', array( 'name_category' => $name_category), array( 'id_service_category' => $id_service_category ));
 
 					$new_tk = generateToken();
 					$this->session->set_userdata('tk', $new_tk);
@@ -162,7 +142,7 @@ class Service_categories extends Admin_Controller{
 
 	public function form_service_categories( $id_service_category = 0 ){
 
-		if( !$this->is_super() ){
+		if( !$this->is_admin() ){
 			echo "No se encontro resultado para esta pagina";
 			exit;
 		}

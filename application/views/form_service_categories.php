@@ -7,14 +7,6 @@
 			<label for="name_category">Categoría:</label>
 			<input type="text" name="name_category" id="name_category" required="required" class="form-control" value="<?php echo $is_edit ? $category->name_category : ''; ?>">
 		</div>
-		<div class="form-group">
-			<label for="discount_rate">Descuento (%):</label>
-			<div class="tr-input">
-				<input type="text" name="discount_rate" id="discount_rate" class="form-control has-feedback-left" data-parsley-type="number" value="<?php echo ($is_edit && $category->discount_rate !== NULL) ? $category->discount_rate : ''; ?>">
-				<span class="fa fa-percent form-control-feedback left"></span>
-			</div>
-			<span class="help-block">Descuento aplicado automáticamente a los servicios de esta categoría al agregarlos a una venta. Dejar en blanco para no aplicar descuento.</span>
-		</div>
 		<input type="hidden" name="tk" value="<?php echo $tk; ?>">
 		<div class="form-group">
 			<button class="btn btn-primary" id="btn-submit">Guardar</button>
@@ -69,7 +61,6 @@
 		        	}
 		        	else{
 		        		$('#name_category').val('');
-		        		$('#discount_rate').val('');
 		        	}
 		        }
 	  		},
