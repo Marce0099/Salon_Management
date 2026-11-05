@@ -1,5 +1,6 @@
 <?php
-function bills_money($n){ return '$'.number_format((float) $n, 2); }
+function bills_money($n){ global $rate; return 'C$'.number_format((float) $n * (float) $rate, 2); }
+$rate = isset($rate) ? $rate : 1;
 $open_for_move = array();
 foreach( $bills as $b ){ if( $b->status === 'open' ){ $open_for_move[] = $b; } }
 ?>

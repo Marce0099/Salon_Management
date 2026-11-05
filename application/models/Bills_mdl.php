@@ -52,6 +52,12 @@ class Bills_mdl extends CI_Model{
 		return $this->db->where('id_bill', (int) $id_bill)->where('status', 'active')->order_by('id_order_item')->get('order_items')->result();
 	}
 
+	/** Córdobas per dollar used to display prices (same rate every sale snapshots). */
+	public function sellRate(){
+		$row = $this->db->get('dollar_exchange')->row();
+		return $row ? (float) $row->sell_price : 1.0;
+	}
+
 	public function rates(){
 
 		$this->load->model('settings_mdl');

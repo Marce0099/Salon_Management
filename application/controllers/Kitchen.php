@@ -67,6 +67,7 @@ class Kitchen extends Admin_Controller{
 			'orders'     => $this->kitchen_mdl->tabOrders($id_tab),
 			'total'      => $this->kitchen_mdl->tabTotal($id_tab),
 			'is_admin'   => $this->is_admin(),
+			'rate'       => $this->bills_mdl->sellRate(),
 		));
 
 		$this->renderPanel('kitchen_tab');
