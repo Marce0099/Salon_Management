@@ -235,6 +235,7 @@
           <?php if($this->controller->is_admin()){ ?>
           <a href="<?php echo base_url('cash/state'); ?>" class="<?php echo strpos($bn_path, '/cash') === 0 ? 'active' : ''; ?>"><i class="fa fa-money"></i>Caja</a>
           <?php } ?>
+          <a href="<?php echo base_url('reservations'); ?>" class="<?php echo strpos($bn_path, '/reservations') === 0 ? 'active' : ''; ?>"><i class="fa fa-calendar"></i>Reservas</a>
           <a href="javascript:;" class="js-drawer-toggle"><i class="fa fa-bars"></i>Menú</a>
         </nav>
         <div class="drawer-overlay js-drawer-toggle"></div>
