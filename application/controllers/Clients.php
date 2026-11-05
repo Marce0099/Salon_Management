@@ -5,6 +5,11 @@ class Clients extends Admin_Controller{
 	public function __construct(){
 
 		parent::__construct();
+		// waiters (trabajador) may not use this screen; only the listed methods stay open to them
+		if( !$this->is_admin() && !in_array($this->router->fetch_method(), array('getByIdCard', 'searchClients')) ){
+			echo "No se encontro resultado para esta pagina";
+			exit;
+		}
 		$this->load->model('clients_mdl');
 	}
 
