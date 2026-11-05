@@ -132,6 +132,7 @@ class Floor_mdl extends CI_Model{
 				'id_admin'    => (int) $id_admin,
 			));
 			$id_tab = (int) $this->db->insert_id();
+			$this->db->insert('bills', array('id_tab' => $id_tab, 'label' => 'Cuenta 1')); // every tab starts with one floating bill
 		}
 
 		$this->db->trans_complete();
@@ -149,7 +150,13 @@ class Floor_mdl extends CI_Model{
 		$this->db->where('id_tab', (int) $id_tab)->where('status', 'open')
 			->update('tabs', array('status' => $status, 'closed_at' => date('Y-m-d H:i:s')));
 
-		return $this->db->affected_rows() > 0;
+		$changed = $this->db->affected_rows() > 0;
+
+		if( $changed && $status === 'void' ){
+			$this->db->where('id_tab', (int) $id_tab)->where_in('status', array('open', 'split'))->update('bills', array('status' => 'void'));
+		}
+
+		return $changed;
 	}
 
 	public function tabHasOpenTable($id_table){

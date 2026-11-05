@@ -60,7 +60,7 @@ class Kitchen_mdl extends CI_Model{
 	}
 
 	/** Creates the batch + its lines atomically. Returns id_order. */
-	public function createOrder($id_tab, $id_admin, $lines){
+	public function createOrder($id_tab, $id_admin, $lines, $id_bill = 0){
 
 		$this->db->trans_start();
 
@@ -71,6 +71,7 @@ class Kitchen_mdl extends CI_Model{
 			$this->db->insert('order_items', array(
 				'id_order'       => $id_order,
 				'id_tab'         => (int) $id_tab,
+				'id_bill'        => (int) $id_bill ?: NULL,
 				'id_product'     => (int) $l['id_product'],
 				'product_name'   => $l['name'],
 				'quantity'       => (int) $l['quantity'],

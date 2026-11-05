@@ -64,6 +64,7 @@
 				<a href="#" class="btn btn-default" id="tm-reserve"><i class="fa fa-calendar"></i> Reservar</a>
 				<button type="button" class="btn btn-danger" id="tm-r-cancel" style="display:none;">Cancelar reserva</button>
 				<button type="button" class="btn btn-success" id="tm-open">Abrir mesa</button>
+				<a href="#" class="btn btn-default" id="tm-bills" style="display:none;"><i class="fa fa-files-o"></i> Cuentas</a>
 				<a href="#" class="btn btn-primary" id="tm-order" style="display:none;"><i class="fa fa-cutlery"></i> Tomar pedido</a>
 				<button type="button" class="btn btn-warning" id="tm-release" style="display:none;">Liberar mesa</button>
 			</div>
@@ -129,7 +130,7 @@
 		current = t;
 		$('#tm-title').text('Mesa ' + t.label + ' · ' + t.seats + ' asientos');
 		$('#tm-reserve').attr('href', '<?php echo base_url('reservations'); ?>?table=' + t.id_table).toggle(t.state !== 'occupied');
-		$('#tm-order').hide();
+		$('#tm-order, #tm-bills').hide();
 		$('#tm-reserved, #tm-r-cancel').hide();
 		$('#tm-open').text('Abrir mesa');
 		if( t.state === 'reserved' && t.res ){
@@ -146,6 +147,7 @@
 			$('#tm-o-guests').text(t.guests);
 			$('#tm-o-since').text(t.opened_at);
 			$('#tm-order').attr('href', '<?php echo base_url('kitchen/tab'); ?>/' + t.id_tab).show();
+			$('#tm-bills').attr('href', '<?php echo base_url('bills/tab'); ?>/' + t.id_tab).show();
 		} else {
 			$('#tm-free, #tm-open').show();
 			$('#tm-occupied, #tm-release').hide();

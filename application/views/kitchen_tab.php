@@ -1,7 +1,10 @@
 <div class="page-title" style="margin-bottom:6px;">
 	<h3 style="display:inline-block;">Mesa <?php echo htmlspecialchars($tab->table_label); ?>
 		<small><?php echo htmlspecialchars($tab->area_name); ?> · <?php echo htmlspecialchars((string) $tab->waiter); ?> · <?php echo (int) $tab->guests; ?> <i class="fa fa-user"></i></small></h3>
-	<a href="<?php echo base_url('floor'); ?>" class="btn btn-default pull-right"><i class="fa fa-arrow-left"></i> Plano</a>
+	<span class="pull-right">
+		<a href="<?php echo base_url('bills/tab/'.(int) $tab->id_tab); ?>" class="btn btn-default"><i class="fa fa-files-o"></i> Cuentas</a>
+		<a href="<?php echo base_url('floor'); ?>" class="btn btn-default"><i class="fa fa-arrow-left"></i> Plano</a>
+	</span>
 </div>
 <div class="clearfix"></div>
 
@@ -17,6 +20,12 @@
 	<div class="col-md-5">
 		<div class="x_panel">
 			<div class="x_title"><h2 style="font-size:16px;">Nuevo pedido</h2><div class="clearfix"></div></div>
+			<?php if( count($open_bills) > 1 ) : ?>
+			<div class="form-group"><label for="cart-bill">Cargar a la cuenta</label>
+				<select id="cart-bill" class="form-control">
+					<?php foreach( $open_bills as $ob ) : ?><option value="<?php echo (int) $ob->id_bill; ?>"><?php echo htmlspecialchars($ob->label); ?></option><?php endforeach; ?>
+				</select></div>
+			<?php endif; ?>
 			<div id="cart"><p class="text-muted" id="cart-empty">Toque un producto para agregarlo.</p></div>
 			<button type="button" class="btn btn-success btn-block btn-lg" id="btn-send" disabled><i class="fa fa-cutlery"></i> Enviar a cocina</button>
 		</div>
@@ -162,7 +171,7 @@
 	$('#btn-send').on('click', function(){
 		var $b = $(this).prop('disabled', true);
 		var items = cart.map(function(l){ return { id_product: l.id, quantity: l.qty, notes: l.notes, course: l.course }; });
-		$.post(BASE + 'send', { tk: TK, id_tab: ID_TAB, items: JSON.stringify(items) }, function(r){
+		$.post(BASE + 'send', { tk: TK, id_tab: ID_TAB, id_bill: $('#cart-bill').val() || 0, items: JSON.stringify(items) }, function(r){
 			if( r.type === 'success' ){
 				notify(r.printed ? 'success' : 'notice', r.message);
 				setTimeout(function(){ location.reload(); }, 1200);

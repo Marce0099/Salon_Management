@@ -25,3 +25,5 @@
 .area-tabs{ margin-bottom:10px; display:flex; flex-wrap:wrap; gap:6px; }
 .area-tabs .btn.active{ background:#2A3F54; color:#fff; border-color:#2A3F54; }
 .page-title{ height:auto !important; min-height:0; }
+
+.right_col .bill-card table.table{ display:table; width:100%; white-space:normal; }

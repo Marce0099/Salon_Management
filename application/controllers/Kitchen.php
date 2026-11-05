@@ -56,9 +56,12 @@ class Kitchen extends Admin_Controller{
 			$this->session->set_userdata('tk', $tk);
 		}
 
+		$this->load->model('bills_mdl');
+
 		$this->content_data = array_merge($this->content_data, array(
 			'tk'         => $tk,
 			'tab'        => $tab,
+			'open_bills' => $this->bills_mdl->openBills($id_tab),
 			'menu'       => $this->kitchen_mdl->menu(),
 			'categories' => $this->kitchen_mdl->categories(),
 			'orders'     => $this->kitchen_mdl->tabOrders($id_tab),
@@ -121,7 +124,19 @@ class Kitchen extends Admin_Controller{
 			);
 		}
 
-		$id_order = $this->kitchen_mdl->createOrder($tab->id_tab, $this->id_admin, $lines);
+		// target bill: the one chosen on screen if it is an open bill of this tab, else the first open bill (or a new one)
+		$this->load->model('bills_mdl');
+		$id_bill = 0;
+		$chosen  = $this->bills_mdl->get($this->input->post('id_bill'));
+		if( $chosen && (int) $chosen->id_tab === (int) $tab->id_tab && $chosen->status === 'open' && !$chosen->parent_bill ){
+			$id_bill = (int) $chosen->id_bill;
+		}
+		else{
+			$open = $this->bills_mdl->openBills($tab->id_tab);
+			$id_bill = $open ? (int) $open[0]->id_bill : $this->bills_mdl->create($tab->id_tab);
+		}
+
+		$id_order = $this->kitchen_mdl->createOrder($tab->id_tab, $this->id_admin, $lines, $id_bill);
 		if( !$id_order ){
 			$this->fail('No se pudo guardar el pedido');
 		}
