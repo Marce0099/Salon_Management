@@ -52,9 +52,10 @@
 
 /* slide-in drawer replaces the icon-only rail on phones/tablets */
 @media (max-width: 991px){
-	body.drawer-open .left_col{
+	/* must out-rank Gentelella's `.nav-md .container.body .col-md-3.left_col` (z-index:1), else the overlay covers the drawer */
+	body.drawer-open .container.body .col-md-3.left_col{
 		display:block !important; position:fixed !important; top:0; bottom:0; left:0;
-		width:80% !important; max-width:300px; z-index:1050; overflow-y:auto;
+		width:80% !important; max-width:300px; z-index:1050 !important; overflow-y:auto;
 	}
 	body.drawer-open .left_col .scroll-view{ width:100% !important; }
 	.drawer-overlay{ display:none; position:fixed; inset:0; background:rgba(0,0,0,.45); z-index:1045; }
