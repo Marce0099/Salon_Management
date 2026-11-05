@@ -84,12 +84,34 @@ class Floor_mdl extends CI_Model{
 
 		$rows = $this->db->query($sql, array((int) $id_area))->result();
 
+		$reserved = $this->currentReservations($id_area);
+
 		foreach( $rows as $r ){
 
-			$r->state = $r->id_tab ? 'occupied' : 'free';
+			$r->res = isset($reserved[$r->id_table]) ? $reserved[$r->id_table] : NULL;
+			$r->state = $r->id_tab ? 'occupied' : ( $r->res ? 'reserved' : 'free' );
 		}
 
 		return $rows;
+	}
+
+	/** Active reservations whose hold window (start - hold minutes .. end) contains now, first per table. */
+	public function currentReservations($id_area){
+
+		$this->load->model('settings_mdl');
+		$hold = max(0, (int) $this->settings_mdl->get('reservation_hold_minutes', 30));
+
+		$sql = 'SELECT r.id_reservation, r.id_table, r.name, r.phone, r.party_size, r.start_at, r.end_at, r.notes
+				FROM table_reservations r
+				JOIN dining_tables d ON d.id_table = r.id_table AND d.active = 1 AND d.id_area = ?
+				WHERE r.status = "active" AND r.end_at > NOW() AND DATE_SUB(r.start_at, INTERVAL ? MINUTE) <= NOW()
+				ORDER BY r.start_at';
+
+		$out = array();
+		foreach( $this->db->query($sql, array((int) $id_area, $hold))->result() as $r ){
+			if( !isset($out[$r->id_table]) ){ $out[$r->id_table] = $r; }
+		}
+		return $out;
 	}
 
 	public function openTab($id_table, $id_employee, $guests, $id_admin){

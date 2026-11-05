@@ -94,6 +94,7 @@
                   <li><a><i class="fa fa-th-large"></i> Mesas <span class="fa fa-chevron-down"></span></a>
                     <ul class="nav child_menu">
                       <li><a href="<?php echo base_url('floor'); ?>">Plano de mesas</a></li>
+                      <li><a href="<?php echo base_url('reservations'); ?>">Reservas</a></li>
                       <?php if($this->controller->is_admin()){ ?>
                       <li><a href="<?php echo base_url('floor/editor'); ?>">Editar plano</a></li>
                       <?php } ?>

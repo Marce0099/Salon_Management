@@ -49,6 +49,10 @@
 						<input type="number" id="tm-guests" class="form-control" min="1" max="99" value="2">
 					</div>
 				</div>
+				<div id="tm-reserved" class="alert alert-warning" style="display:none;">
+					<strong>Reservada:</strong> <span id="tm-r-name"></span> · <span id="tm-r-party"></span> personas<br>
+					<span id="tm-r-time"></span> <span id="tm-r-phone"></span><br><span id="tm-r-notes" class="text-muted"></span>
+				</div>
 				<div id="tm-occupied" style="display:none;">
 					<p><strong>Mesero:</strong> <span id="tm-o-waiter"></span></p>
 					<p><strong>Comensales:</strong> <span id="tm-o-guests"></span></p>
@@ -57,6 +61,8 @@
 			</div>
 			<div class="modal-footer">
 				<button type="button" class="btn btn-default" data-dismiss="modal">Cerrar</button>
+				<a href="#" class="btn btn-default" id="tm-reserve"><i class="fa fa-calendar"></i> Reservar</a>
+				<button type="button" class="btn btn-danger" id="tm-r-cancel" style="display:none;">Cancelar reserva</button>
 				<button type="button" class="btn btn-success" id="tm-open">Abrir mesa</button>
 				<button type="button" class="btn btn-warning" id="tm-release" style="display:none;">Liberar mesa</button>
 			</div>
@@ -121,6 +127,16 @@
 		if( !t ){ return; }
 		current = t;
 		$('#tm-title').text('Mesa ' + t.label + ' · ' + t.seats + ' asientos');
+		$('#tm-reserve').attr('href', '<?php echo base_url('reservations'); ?>?table=' + t.id_table).toggle(t.state !== 'occupied');
+		$('#tm-reserved, #tm-r-cancel').hide();
+		$('#tm-open').text('Abrir mesa');
+		if( t.state === 'reserved' && t.res ){
+			$('#tm-r-name').text(t.res.name); $('#tm-r-party').text(t.res.party_size);
+			$('#tm-r-time').text(t.res.start_at.substr(11, 5) + ' - ' + t.res.end_at.substr(11, 5));
+			$('#tm-r-phone').text(t.res.phone ? '· ' + t.res.phone : ''); $('#tm-r-notes').text(t.res.notes || '');
+			$('#tm-reserved, #tm-r-cancel').show();
+			$('#tm-open').text('Sentar reserva');
+		}
 		if( t.state === 'occupied' ){
 			$('#tm-free, #tm-open').hide();
 			$('#tm-occupied, #tm-release').show();
@@ -130,7 +146,7 @@
 		} else {
 			$('#tm-free, #tm-open').show();
 			$('#tm-occupied, #tm-release').hide();
-			$('#tm-guests').val(Math.min(2, t.seats));
+			$('#tm-guests').val(t.res ? t.res.party_size : Math.min(2, t.seats)).prop('disabled', !!t.res);
 		}
 		$('#table-modal').modal('show');
 	});
@@ -144,7 +160,23 @@
 		}, 'json').fail(function(){ notify('error', 'Error de comunicación con el servidor'); });
 	}
 
+	$('#tm-r-cancel').on('click', function(){
+		$.post('<?php echo base_url('reservations'); ?>/cancel', { tk: TK, id_reservation: current.res.id_reservation }, function(r){
+			notify(r.type === 'success' ? 'success' : 'error', r.message);
+			if( r.type === 'success' ){ $('#table-modal').modal('hide'); }
+			load();
+		}, 'json');
+	});
+
 	$('#tm-open').on('click', function(){
+		if( current.state === 'reserved' && current.res ){
+			$.post('<?php echo base_url('reservations'); ?>/seat', { tk: TK, id_reservation: current.res.id_reservation, id_employee: $('#tm-waiter').val() }, function(r){
+				notify(r.type === 'success' ? 'success' : 'error', r.message);
+				if( r.type === 'success' ){ $('#table-modal').modal('hide'); }
+				load();
+			}, 'json');
+			return;
+		}
 		post('open_tab', { id_table: current.id_table, id_employee: $('#tm-waiter').val(), guests: $('#tm-guests').val() });
 	});
 
