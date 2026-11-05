@@ -84,6 +84,15 @@
 	        </div>
         </div>
 	</div>
+	<div class="form-group">
+		<div class="col-md-offset-3 col-sm-offset-3 col-md-6 col-sm-6">
+            <div class="checkbox">
+	        	<label style="padding-left: 0;">
+	        		<input type="checkbox" name="prints_kitchen" value="1" id="prints_kitchen" <?php if( !$product || $product->prints_kitchen ){ echo 'checked'; } ?>> Se imprime en cocina (comanda)
+	        	</label>
+	        </div>
+        </div>
+	</div>
 	<div class="form-group" id="commission">
 		<label class="control-label col-md-3 col-sm-3 col-xs-12" for="commisssion_rate">Comision (%):
         </label>

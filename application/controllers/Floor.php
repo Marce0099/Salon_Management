@@ -114,7 +114,12 @@ class Floor extends Admin_Controller{
 			$this->fail('La cuenta ya no está abierta');
 		}
 
-		// Stage 5+ will refuse to release a table that already has consumption; for now only empty tabs exist.
+		// a table with active (non-voided) consumption must be paid (Stage 7) or have its items voided first
+		$has = $this->db->where('id_tab', (int) $tab->id_tab)->where('status', 'active')->count_all_results('order_items');
+		if( $has > 0 ){
+			$this->fail('La mesa tiene consumo. Cobre la cuenta o anule los productos antes de liberarla');
+		}
+
 		$this->floor_mdl->closeTab($tab->id_tab, 'void');
 
 		$this->json(array('type' => 'success', 'message' => 'Mesa liberada'));

@@ -96,6 +96,7 @@ class Products extends Admin_Controller{
 				if( $this->form_validation->run() ){
 
 					$data = $this->input->post();
+					$data["prints_kitchen"] = !empty($data["prints_kitchen"]) ? 1 : 0;
 					unset($data['tk']);
 
 					if (empty($data['barcode'])) {
@@ -174,6 +175,7 @@ class Products extends Admin_Controller{
 				if( $this->form_validation->run() ){
 
 					$data = $this->input->post();
+					$data["prints_kitchen"] = !empty($data["prints_kitchen"]) ? 1 : 0;
 
 					if( !isset($data['is_service']) ){
 
