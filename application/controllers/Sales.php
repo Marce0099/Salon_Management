@@ -91,9 +91,39 @@ class Sales extends Admin_Controller{
 			$commission_rate = $this->input->post('commission_rate');
 			$attended_employees = $this->input->post('attended_employees');
 
+			/* Bill checkout: the lines, prices, quantities, tip and IVA come from the bill itself (never trusted from the browser) */
+			$id_bill = (int) $this->input->post('id_bill');
+			$bill_ctx = NULL;
+
+			if( $id_bill ){
+
+				$this->load->model('bills_mdl');
+				$ctx = $this->bills_mdl->checkoutContext($id_bill);
+
+				if( is_string($ctx) ){
+					$response['type'] = 'error';
+					$response['message'] = $ctx;
+					echo json_encode($response);
+					exit();
+				}
+
+				$bill_ctx = $ctx;
+				$posted_att = $attended_employees;
+				$id_products = $quantities = $prices = $commission_rate = $attended_employees = array();
+
+				foreach( $ctx['lines'] as $k => $l ){
+
+					$id_products[] = $l['id_product'];
+					$quantities[] = $l['quantity'];
+					$prices[] = (string) $l['price'];
+					$commission_rate[] = $l['commisssion_rate'] === NULL ? '' : $l['commisssion_rate'];
+					$attended_employees[] = ( is_array($posted_att) && isset($posted_att[$k]) ) ? $posted_att[$k] : '';
+				}
+			}
+
 
 			$sale['client'] = $this->input->post('id_client');
-			$sale['id_employee'] = $this->input->post('id_employee') ? $this->input->post('id_employee') : NULL;
+			$sale['id_employee'] = $this->input->post('id_employee') ? $this->input->post('id_employee') : ( $bill_ctx ? $bill_ctx['tab']->id_employee : NULL );
 			//$sale['pos_paid'] = $this->input->post('pos_paid') ? 1 : 0;
 
 			if( !$sale['client'] ){
@@ -177,7 +207,7 @@ class Sales extends Admin_Controller{
 			$sale['dollar_ex_sell'] = $exchange->sell_price;
 
 			/* Line discounts are courtesies: only admins may grant them (range-validated 0-100); anyone else always gets 0 */
-			$posted_discounts = $this->input->post('discounts') ?: array();
+			$posted_discounts = $bill_ctx ? array() : ( $this->input->post('discounts') ?: array() );
 			$discounts = array_fill( 0, count($id_products), 0 );
 			$total_cordobas = 0;
 			$sale_products_cache = array();
@@ -228,6 +258,32 @@ class Sales extends Admin_Controller{
 
 				$total_cordobas += $subtotal * $exchange->sell_price;
 			}
+
+			/* bill checkout: tip (editable, 0..subtotal) and IVA (fixed by settings) are charged on top of the lines */
+			$tip_dollar = 0;
+			$iva_dollar = 0;
+
+			if( $bill_ctx ){
+
+				$bt = $bill_ctx['totals'];
+				$tip_raw = $this->input->post('tip_amount');
+				$tip_dollar = ( $tip_raw === NULL || $tip_raw === '' ) ? $bt['tip'] : round( floatval(str_replace(',', '', $tip_raw)), 2 );
+
+				if( $tip_dollar < 0 || $tip_dollar > $bt['subtotal'] ){
+
+					$response['type'] = 'error';
+					$response['message'] = 'La propina debe estar entre 0 y el subtotal de la cuenta';
+					echo json_encode($response);
+					exit();
+				}
+
+				$iva_dollar = $bt['iva'];
+				$total_cordobas += ( $tip_dollar + $iva_dollar ) * $exchange->sell_price;
+			}
+
+			$sale['tip'] = $tip_dollar;
+			$sale['iva'] = $iva_dollar;
+			$sale['id_bill'] = $bill_ctx ? $id_bill : NULL;
 
 			$remaining_cordobas = $total_cordobas;
 
@@ -429,6 +485,23 @@ class Sales extends Admin_Controller{
 			}
 
 			$this->db->trans_start();
+
+			if( $bill_ctx ){
+
+				// exclusive lock on the bill, then make sure nobody changed or paid it since the checkout screen was built
+				$locked = $this->db->query('SELECT status FROM bills WHERE id_bill = ? FOR UPDATE', array($id_bill))->row();
+				$ctx2 = $this->bills_mdl->checkoutContext($id_bill);
+
+				if( !$locked || $locked->status !== 'open' || is_string($ctx2) || $ctx2['lines'] != $bill_ctx['lines'] || $ctx2['totals'] != $bill_ctx['totals'] ){
+
+					$response['type'] = 'error';
+					$response['message'] = 'La cuenta cambió o ya fue cobrada. Recargue la pantalla e intente de nuevo';
+					$this->db->trans_rollback();
+					echo json_encode($response);
+					exit();
+				}
+			}
+
 			$id_sale = $this->sales_mdl->saveSale( $sale );
 
 			$payment = array();
@@ -584,6 +657,11 @@ class Sales extends Admin_Controller{
 				$stock = $this->sales_mdl->saveSaleProduct($sale_product);
 			}
 
+			if( $bill_ctx ){
+
+				$this->bills_mdl->settle($bill_ctx['bill'], $id_sale);
+			}
+
 			$this->db->trans_complete();
 
 			if ($this->db->trans_status() === FALSE) {
@@ -695,6 +773,21 @@ class Sales extends Admin_Controller{
 			';
 		}
 
+		// restaurant checkout: IVA and tip (stored in dollars) are charged on top of the lines
+		$extras_html = '';
+		$subtotal_lines_cor = $total_dol * $sale->dollar_ex_sell;
+
+		if( (float) $sale->iva > 0 ){
+			$extras_html .= '<tr><td class="left label-col">IVA:</td><td class="left">C$'.number_format($sale->iva * $sale->dollar_ex_sell, 2).'</td></tr>';
+		}
+		if( (float) $sale->tip > 0 ){
+			$extras_html .= '<tr><td class="left label-col">Propina:</td><td class="left">C$'.number_format($sale->tip * $sale->dollar_ex_sell, 2).'</td></tr>';
+		}
+		if( $extras_html !== '' ){
+			$extras_html = '<tr><td class="left label-col">Subtotal:</td><td class="left">C$'.number_format($subtotal_lines_cor, 2).'</td></tr>'.$extras_html;
+		}
+
+		$total_dol += (float) $sale->tip + (float) $sale->iva;
 		$total_cor = $total_dol * $sale->dollar_ex_sell;
 		$total_a_pagar_cor = $total_cor;
 		$_total_cor = $total_a_pagar_cor;
@@ -821,6 +914,7 @@ class Sales extends Admin_Controller{
 
 			<p class="center">
 				Fecha: <?php echo date('d/m/Y h:i A'); ?><br>
+				<?php if( !empty($sale->table_label) ) : ?>Mesa: <?php echo htmlspecialchars($sale->table_label.' - '.$sale->bill_label); ?><br><?php endif; ?>
 				No. Factura: <?php echo $sale->id_sale; ?>
 			</p>
 
@@ -838,7 +932,7 @@ class Sales extends Admin_Controller{
 			<div class="divider"></div>
 
 			<table>
-				<!-- <tr><td class="left label-col">Total en Dolares:</td><td class="left">$<?php echo number_format($total_dol,2); ?></td></tr> -->
+				<?php echo $extras_html; ?>
 				<tr><td class="left label-col">Total en Cordobas:</td><td class="left">C$<?php echo number_format($total_cor,2); ?></td></tr>
 				<tr class="total-highlight"><td class="left label-col">Total a pagar:</td><td class="left">C$<?php echo number_format($total_a_pagar_cor,2); ?></td></tr>
 			</table>
@@ -945,6 +1039,9 @@ class Sales extends Admin_Controller{
 			//invoice info
 			$printer -> setJustification(Printer::JUSTIFY_CENTER);
 			$printer->text( 'Fecha: ' . date('d/m/Y h:i A') . "\n" );
+			if( !empty($sale->table_label) ){
+				$printer->text( 'Mesa: ' . $sale->table_label . ' - ' . $sale->bill_label . "\n" );
+			}
 			$printer->text( 'No. Factura: ' . $sale->id_sale );
 			$printer->feed(2);
 
@@ -975,6 +1072,21 @@ class Sales extends Admin_Controller{
 					$d->name,
 					"C$".number_format( $subtotal_cor,2)
 				));
+			}
+
+			if( (float) $sale->tip > 0 || (float) $sale->iva > 0 ){
+
+				$printer->text( str_repeat('-', 43)."\n" );
+				$printer->text( $this->format_columns( '', 'Subtotal', "C$".number_format( $total_dol * $sale->dollar_ex_sell, 2 ) ) );
+
+				if( (float) $sale->iva > 0 ){
+					$printer->text( $this->format_columns( '', 'IVA', "C$".number_format( $sale->iva * $sale->dollar_ex_sell, 2 ) ) );
+				}
+				if( (float) $sale->tip > 0 ){
+					$printer->text( $this->format_columns( '', 'Propina', "C$".number_format( $sale->tip * $sale->dollar_ex_sell, 2 ) ) );
+				}
+
+				$total_dol += (float) $sale->tip + (float) $sale->iva;
 			}
 
 			$total_cor = $total_dol * $sale->dollar_ex_sell;
@@ -1126,6 +1238,37 @@ class Sales extends Admin_Controller{
 		$this->content_data = $data;
 		$this->content_data['accounts'] = $this->bank_account_mdl->getAccounts();
 		$this->content_data['prefill'] = NULL;
+		$this->content_data['bill_error'] = NULL;
+
+		$id_bill = (int) $this->input->get('bill');
+
+		if( $id_bill ){
+
+			$this->load->model('bills_mdl');
+			$ctx = $this->bills_mdl->checkoutContext($id_bill);
+
+			if( is_string($ctx) ){
+
+				$this->content_data['bill_error'] = $ctx;
+			}
+			else{
+
+				$tab = $this->db->query('SELECT d.label FROM tabs t JOIN dining_tables d ON d.id_table = t.id_table WHERE t.id_tab = ?', array((int) $ctx['tab']->id_tab))->row();
+				$products = array();
+
+				foreach( $ctx['lines'] as $l ){
+					$products[] = array(
+						'id_product' => $l['id_product'], 'name' => $l['name'], 'barcode' => $l['barcode'], 'is_service' => $l['is_service'],
+						'price_sell' => (string) $l['price'], 'commisssion_rate' => $l['commisssion_rate'], 'quantity' => $l['quantity'],
+					);
+				}
+
+				$this->content_data['prefill'] = array(
+					'id_bill' => $id_bill, 'title' => 'Mesa '.$tab->label.' · '.$ctx['bill']->label, 'id_employee' => (int) $ctx['tab']->id_employee,
+					'products' => $products, 'tip' => $ctx['totals']['tip'], 'iva' => $ctx['totals']['iva'], 'subtotal' => $ctx['totals']['subtotal'],
+				);
+			}
+		}
 		// salon-era automatic discounts no longer exist; zeros keep form_sales.php's legacy JS inert
 		$this->content_data['vip_discount_rate'] = 0;
 		$this->content_data['birthday_discount_rate'] = 0;

@@ -153,6 +153,7 @@ $(function(){
 			<th>No. factura:</th>
 			<th>Cliente:</th>
 			<th>Mesero:</th>
+			<?php if( !empty($sale->table_label) ) : ?><th>Mesa:</th><?php endif; ?>
 		</tr>
 	</thead>
 	<tbody>
@@ -166,6 +167,7 @@ $(function(){
 				<td><?php echo $sale->id_sale; ?></td>
 				<td><?php echo $sale->client; ?></td>
 				<td><?php echo $sale->name; ?></td>
+				<?php if( !empty($sale->table_label) ) : ?><td><?php echo htmlspecialchars($sale->table_label.' · '.$sale->bill_label); ?></td><?php endif; ?>
 			</tr>
 		<?php endforeach; ?>
 	</tbody>
@@ -204,6 +206,21 @@ $(function(){
 			?>
 			<td><?php echo number_format($subtotal_cordobas,2); ?></td>
 			<td><?php echo number_format($subtotal,2); ?></td>
+		</tr>
+		<?php endforeach; ?>
+		<?php
+			// restaurant checkout: tip and IVA are charged on top of the lines (stored in dollars on the sale)
+			foreach( array('Propina' => (float) $sale->tip, 'IVA' => (float) $sale->iva) as $extra_label => $extra_dollar ) :
+				if( $extra_dollar <= 0 ){ continue; }
+				$extra_cordobas = $extra_dollar * $sale->dollar_ex_sell;
+				$total_dollar += $extra_dollar;
+				$total_cordobas += $extra_cordobas;
+				$_total_cordobas = $total_cordobas;
+		?>
+		<tr>
+			<td colspan="4" class="text-right"><?php echo $extra_label; ?></td>
+			<td><?php echo number_format($extra_cordobas,2); ?></td>
+			<td><?php echo number_format($extra_dollar,2); ?></td>
 		</tr>
 		<?php endforeach; ?>
 	</tbody>

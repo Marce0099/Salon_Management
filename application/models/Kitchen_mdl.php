@@ -27,7 +27,7 @@ class Kitchen_mdl extends CI_Model{
 					IFNULL(p.id_service_category, 0) AS cat,
 					IFNULL((SELECT SUM(oi.quantity) FROM order_items oi JOIN tabs t ON t.id_tab = oi.id_tab AND t.status = "open"
 					        WHERE oi.id_product = p.id_product AND oi.status = "active"), 0) AS reserved_qty
-				FROM products p WHERE p.active = 1 ORDER BY p.name';
+				FROM products p WHERE p.active = 1 AND (p.barcode IS NULL OR p.barcode <> "SPLIT-CONSUMO") ORDER BY p.name';
 
 		$rows = $this->db->query($sql)->result();
 
@@ -44,7 +44,7 @@ class Kitchen_mdl extends CI_Model{
 
 	public function product($id_product){
 
-		return $this->db->where('id_product', (int) $id_product)->where('active', 1)->get('products')->row();
+		return $this->db->where('id_product', (int) $id_product)->where('active', 1)->group_start()->where('barcode IS NULL', NULL, FALSE)->or_where('barcode !=', 'SPLIT-CONSUMO')->group_end()->get('products')->row();
 	}
 
 	/** Stock still unordered for a stocked product (stock minus qty already on open tabs). */

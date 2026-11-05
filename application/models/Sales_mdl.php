@@ -40,7 +40,7 @@ class Sales_mdl extends CI_Model{
 
 		/*$sql = 'select S.*,E.* from sales S left outer join employees E on
 		S.id_employee = E.id_employee where S.id_sale = '.$id_sale;*/
-		$sql = 'select S.id_sale, S.id_employee, S.date_time, S.file, CONCAT(C.name_client, \' \', C.surname_client) as client ,S.dollar_ex_buy, S.dollar_ex_sell,E.name from sales S left outer join employees E on S.id_employee = E.id_employee left outer join clients C on C.id_client = S.client where S.id_sale = '.$id_sale;
+		$sql = 'select S.id_sale, S.id_employee, S.date_time, S.file, CONCAT(C.name_client, \' \', C.surname_client) as client ,S.dollar_ex_buy, S.dollar_ex_sell, S.tip, S.iva, S.id_bill, B.label as bill_label, D.label as table_label,E.name from sales S left outer join employees E on S.id_employee = E.id_employee left outer join clients C on C.id_client = S.client left outer join bills B on B.id_bill = S.id_bill left outer join tabs T on T.id_tab = B.id_tab left outer join dining_tables D on D.id_table = T.id_table where S.id_sale = '.(int) $id_sale;
 
 		return $this->db->query($sql)->row();
 	}

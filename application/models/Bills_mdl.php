@@ -108,6 +108,103 @@ class Bills_mdl extends CI_Model{
 		return $out;
 	}
 
+	/** id of the internal placeholder product that carries an equal-split share as a single sale line. */
+	public function splitProduct(){
+
+		return $this->db->where('barcode', 'SPLIT-CONSUMO')->get('products')->row();
+	}
+
+	/**
+	 * Sale lines a bill turns into. Normal bill: its active items grouped per product (price = weighted average, exact when
+	 * a product has a single price). Equal-split share: one line of the placeholder product, qty 1, price = the share subtotal.
+	 * Same order for the form prefill and for the server-side rebuild at payment time.
+	 */
+	public function checkoutLines($bill, $rates = NULL){
+
+		if( $bill->parent_bill ){
+
+			$ph = $this->splitProduct();
+			$t  = $this->totals($bill, $rates);
+
+			return $ph ? array(array(
+				'id_product' => (int) $ph->id_product, 'name' => $ph->name.' · '.$bill->label, 'barcode' => '', 'is_service' => 1,
+				'commisssion_rate' => NULL, 'quantity' => 1, 'price' => $t['subtotal'],
+			)) : array();
+		}
+
+		$rows = $this->db->query('SELECT oi.id_product, p.name, p.barcode, p.is_service, p.commisssion_rate,
+				SUM(oi.quantity) AS q, SUM(oi.quantity * oi.unit_price) AS amt
+			FROM order_items oi JOIN products p ON p.id_product = oi.id_product
+			WHERE oi.id_bill = ? AND oi.status = "active"
+			GROUP BY oi.id_product, p.name, p.barcode, p.is_service, p.commisssion_rate
+			ORDER BY MIN(oi.id_order_item)', array((int) $bill->id_bill))->result();
+
+		$out = array();
+		foreach( $rows as $r ){
+			$out[] = array(
+				'id_product' => (int) $r->id_product, 'name' => $r->name, 'barcode' => (string) $r->barcode, 'is_service' => (int) $r->is_service,
+				'commisssion_rate' => $r->commisssion_rate, 'quantity' => (int) $r->q, 'price' => round((float) $r->amt / (int) $r->q, 6),
+			);
+		}
+		return $out;
+	}
+
+	/** Everything the checkout needs, or an error string. array(bill, tab, lines, totals). */
+	public function checkoutContext($id_bill){
+
+		$bill = $this->get($id_bill);
+		if( !$bill ){ return 'Cuenta no encontrada'; }
+		if( $bill->status !== 'open' ){ return $bill->status === 'split' ? 'Esta cuenta está dividida: cobre cada parte por separado' : 'Esta cuenta ya no está abierta'; }
+
+		$tab = $this->db->where('id_tab', (int) $bill->id_tab)->get('tabs')->row();
+		if( !$tab || $tab->status !== 'open' ){ return 'La mesa ya no está abierta'; }
+
+		$rates  = $this->rates();
+		$lines  = $this->checkoutLines($bill, $rates);
+		$totals = $this->totals($bill, $rates);
+
+		if( !count($lines) || $totals['subtotal'] <= 0 ){ return 'La cuenta no tiene consumo para cobrar'; }
+
+		return array('bill' => $bill, 'tab' => $tab, 'lines' => $lines, 'totals' => $totals);
+	}
+
+	/**
+	 * Called inside the payment transaction once the sale is saved: marks the bill paid, deducts the items' stock for an
+	 * equal-split parent (once), closes the parent when all its parts are paid, voids empty leftover bills and closes the
+	 * tab when nothing remains to collect.
+	 */
+	public function settle($bill, $id_sale){
+
+		$this->db->where('id_bill', (int) $bill->id_bill)->update('bills', array('status' => 'paid', 'id_sale' => (int) $id_sale));
+
+		if( $bill->parent_bill ){
+
+			$parent = $this->db->query('SELECT * FROM bills WHERE id_bill = ? FOR UPDATE', array((int) $bill->parent_bill))->row();
+
+			if( $parent && !$parent->stock_deducted ){
+				// the parent's real items leave stock when its first share is paid (shares carry only a placeholder line)
+				$this->db->query('UPDATE products p JOIN (SELECT id_product, SUM(quantity) AS q FROM order_items WHERE id_bill = ? AND status = "active" GROUP BY id_product) x
+					ON x.id_product = p.id_product SET p.stock = GREATEST(p.stock - x.q, 0) WHERE p.is_service = 0', array((int) $parent->id_bill));
+				$this->db->where('id_bill', (int) $parent->id_bill)->update('bills', array('stock_deducted' => 1));
+			}
+
+			$left = $this->db->where('parent_bill', (int) $bill->parent_bill)->where('status !=', 'paid')->where('status !=', 'void')->count_all_results('bills');
+			if( $left === 0 ){
+				$this->db->where('id_bill', (int) $bill->parent_bill)->update('bills', array('status' => 'paid'));
+			}
+		}
+
+		// empty, still-open bills have nothing to collect
+		$this->db->query('UPDATE bills b SET b.status = "void" WHERE b.id_tab = ? AND b.status = "open" AND b.parent_bill IS NULL
+			AND NOT EXISTS (SELECT 1 FROM order_items oi WHERE oi.id_bill = b.id_bill AND oi.status = "active")', array((int) $bill->id_tab));
+
+		$pending = $this->db->where('id_tab', (int) $bill->id_tab)->where_in('status', array('open', 'split'))->count_all_results('bills');
+
+		if( $pending === 0 ){
+			$this->db->where('id_tab', (int) $bill->id_tab)->where('status', 'open')->update('tabs', array('status' => 'paid', 'closed_at' => date('Y-m-d H:i:s')));
+		}
+	}
+
 	/** Lock the tab's bills for the rest of the transaction. */
 	private function lockTab($id_tab){
 

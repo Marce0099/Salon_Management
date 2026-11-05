@@ -1,8 +1,12 @@
+<?php if( !empty($bill_error) ) : ?>
+<div class="alert alert-warning"><?php echo htmlspecialchars($bill_error); ?>
+	<a href="<?php echo base_url('floor'); ?>" class="btn btn-default btn-sm" style="margin-left:10px;">Volver al plano</a></div>
+<?php return; endif; ?>
 <h4 class="section-title">Formulario de ventas</h4>
 
 <form action="<?php echo base_url('sales/register'); ?>" method="post" class="form-horizontal form-label-left" autocomplete="off" spellcheck="false" id="form" onsubmit="return false;">
 	<input type="hidden" name="tk" value="<?php echo $tk; ?>">
-	<input type="hidden" name="id_appointment" id="id_appointment" value="">
+	<input type="hidden" name="id_bill" id="id_bill" value="">
 	<table class="table table-hover table-bordered" id="products-sale">
 		<thead>
 			<tr>
@@ -33,7 +37,23 @@
 			</tr>
 		</tfoot>
 	</table>
-	<div class="form-group">
+<table class="table bill-extra" style="display:none; max-width:520px; margin-left:auto;" id="bill-extras-table">
+	<tr>
+		<td class="text-right"><label for="tip_amount" style="margin:0;">Propina ($):</label></td>
+		<td colspan="2"><input type="number" step="0.01" min="0" name="tip_amount" id="tip_amount" class="form-control"></td>
+	</tr>
+	<tr>
+		<td class="text-right">IVA:</td>
+		<td>C$<span id="iva-cordobas">0.00</span></td>
+		<td>$<span id="iva-dollar">0.00</span></td>
+	</tr>
+	<tr>
+		<td class="text-right"><strong>Total a cobrar:</strong></td>
+		<td><strong>C$<span id="grand-cordobas">0.00</span></strong></td>
+		<td><strong>$<span id="grand-dollar">0.00</span></strong></td>
+	</tr>
+</table>
+	<div class="form-group" id="barcode-group">
 		<label class="control-label col-md-2 col-sm-3 col-xs-12" for="barcode">Código del producto: 
         </label>
 		<div class="col-md-6 col-sm-6 col-xs-12">
@@ -519,7 +539,7 @@
 		coupon_allowed : true,
 		discount_neutralized_by_coupon : false,
 		_couponNeutralizeNotified : false,
-		deposit_credit_cordobas : 0,
+		extra_cordobas : 0, // bill checkout: tip + IVA in córdobas, added to the invoice total
 		loyalty_discount_cordobas : 0,
 		// flat birthday-ceiling write-off currently in effect (0 if not applicable or neutralized by a
 		// coupon) plus the rate it was computed at, purely for the "Descuento cumpleaños aplicado" badge —
@@ -569,7 +589,7 @@
 		return Math.max(PAYMENT_TOLERANCE_BASE_CORDOBA, Math.min(raw, PAYMENT_TOLERANCE_MAX_CORDOBA));
 	}
 
-	var appointmentPrefill = <?php echo json_encode($prefill); ?>;
+	var billPrefill = <?php echo json_encode($prefill); ?>;
 
 	// VIP/birthday client discounts (application/settings, admin-configurable via /settings) — auto-fill
 	// service line discounts alongside the existing category-default auto-fill (whichever is higher wins)
@@ -1135,7 +1155,7 @@
 				system.loyalty_discount_cordobas = system.total_services * claimedTier.rate / 100;
 			}
 
-			system.total_invoice = Math.max( total_cordobas - system.deposit_credit_cordobas - system.loyalty_discount_cordobas, 0 );
+			system.total_invoice = Math.max( total_cordobas + system.extra_cordobas - system.loyalty_discount_cordobas, 0 );
 
 			updateDueAmount();
 			return;
@@ -1304,7 +1324,7 @@
 			system.loyalty_discount_cordobas = system.total_services * claimedTier.rate / 100;
 		}
 
-		system.total_invoice = Math.max( total_cordobas - system.deposit_credit_cordobas - system.loyalty_discount_cordobas - birthdayWriteoffApplied, 0 );
+		system.total_invoice = Math.max( total_cordobas + system.extra_cordobas - system.loyalty_discount_cordobas - birthdayWriteoffApplied, 0 );
 
 		updateDueAmount();
 	}
@@ -1361,43 +1381,42 @@
 
 	$('#form').parsley();
 
-	// Continuation of an appointment's booking deposit: prefill the client + its current-priced
-	// services (reusing the same row-building path as the product picker), then credit the frozen
-	// deposit against the invoice total before anything else runs.
-	if( appointmentPrefill ){
+	// Bill checkout (?bill=ID): lines come from the floating bill and are locked; tip is editable, IVA fixed;
+	// tip + IVA are added to the invoice total through system.extra_cordobas and the normal payment engine does the rest.
+	if( billPrefill ){
 
-		$('#id_appointment').val(appointmentPrefill.id_appointment);
+		$('#id_bill').val(billPrefill.id_bill);
+		$('#form').addClass('bill-mode');
+		$('.bill-extra').show();
+		$('#barcode-group').hide();
+		$('#manual-discount-checkbox').prop('disabled', true).hide();
+		$('h4.section-title').text('Cobrar · ' + billPrefill.title);
 
-		if( appointmentPrefill.client ){
-			var c = appointmentPrefill.client;
-			$('#client_name').val(c.name_client+' '+c.surname_client);
-			$('#id_client').val(c.id_client);
-			$('#cedula_cliente').val(c.id_card_client || '')
-				.prop('disabled', true)
-				.attr('title', 'Cliente de la reserva — no se puede modificar');
-			fetchLoyaltyBalance(c.id_client);
-
-			_selectedClientVip = (c.is_vip_client == 1 || c.is_vip_client == '1');
-			_selectedClientBirthday = (c.is_birthday_today == 1 || c.is_birthday_today == '1');
+		if( billPrefill.id_employee ){
+			// option values are zero-padded ('001'), so match numerically
+			$('#id_employee option').each(function(){
+				if( parseInt($(this).val(), 10) === billPrefill.id_employee ){ $('#id_employee').val($(this).val()); }
+			});
 		}
 
-		$.each(appointmentPrefill.products || [], function(i, p){
-			addProductRow(p);
+		$.each(billPrefill.products || [], function(i, p){
+			var row = addProductRow(p);
+			if( row ){
+				row.find('.p-quantity').val(p.quantity).prop('readonly', true).addClass('readonly');
+				row.find('.btn-remove').remove();
+			}
 		});
 
-		system.deposit_credit_cordobas = appointmentPrefill.deposit_credit_cordobas || 0;
-
-		var currentTotalCordobas = numeral($('#total-cordobas').html()).value();
-		system.total_invoice = Math.max(currentTotalCordobas - system.deposit_credit_cordobas - system.loyalty_discount_cordobas - system.birthday_ceiling_writeoff_cordobas, 0);
-
-		if( system.total_invoice <= 0 ){
-
-			// the deposit alone already covers (or exceeds) the invoice total; no payment row required by default
-			$('#payment-blocks').empty();
-			system.payments = {};
+		function setBillExtras(){
+			var tip = Math.max(0, numeral($('#tip_amount').val()).value() || 0);
+			system.extra_cordobas = (tip + billPrefill.iva) * dollarSellRate;
+			$('#iva-cordobas').text(numeral(billPrefill.iva * dollarSellRate).format('0,0.00'));
+			$('#iva-dollar').text(numeral(billPrefill.iva).format('0,0.00'));
+			updateTotal($('#sales-list tr').first());
 		}
 
-		updateDueAmount();
+		$('#tip_amount').val(Number(billPrefill.tip).toFixed(2)).on('input', setBillExtras);
+		setBillExtras();
 	}
 
 	$('#btn-submit').on('click',function(e){
@@ -1665,6 +1684,12 @@
 
 		        if( data.type == 'success' ){
 
+		        	if( billPrefill ){
+		        		// the bill is paid: go back to the floor plan (the button stays disabled so it can't be sent twice)
+		        		setTimeout(function(){ window.location.href = '<?php echo base_url('floor'); ?>'; }, 2500);
+		        		return;
+		        	}
+
 		        	$('#barcode').val('');
 		        	$('#cedula_cliente').val('');
 		        	$('#id_client').val('');
@@ -1674,9 +1699,7 @@
 		        	$('#total-cordobas').html('');
 		        	$('#total-dollar').html('');
 
-		        	$('#id_appointment').val('');
-		        	system.deposit_credit_cordobas = 0;
-		        	$('#deposit-applied-badge').hide().text('');
+		        	system.extra_cordobas = 0;
 
 		        	system.loyalty_discount_cordobas = 0;
 		        	$('#claim_loyalty_tier').val(0);
@@ -1863,15 +1886,11 @@
 		var due = numeral(system.total_invoice - paid);
 		var $badge = $('#payment-due-badge');
 		var $overpaymentBadge = $('#payment-overpayment-badge');
-		var $depositBadge = $('#deposit-applied-badge');
 		var $loyaltyBadge = $('#loyalty-applied-badge');
 		var $birthdayCeilingBadge = $('#birthday-ceiling-applied-badge');
 
-		if( system.deposit_credit_cordobas > 0 ){
-			$depositBadge.text('Depósito aplicado: C$' + numeral(system.deposit_credit_cordobas).format('0,0.00')).show();
-		}else{
-			$depositBadge.hide().text('');
-		}
+		$('#grand-cordobas').text( numeral(system.total_invoice).format('0,0.00') );
+		$('#grand-dollar').text( numeral(system.total_invoice / dollarSellRate).format('0,0.00') );
 
 		if( system.loyalty_discount_cordobas > 0 ){
 			$loyaltyBadge.text('Descuento por puntos aplicado: C$' + numeral(system.loyalty_discount_cordobas).format('0,0.00')).show();
