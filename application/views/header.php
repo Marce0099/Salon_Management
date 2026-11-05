@@ -100,18 +100,17 @@
                       <?php } ?>
                     </ul>
                   </li>
+                  <?php if($this->controller->is_admin()){ ?>
                   <li><a><i class="fa fa-dollar"></i> Ventas <span class="fa fa-chevron-down"></span></a>
                     <ul class="nav child_menu">
                       <li><a href="<?php echo base_url('sales/historial'); ?>">Historial</a></li>
-
-                      <?php if($this->controller->is_admin()){ ?>
                       <li><a href="<?php echo base_url('sales/register'); ?>">Registrar</a></li>
                       <li><a href="<?php echo base_url('sale_goals'); ?>">Meta Mensual</a></li>
                       <li><a href="<?php echo base_url('sales_report'); ?>">Reporte Detallado</a></li>
-                      <?php } ?>
                       <!--<li><a href="<?php //echo base_url('sales/returns'); ?>">Devoluciones</a></li>-->
                     </ul>
                   </li>
+                  <?php } ?>
                   <li><a><i class="fa fa-list"></i> Inventario <span class="fa fa-chevron-down"></span></a>
                     <ul class="nav child_menu">
                       <li><a href="<?php echo base_url('products'); ?>">Productos (con inventario)</a></li>
@@ -230,7 +229,9 @@
           <?php if($this->controller->is_admin()){ ?>
           <a href="<?php echo base_url('sales/register'); ?>" class="<?php echo strpos($bn_path, '/sales/register') === 0 ? 'active' : ''; ?>"><i class="fa fa-plus-circle"></i>Cobrar</a>
           <?php } ?>
+          <?php if($this->controller->is_admin()){ ?>
           <a href="<?php echo base_url('sales/historial'); ?>" class="<?php echo strpos($bn_path, '/sales/historial') === 0 ? 'active' : ''; ?>"><i class="fa fa-list"></i>Ventas</a>
+          <?php } ?>
           <?php if($this->controller->is_admin()){ ?>
           <a href="<?php echo base_url('cash/state'); ?>" class="<?php echo strpos($bn_path, '/cash') === 0 ? 'active' : ''; ?>"><i class="fa fa-money"></i>Caja</a>
           <?php } ?>
