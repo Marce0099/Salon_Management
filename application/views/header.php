@@ -37,6 +37,7 @@
     <link href="<?php echo base_url('assets/gentelella/build/css/custom.css'); ?>" rel="stylesheet">
     <link href="<?php echo base_url('assets/css/admin.css'); ?>" rel="stylesheet">
     <link href="<?php echo base_url('assets/css/mobile.css'); ?>" rel="stylesheet">
+    <link href="<?php echo base_url('assets/css/floor.css'); ?>" rel="stylesheet">
     <style>
         #low-stock-bell i{
             font-size: 18px;
@@ -90,6 +91,14 @@
               <div class="menu_section">
                 <ul class="nav side-menu">
                   <li><a href="<?php echo base_url('panel'); ?>"><i class="fa fa-dashboard"></i> Panel</a></li>
+                  <li><a><i class="fa fa-th-large"></i> Mesas <span class="fa fa-chevron-down"></span></a>
+                    <ul class="nav child_menu">
+                      <li><a href="<?php echo base_url('floor'); ?>">Plano de mesas</a></li>
+                      <?php if($this->controller->is_admin()){ ?>
+                      <li><a href="<?php echo base_url('floor/editor'); ?>">Editar plano</a></li>
+                      <?php } ?>
+                    </ul>
+                  </li>
                   <li><a><i class="fa fa-dollar"></i> Ventas <span class="fa fa-chevron-down"></span></a>
                     <ul class="nav child_menu">
                       <li><a href="<?php echo base_url('sales/historial'); ?>">Historial</a></li>
@@ -212,7 +221,7 @@
         <?php $bn_path = isset($_SERVER['PATH_INFO']) ? $_SERVER['PATH_INFO'] : ''; ?>
         <!-- bottom navigation (phones/tablets only, see assets/css/mobile.css) -->
         <nav class="bottom-nav hidden-print">
-          <a href="<?php echo base_url('panel'); ?>" class="<?php echo strpos($bn_path, '/panel') === 0 ? 'active' : ''; ?>"><i class="fa fa-dashboard"></i>Inicio</a>
+          <a href="<?php echo base_url('floor'); ?>" class="<?php echo strpos($bn_path, '/floor') === 0 ? 'active' : ''; ?>"><i class="fa fa-th-large"></i>Mesas</a>
           <a href="<?php echo base_url('sales/register'); ?>" class="<?php echo strpos($bn_path, '/sales/register') === 0 ? 'active' : ''; ?>"><i class="fa fa-plus-circle"></i>Cobrar</a>
           <a href="<?php echo base_url('sales/historial'); ?>" class="<?php echo strpos($bn_path, '/sales/historial') === 0 ? 'active' : ''; ?>"><i class="fa fa-list"></i>Ventas</a>
           <a href="<?php echo base_url('cash/state'); ?>" class="<?php echo strpos($bn_path, '/cash') === 0 ? 'active' : ''; ?>"><i class="fa fa-money"></i>Caja</a>

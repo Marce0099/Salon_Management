@@ -1,0 +1,27 @@
+/* Floor plan canvas (positions are % of a 10:7 canvas, so it scales on any screen) */
+.floor-wrap{ position:relative; width:100%; max-width:1100px; margin:0 auto; }
+.floor-canvas{
+	position:relative; width:100%; padding-top:70%; border:2px solid #c9d3dc; border-radius:8px; overflow:hidden;
+	background:#f7f9fb; background-image:linear-gradient(#e7edf2 1px,transparent 1px),linear-gradient(90deg,#e7edf2 1px,transparent 1px); background-size:5% 7.142%;
+	touch-action:pan-y;
+}
+.floor-table{
+	position:absolute; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center;
+	color:#fff; border:2px solid rgba(0,0,0,.25); box-shadow:0 2px 4px rgba(0,0,0,.2); user-select:none; -webkit-user-select:none;
+	overflow:hidden; line-height:1.15; cursor:pointer; font-size:clamp(10px,2.2vw,16px);
+}
+.floor-table.round{ border-radius:50%; }
+.floor-table .t-label{ font-weight:700; font-size:1.15em; }
+.floor-table .t-sub{ font-size:.8em; opacity:.95; }
+.floor-table.free{ background:#1ABB9C; }
+.floor-table.occupied{ background:#E74C3C; }
+.floor-table.reserved{ background:#F39C12; }
+.floor-legend span{ display:inline-block; margin-right:14px; font-size:13px; }
+.floor-legend i{ display:inline-block; width:14px; height:14px; border-radius:3px; vertical-align:-2px; margin-right:4px; }
+/* editor */
+.floor-canvas.editing .floor-table{ background:#5A738E; cursor:move; touch-action:none; }
+.floor-canvas.editing .floor-table.selected{ background:#2A3F54; outline:3px solid #F39C12; z-index:5; }
+.floor-handle{ position:absolute; right:0; bottom:0; width:22px; height:22px; background:#F39C12; cursor:nwse-resize; touch-action:none; border-top-left-radius:6px; }
+.area-tabs{ margin-bottom:10px; display:flex; flex-wrap:wrap; gap:6px; }
+.area-tabs .btn.active{ background:#2A3F54; color:#fff; border-color:#2A3F54; }
+.page-title{ height:auto !important; min-height:0; }
