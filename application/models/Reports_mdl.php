@@ -144,6 +144,6 @@ class Reports_mdl extends CI_Model{
 
 		$reservations = (int) $this->db->query('SELECT COUNT(*) AS n FROM table_reservations WHERE status = "active" AND DATE(start_at) = CURDATE() AND end_at > NOW()')->row()->n;
 
-		return array('tables' => $tables, 'occupied' => $open, 'consumption_usd' => (float) $consumption, 'reservations' => $reservations);
+		return array('tables' => $tables, 'occupied' => $open, 'consumption_usd' => (float) $consumption, 'consumption_cor' => (float) $consumption * (float) $this->db->get('dollar_exchange')->row()->sell_price, 'reservations' => $reservations);
 	}
 }
