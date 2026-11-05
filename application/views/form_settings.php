@@ -51,6 +51,37 @@
         </div>
 	</div>
 	<div class="form-group">
+		<label class="control-label col-md-3 col-sm-3 col-xs-12" for="tip_enabled">Propina sugerida:
+        </label>
+		<div class="col-md-6 col-sm-6 col-xs-12">
+            <select name="tip_enabled" id="tip_enabled" class="form-control col-md-7 col-xs-12">
+            	<option value="1" <?php echo $tip_enabled == '1' ? 'selected' : ''; ?>>Activada</option>
+            	<option value="0" <?php echo $tip_enabled == '1' ? '' : 'selected'; ?>>Desactivada</option>
+            </select>
+        </div>
+	</div>
+	<div class="form-group">
+		<label class="control-label col-md-3 col-sm-3 col-xs-12" for="tip_rate">Porcentaje de propina (%):
+        </label>
+		<div class="col-md-6 col-sm-6 col-xs-12">
+            <input type="number" step="0.01" min="0" max="100" name="tip_rate" id="tip_rate" required="required" class="form-control col-md-7 col-xs-12" value="<?php echo htmlspecialchars($tip_rate); ?>">
+        </div>
+	</div>
+	<div class="form-group">
+		<label class="control-label col-md-3 col-sm-3 col-xs-12" for="tax_rate_iva">IVA (%):
+        </label>
+		<div class="col-md-6 col-sm-6 col-xs-12">
+            <input type="number" step="0.01" min="0" max="100" name="tax_rate_iva" id="tax_rate_iva" required="required" class="form-control col-md-7 col-xs-12" value="<?php echo htmlspecialchars($tax_rate_iva); ?>">
+        </div>
+	</div>
+	<div class="form-group">
+		<label class="control-label col-md-3 col-sm-3 col-xs-12" for="kitchen_printer_name">Impresora de cocina:
+        </label>
+		<div class="col-md-6 col-sm-6 col-xs-12">
+            <input type="text" name="kitchen_printer_name" id="kitchen_printer_name" maxlength="100" class="form-control col-md-7 col-xs-12" value="<?php echo htmlspecialchars($kitchen_printer_name); ?>">
+        </div>
+	</div>
+	<div class="form-group">
 		<div class="col-md-offset-3 col-sm-offset-3 col-md-3 col-sm-3">
 			<button class="btn btn-success" id="btn-submit" type="submit">Guardar</button>
 		</div>

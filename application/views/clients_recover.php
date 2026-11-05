@@ -38,7 +38,6 @@
 			<th>Nombre y apellido</th>
 			<th>Teléfono</th>
 			<th>Email</th>
-			<th>Es VIP</th>
 			<th>Accion</th>
 		</tr>
 	</thead>
@@ -49,7 +48,6 @@
 			<td><?php echo $e->name_client ." ". $e->surname_client; ?></td>
 			<td><?php echo $e->phone_client; ?></td>
 			<td><?php echo $e->email_client; ?></td>
-			<td><?php echo $e->is_vip_client == 1 ? "Si" : "No"; ?></td>
 			<td>
 				<a class="confirm-action btn btn-xs btn-success"
 				   data-msg="¿Reactivar este cliente?"

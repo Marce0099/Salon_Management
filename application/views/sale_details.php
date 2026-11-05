@@ -152,7 +152,7 @@ $(function(){
 			<th>Tipo de pago</th>
 			<th>No. factura:</th>
 			<th>Cliente:</th>
-			<th>Vendedor:</th>
+			<th>Mesero:</th>
 		</tr>
 	</thead>
 	<tbody>

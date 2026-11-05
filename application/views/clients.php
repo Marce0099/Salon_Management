@@ -33,17 +33,6 @@
 							<input type="text" name="name_client" class="form-control" value="<?php echo Easysearch::getValue('name_client'); ?>">
 						</div>
 					</div>
-					<div class="col-md-4">
-						<div class="form-group">
-							<label for="">VIP</label>
-							<select name="is_vip_client" class="form-control">
-								<option value="">--</option>
-								<option value="1" <?php echo Easysearch::getValue('is_vip_client')==1?"selected":""; ?>>Si</option>
-								<option value="0" <?php echo Easysearch::getValue('is_vip_client')==0?"selected":""; ?>>No</option>
-							</select>
-						</div>
-					</div>
-				</div>
 			</div>
 			<div class="col-md-3" style="margin-top:24px;">
 				<button type="submit" class="btn btn-default">Buscar</button>
@@ -64,7 +53,6 @@
 			<th>Nombre y apellido</th>
 			<th>Teléfono</th>
 			<th>Email</th>
-			<th>Es VIP</th>
 			<th>Accion</th>
 		</tr>
 	</thead>
@@ -75,7 +63,6 @@
 			<td><?php echo $e->name_client ." ". $e->surname_client; ?></td>
 			<td><?php echo $e->phone_client; ?></td>
 			<td><?php echo $e->email_client; ?></td>
-			<td><?php echo $e->is_vip_client == 1?"Si":"No"; ?></td>
 			<td>
 				<div class="btn-group">
 					<a href="#" data-toggle="dropdown" class="dropdown-toggle"><i class="fa fa-cog"></i></a>
@@ -83,19 +70,6 @@
 						<li>
 							<a href="<?php echo base_url("clients/edit/{$e->id_client }"); ?>"><i class="fa fa-pencil"></i> Editar</a>
 						</li>
-						<li>
-							<?php if( $e->is_vip_client == 1 ) : ?>
-							<a href="<?php echo base_url("clients/toggleVip/{$e->id_client}"); ?>"><i class="fa fa-star-o"></i> Quitar de VIP</a>
-							<?php else : ?>
-							<a href="<?php echo base_url("clients/toggleVip/{$e->id_client}"); ?>"><i class="fa fa-star"></i> Marcar como VIP</a>
-							<?php endif; ?>
-						</li>
-						<?php if( $this->controller->is_super() ) : ?>
-						<li class="divider"></li>
-						<li>
-							<a href="<?php echo base_url("loyalty_points/registry/{$e->id_client }"); ?>"><i class="fa fa-star"></i> Registro de puntos</a>
-						</li>
-						<?php endif; ?>
 						<li class="divider"></li>
 						<li>
 							<a class="confirm-action" data-msg="Confirma eliminar el cliente?" href="<?php echo base_url("clients/delete/{$e->id_client }"); ?>"><i class="fa fa-times"></i> Eliminar</a>

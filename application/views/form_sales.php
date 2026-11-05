@@ -41,7 +41,7 @@
         </div>
 	</div>
 	<div class="form-group">
-		<label class="control-label col-md-2 col-sm-3 col-xs-12" for="">Cedula cliente:</label>
+		<label class="control-label col-md-2 col-sm-3 col-xs-12" for="">Cédula cliente (opcional):</label>
 		<div class="col-md-6 col-sm-6 col-xs-12">
             <input type="text"  id="cedula_cliente" class="form-control col-md-7 col-xs-12">
 			<input type="hidden" name="id_client" id="id_client">
@@ -62,7 +62,7 @@
 		<input type="hidden" name="claim_loyalty_tier" id="claim_loyalty_tier" value="0">
 	</div>
 	<div class="form-group">
-		<label class="control-label col-md-2 col-sm-3 col-xs-12" for="">Vendedor:</label>
+		<label class="control-label col-md-2 col-sm-3 col-xs-12" for="">Mesero:</label>
 		<div class="col-md-6 col-sm-6 col-xs-12">
             <select name="id_employee" id="id_employee" class="form-control">
             	<option value="">---</option>
@@ -93,7 +93,7 @@
 			<span id="payment-overpayment-badge" class="label label-info" style="font-size: 100%; white-space: nowrap; display: none;"></span>
 		</div>
 	</div>
-	<div class="form-group" style="margin-bottom: 10px;">
+	<div class="form-group" style="margin-bottom: 10px; display:none;"><!-- salon-era credits row, inert after restaurant conversion; rebuilt in Stage 7 -->
 		<div class="col-md-offset-2 col-sm-offset-3 col-md-6 col-sm-6" style="display: flex; align-items: center; flex-wrap: wrap; gap:10px;">
 			<small class="text-muted" style="width:100%;">Descuentos y créditos aplicados:</small>
 			<span id="deposit-applied-badge" class="label label-success" style="font-size: 100%; white-space: nowrap; display: none;"></span>
@@ -1407,18 +1407,7 @@
 		if( !$('#form').parsley().validate() )
 			return false;
 
-		if( !$('#id_client').val() ){
-
-			new PNotify({
-		            title: 'Notificación',
-		            text: 'Debe seleccionar un cliente',
-		            type : 'error',
-		            styling : 'bootstrap3',
-		            delay : 2800
-		        });
-
-		        return false;
-		}
+		// client is optional: the server falls back to the default 'Consumidor Final' client
 
 		if( !$('#id_employee').val() ){
 

@@ -34,6 +34,11 @@ class Settings extends Admin_Controller{
 		$this->content_data['receipt_footer_notice'] = $this->settings_mdl->get('receipt_footer_notice', 'No se aceptan devoluciones');
 		$this->content_data['receipt_footer_thanks'] = $this->settings_mdl->get('receipt_footer_thanks', "Gracias por preferirnos!!\nLe esperamos pronto.");
 
+		$this->content_data['tip_enabled'] = $this->settings_mdl->get('tip_enabled', '1');
+		$this->content_data['tip_rate'] = $this->settings_mdl->get('tip_rate', '10');
+		$this->content_data['tax_rate_iva'] = $this->settings_mdl->get('tax_rate_iva', '0');
+		$this->content_data['kitchen_printer_name'] = $this->settings_mdl->get('kitchen_printer_name', 'COCINA');
+
 		$logo_groups = $this->logo_groups;
 		foreach( $logo_groups as $key => &$group ){
 			$group['url'] = resolveLogoUrl($key, $group['default']);
@@ -68,6 +73,10 @@ class Settings extends Admin_Controller{
 		$this->form_validation->set_rules('receipt_tagline','','required|trim|max_length[255]');
 		$this->form_validation->set_rules('receipt_footer_notice','','required|trim|max_length[255]');
 		$this->form_validation->set_rules('receipt_footer_thanks','','required|trim|max_length[255]');
+		$this->form_validation->set_rules('tip_enabled','','required|in_list[0,1]');
+		$this->form_validation->set_rules('tip_rate','','required|numeric|greater_than_equal_to[0]|less_than_equal_to[100]');
+		$this->form_validation->set_rules('tax_rate_iva','','required|numeric|greater_than_equal_to[0]|less_than_equal_to[100]');
+		$this->form_validation->set_rules('kitchen_printer_name','','trim|max_length[100]');
 
 		if( !$this->form_validation->run() ){
 
@@ -84,6 +93,10 @@ class Settings extends Admin_Controller{
 			$this->settings_mdl->save('receipt_tagline', $this->input->post('receipt_tagline'));
 			$this->settings_mdl->save('receipt_footer_notice', $this->input->post('receipt_footer_notice'));
 			$this->settings_mdl->save('receipt_footer_thanks', $this->input->post('receipt_footer_thanks'));
+			$this->settings_mdl->save('tip_enabled', $this->input->post('tip_enabled'));
+			$this->settings_mdl->save('tip_rate', $this->input->post('tip_rate'));
+			$this->settings_mdl->save('tax_rate_iva', $this->input->post('tax_rate_iva'));
+			$this->settings_mdl->save('kitchen_printer_name', $this->input->post('kitchen_printer_name'));
 		} catch (\Throwable $th) {
 			$response = array( 'type' => 'error', 'message' => 'Ha ocurrido un error actualizando la configuración' );
 			echo json_encode($response);
