@@ -59,10 +59,10 @@
         </div>
 	</div>
 	<div class="form-group">
-		<label class="control-label col-md-3 col-sm-3 col-xs-12" for="birth_client">Fecha de nacimiento <span class="required">*</span>
+		<label class="control-label col-md-3 col-sm-3 col-xs-12" for="birth_client">Fecha de nacimiento (opcional)
         </label>
 		<div class="col-md-6 col-sm-6 col-xs-12">
-            <input type="text" name="birth_client" id="birth_client" required="required" class="dtpicker form-control col-md-7 col-xs-12" value="<?php if($client){ echo $this->clients_mdl->getDateFormat($client->birth_client); } ?>">
+            <input type="text" name="birth_client" id="birth_client" class="dtpicker form-control col-md-7 col-xs-12" value="<?php if($client){ echo $this->clients_mdl->getDateFormat($client->birth_client); } ?>">
         </div>
 	</div>
 	<div class="form-group">

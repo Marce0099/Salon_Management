@@ -11,7 +11,7 @@
 	}
 ?>
 
-<h4 class="section-title">Formulario de productos / servicios</h4>
+<h4 class="section-title">Formulario de productos y platillos</h4>
 
 <form id="form" action="" method="post" class="form-horizontal form-label-left" data-parsley-validate autocomplete="off" onsubmit="return false;">
 	<div class="form-group">
@@ -79,7 +79,7 @@
 		<div class="col-md-offset-3 col-sm-offset-3 col-md-3 col-sm-3">
             <div class="checkbox">
 	        	<label style="padding-left: 0;">
-	        		<input type="checkbox" class="flat flat-green" name="is_service" value="1" id="is_service" <?php if( $product && $product->is_service ){ echo 'checked'; } ?>> Servicio
+	        		<input type="checkbox" class="flat flat-green" name="is_service" value="1" id="is_service" <?php if( $product && $product->is_service ){ echo 'checked'; } ?>> Platillo preparado al momento (sin inventario)
 	        	</label>
 	        </div>
         </div>

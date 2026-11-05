@@ -43,7 +43,7 @@
 		<thead>
 			<tr>
 				<th width="2%"></th>
-				<th width="52%">Producto/Servicio</th>
+				<th width="52%">Producto/Platillo</th>
 				<th width="10%">Cantidad</th>
 				<th width="13%">Precio costo ($)</th>
 				<th width="13%">Precio venta ($)</th>
@@ -73,7 +73,7 @@
 			</span>
 		</td>
 		<td>
-			<input type="text" class="p-barcode" placeholder="Producto/Servicio" required="true">
+			<input type="text" class="p-barcode" placeholder="Producto/Platillo" required="true">
 			<input type="hidden" class="p-id-products" name="id_products[]" required="true">
 		</td>
 		<td>
@@ -99,7 +99,7 @@
 
 			<div class="modal-header">
 				<button type="button" class="close" data-dismiss="modal"><span>&times;</span></button>
-				<h4 class="modal-title">Seleccionar Producto/Servicio</h4>
+				<h4 class="modal-title">Seleccionar Producto/Platillo</h4>
 			</div>
 
 			<div class="modal-body">
@@ -120,7 +120,7 @@
 							<input type="radio" name="picker-type" value="products"> Productos
 						</label>
 						<label style="font-weight:normal;">
-							<input type="radio" name="picker-type" value="services"> Servicios
+							<input type="radio" name="picker-type" value="services"> Platillos
 						</label>
 					</div>
 				</div>
@@ -232,7 +232,7 @@
 							.append($('<td>').text(p.name))
 							.append($('<td>').text(p.price_cost))
 							.append($('<td>').text(p.price_sell))
-							.append($('<td>').text(p.is_service == 1 ? 'Servicio' : 'Producto'))
+							.append($('<td>').text(p.is_service == 1 ? 'Platillo' : 'Producto'))
 							.appendTo($tbody);
 					});
 				}

@@ -1,5 +1,33 @@
   <div class="row">
 
+    <div class="col-md-3 col-sm-6">
+      <a href="<?php echo base_url('floor'); ?>" style="text-decoration:none; color:inherit;">
+        <div class="panel panel-default kpi-tile">
+          <div class="panel-heading"><i class="fa fa-th-large"></i> Mesas ocupadas</div>
+          <div class="panel-body">
+            <div class="kpi-value <?php echo $live['occupied'] > 0 ? 'text-warning' : 'text-success'; ?>"><?php echo $live['occupied']; ?> / <?php echo $live['tables']; ?></div>
+            <div class="kpi-sub">Reservas pendientes hoy: <?php echo $live['reservations']; ?></div>
+          </div>
+        </div>
+      </a>
+    </div>
+
+    <div class="col-md-3 col-sm-6">
+      <a href="<?php echo base_url('floor'); ?>" style="text-decoration:none; color:inherit;">
+        <div class="panel panel-default kpi-tile">
+          <div class="panel-heading"><i class="fa fa-cutlery"></i> Consumo abierto</div>
+          <div class="panel-body">
+            <div class="kpi-value">$<?php echo number_format($live['consumption_usd'], 2); ?></div>
+            <div class="kpi-sub">En mesas aún sin cobrar</div>
+          </div>
+        </div>
+      </a>
+    </div>
+
+  </div>
+
+  <div class="row">
+
     <div class="col-md-3">
       <a href="<?php echo base_url('cash/state'); ?>" style="text-decoration:none; color:inherit;">
         <div class="panel panel-default kpi-tile">
@@ -86,7 +114,7 @@
     </div>
     <div class="col-md-6">
       <div class="graph" id="showSalesByEmployeeGraph">
-        <h3 class="graph_tittle">Ventas por vendedor</h3>
+        <h3 class="graph_tittle">Ventas por mesero</h3>
         <canvas></canvas>
       </div> <!-- .graph -->
     </div>
@@ -95,7 +123,7 @@
 
     <div class="col-md-6">
       <div class="graph" id="showTopSoldGraph">
-        <h3 class="graph_tittle">Top 10 productos y servicios más vendidos</h3>
+        <h3 class="graph_tittle">Top 10 productos y platillos más vendidos</h3>
         <canvas></canvas>
       </div> <!-- .graph -->
     </div>

@@ -11,7 +11,7 @@
 	}
 ?>
 
-<h4 class="section-title">Formulario de vendedores</h4>
+<h4 class="section-title">Formulario de meseros</h4>
 
 <form id="form" action="" method="post" class="form-horizontal form-label-left" data-parsley-validate autocomplete="off" onsubmit="return false;" spellcheck="false">
 	<input type="hidden" name="tk" id="tk" value="<?php echo $tk; ?>">

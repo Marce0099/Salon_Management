@@ -8,7 +8,7 @@ class Clients_mdl extends CI_Model{
 	}
 
 	public function getDateFormat($date){		
-		return Date("d/m/Y", strtotime($date));
+		return empty($date) ? '' : Date("d/m/Y", strtotime($date));
 	}
 
 	public function save( $data ){

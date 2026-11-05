@@ -29,7 +29,7 @@
 			</div>
 			<div class="col-md-2">
 				<div class="form-group">
-					<label for="nombre">Vendedor</label>
+					<label for="nombre">Mesero</label>
 					<select name="id_employee" id="" class="form-control">
 						<option value=""></option>
 						<?php foreach($employees as $em) : ?>
@@ -82,7 +82,7 @@
 				<?php $order = Easysearch::getFieldOrder('order_employee'); ?>
 				<a href="<?php echo $order['link']; ?>">									
 					<span class="white-color fa fa-sort-<?php echo $order['mode']; ?>"></span>
-				</a>Vendedor
+				</a>Mesero
 			</th>
 			<th></th>
 		</tr>

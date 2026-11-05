@@ -19,7 +19,11 @@ class Clients extends Admin_Controller{
 	}
 
 	public function setFormRules(){
-		if( preg_match("/^([0-9]{2})\/([0-9]{2})\/([0-9]{4})$/", $_POST['birth_client'], $matches) ){
+		if( trim( (string) ( isset($_POST['birth_client']) ? $_POST['birth_client'] : '' ) ) === '' ){
+
+			$_POST['birth_client'] = NULL; // optional
+		}
+		elseif( preg_match("/^([0-9]{2})\/([0-9]{2})\/([0-9]{4})$/", $_POST['birth_client'], $matches) ){
 			$day = (int)$matches[1];
 			$month = (int)$matches[2];
 			$year = (int)$matches[3];
@@ -88,7 +92,7 @@ class Clients extends Admin_Controller{
 			array('key' => 'surname_client', 'label' => 'Apellido', 'required' => TRUE,  'text' => TRUE, 'width' => 22, 'note' => 'Solo letras y espacios, entre 3 y 50 caracteres'),
 			array('key' => 'phone_client',   'label' => 'Teléfono', 'required' => FALSE, 'text' => TRUE, 'width' => 18, 'note' => 'Números, espacios o -; entre 3 y 20 caracteres'),
 			array('key' => 'email_client',   'label' => 'Email',    'required' => FALSE, 'text' => TRUE, 'width' => 30, 'note' => 'Correo válido, máximo 100 caracteres'),
-			array('key' => 'birth_client',   'label' => 'Fecha de nacimiento (dd/mm/aaaa)', 'required' => TRUE, 'text' => TRUE, 'date' => TRUE, 'width' => 32, 'note' => 'Formato dd/mm/aaaa, no puede ser futura'),
+			array('key' => 'birth_client',   'label' => 'Fecha de nacimiento (dd/mm/aaaa)', 'required' => FALSE, 'text' => TRUE, 'date' => TRUE, 'width' => 32, 'note' => 'Opcional. Formato dd/mm/aaaa, no puede ser futura'),
 		);
 	}
 
@@ -129,11 +133,15 @@ class Clients extends Admin_Controller{
 				if( $d['phone_client'] !== '' && !preg_match('/^[0-9 -]{3,20}$/', $d['phone_client']) ) return 'Teléfono inválido';
 				if( $d['email_client'] !== '' && ( strlen($d['email_client']) > 100 || !filter_var($d['email_client'], FILTER_VALIDATE_EMAIL) ) ) return 'Email inválido';
 
-				if( $d['birth_client'] === '' ) return 'La fecha de nacimiento es obligatoria';
-				$birth = Excel_import::parseDate($d['birth_client']);
-				if( $birth === NULL ) return 'Fecha de nacimiento inválida (use dd/mm/aaaa)';
-				if( $birth > date('Y-m-d') || $birth < '1900-01-01' ) return 'Fecha de nacimiento fuera de rango';
-				$d['birth_client'] = $birth;
+				if( $d['birth_client'] === '' ){
+					$d['birth_client'] = NULL;
+				}
+				else{
+					$birth = Excel_import::parseDate($d['birth_client']);
+					if( $birth === NULL ) return 'Fecha de nacimiento inválida (use dd/mm/aaaa)';
+					if( $birth > date('Y-m-d') || $birth < '1900-01-01' ) return 'Fecha de nacimiento fuera de rango';
+					$d['birth_client'] = $birth;
+				}
 
 				return NULL;
 			},

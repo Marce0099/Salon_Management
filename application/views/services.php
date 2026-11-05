@@ -1,4 +1,4 @@
-<h3 class="section-title">Listado de servicios</h3>
+<h3 class="section-title">Listado de platillos</h3>
 
 <div class="panel panel-default">
 	<div class="panel-heading">Búsqueda
@@ -13,7 +13,7 @@
 			</div>
 			<div class="col-md-2">
 				<div class="form-group">
-					<label for="name">Nombre del servicio:</label>
+					<label for="name">Nombre del platillo:</label>
 					<input id="name" name="name" type="text" class="form-control" value="<?php echo Easysearch::getValue('name'); ?>">
 				</div>
 			</div>
@@ -49,9 +49,9 @@
 
 <?php if( empty($services) ) : ?>
 	<?php if( isset($get) ) : ?>
-	<p class="alert alert-info">No se encontraron servicios con los criterios de búsqueda ingresados</p>
+	<p class="alert alert-info">No se encontraron platillos con los criterios de búsqueda ingresados</p>
 	<?php else : ?>
-	<p class="alert alert-info">No hay servicios registrados</p>
+	<p class="alert alert-info">No hay platillos registrados</p>
 	<?php endif; ?>
 <?php else : ?>
 
@@ -59,7 +59,7 @@
 	<thead>
 		<tr>
 			<th colspan="6">
-				Servicios: <?php echo $no_limit_count; ?>
+				Platillos: <?php echo $no_limit_count; ?>
 			</th>
 		</tr>
 		<tr>
@@ -108,7 +108,7 @@
 						</li>
 						<li class="divider"></li>
 						<li>
-							<a class="confirm-action" data-msg="Confirma eliminar el servicio?" href="<?php echo base_url("products/delete/{$s->id_product}"); ?>"><i class="fa fa-times"></i> Eliminar</a>
+							<a class="confirm-action" data-msg="Confirma eliminar el platillo?" href="<?php echo base_url("products/delete/{$s->id_product}"); ?>"><i class="fa fa-times"></i> Eliminar</a>
 						</li>
 					</ul>
 				</div>

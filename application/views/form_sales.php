@@ -388,7 +388,7 @@
 
 			<div class="modal-header">
 				<button type="button" class="close" data-dismiss="modal"><span>&times;</span></button>
-				<h4 class="modal-title">Seleccionar Producto/Servicio</h4>
+				<h4 class="modal-title">Seleccionar Producto/Platillo</h4>
 			</div>
 
 			<div class="modal-body">
@@ -409,7 +409,7 @@
 							<input type="radio" name="prod-picker-type" value="products"> Productos
 						</label>
 						<label style="font-weight:normal;">
-							<input type="radio" name="prod-picker-type" value="services"> Servicios
+							<input type="radio" name="prod-picker-type" value="services"> Platillos
 						</label>
 					</div>
 				</div>
@@ -672,7 +672,7 @@
 							.append($('<td>').text(p.barcode || ''))
 							.append($('<td>').text(p.name))
 							.append($('<td>').text(p.price_sell))
-							.append($('<td>').text(p.is_service == 1 ? 'Servicio' : 'Producto'))
+							.append($('<td>').text(p.is_service == 1 ? 'Platillo' : 'Producto'))
 							.appendTo($tbody);
 					});
 				}
@@ -1432,7 +1432,7 @@
 
 			new PNotify({
 		            title: 'Notificación',
-		            text: 'Debe seleccionar un vendedor',
+		            text: 'Debe seleccionar un mesero',
 		            type : 'error',
 		            styling : 'bootstrap3',
 		            delay : 2800
@@ -1478,7 +1478,7 @@
 				if( !system.coupon_allowed ){
 					couponError = _manualDiscountMode
 						? 'No se puede usar cupón cuando el descuento es manual'
-						: 'El descuento de los servicios es mayor o igual al monto del cupón; no se puede usar el cupón';
+						: 'El descuento de los platillos es mayor o igual al monto del cupón; no se puede usar el cupón';
 					return false;
 				}
 
@@ -1502,12 +1502,12 @@
 				seenCoupons[code] = true;
 
 				if( couponRemaining <= 0.01 ){
-					couponError = 'Los cupones solo se pueden aplicar sobre servicios, y esta factura no tiene servicios';
+					couponError = 'Los cupones solo se pueden aplicar sobre platillos, y esta factura no tiene platillos';
 					return false;
 				}
 
 				if( amount - couponRemaining > 0.01 ){
-					couponError = 'El cupón "' + code + '" excede el total disponible de servicios en la factura (disponible: C$' + numeral(couponRemaining).format('0,0.00') + ')';
+					couponError = 'El cupón "' + code + '" excede el total disponible de platillos en la factura (disponible: C$' + numeral(couponRemaining).format('0,0.00') + ')';
 					return false;
 				}
 				couponRemaining -= amount;
@@ -1853,7 +1853,7 @@
 					$block.find('.payment-method-select').val('pos').trigger('change');
 					new PNotify({
 						title: 'Notificación',
-						text: 'El descuento de los servicios es mayor o igual al monto del cupón; no se puede usar el cupón',
+						text: 'El descuento de los platillos es mayor o igual al monto del cupón; no se puede usar el cupón',
 						type : 'error',
 						styling : 'bootstrap3',
 						delay : 4000
@@ -1868,7 +1868,7 @@
 				system._couponNeutralizeNotified = true;
 				new PNotify({
 					title: 'Notificación',
-					text: 'El cupón supera el valor del descuento de los servicios: se aplicará el cupón en lugar del descuento',
+					text: 'El cupón supera el valor del descuento de los platillos: se aplicará el cupón en lugar del descuento',
 					type : 'info',
 					styling : 'bootstrap3',
 					delay : 4000

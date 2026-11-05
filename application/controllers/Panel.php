@@ -9,6 +9,7 @@
 			$this->load->model('cash_mdl');
 			$this->load->model('products_mdl');
 			$this->load->model('statistics_mdl');
+			$this->load->model('reports_mdl');
 		}
 
 		public function index(){
@@ -19,6 +20,7 @@
 
 			$data['open_cash'] = $this->cash_mdl->getOpenedCash();
 			$data['cash_movements'] = $data['open_cash'] ? $this->cash_mdl->getCashMovements($data['open_cash']) : NULL;
+			$data['live'] = $this->reports_mdl->live();
 			$data['low_stock_count'] = $this->products_mdl->getLowStockCount();
 			// monthly goals and per-employee sales are admin-only everywhere else
 			// (Sale_goals, Employees), so the dashboard does not leak them to workers

@@ -106,7 +106,7 @@
 	<div class="row">
 		<div class="col-md-12">
 			<div class="graph" id="chartTopProducts">
-				<h3 class="graph_tittle">Top 10 productos/servicios por ganancia real</h3>
+				<h3 class="graph_tittle">Top 10 productos/platillos por ganancia real</h3>
 				<canvas></canvas>
 			</div>
 		</div>
@@ -121,7 +121,7 @@
 						<th>No. Factura</th>
 						<th>Fecha</th>
 						<th>Cliente</th>
-						<th>Producto/Servicio</th>
+						<th>Producto/Platillo</th>
 						<th>Tipo</th>
 						<th>Cant.</th>
 						<th>Precio unit.</th>

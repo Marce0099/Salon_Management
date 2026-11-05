@@ -27,12 +27,12 @@ class Settings extends Admin_Controller{
 		}
 
 		$this->content_data['company_name'] = $this->settings_mdl->get('company_name', 'Conceptos');
-		$this->content_data['receipt_ruc'] = $this->settings_mdl->get('receipt_ruc', '2811201760006N');
-		$this->content_data['receipt_address'] = $this->settings_mdl->get('receipt_address', "Costado sur funeraria monte\nlos olivos 2 1/2c al este,\nManagua-Nicaragua.");
-		$this->content_data['receipt_phone'] = $this->settings_mdl->get('receipt_phone', '8885-1430');
-		$this->content_data['receipt_tagline'] = $this->settings_mdl->get('receipt_tagline', 'Siente la Diferencia');
-		$this->content_data['receipt_footer_notice'] = $this->settings_mdl->get('receipt_footer_notice', 'No se aceptan devoluciones');
-		$this->content_data['receipt_footer_thanks'] = $this->settings_mdl->get('receipt_footer_thanks', "Gracias por preferirnos!!\nLe esperamos pronto.");
+		$this->content_data['receipt_ruc'] = $this->settings_mdl->get('receipt_ruc', 'RUC del restaurante');
+		$this->content_data['receipt_address'] = $this->settings_mdl->get('receipt_address', "Dirección del restaurante");
+		$this->content_data['receipt_phone'] = $this->settings_mdl->get('receipt_phone', '0000-0000');
+		$this->content_data['receipt_tagline'] = $this->settings_mdl->get('receipt_tagline', 'Buen provecho');
+		$this->content_data['receipt_footer_notice'] = $this->settings_mdl->get('receipt_footer_notice', 'Propina no incluida salvo indicación');
+		$this->content_data['receipt_footer_thanks'] = $this->settings_mdl->get('receipt_footer_thanks', "Gracias por su visita!\nLo esperamos pronto.");
 
 		$this->content_data['tip_enabled'] = $this->settings_mdl->get('tip_enabled', '1');
 		$this->content_data['tip_rate'] = $this->settings_mdl->get('tip_rate', '10');

@@ -1,14 +1,14 @@
-<h3 class="section-title">Listado de vendedores</h3>
+<h3 class="section-title">Listado de meseros</h3>
 
 <?php $this->load->view('partials/bulk_import', array(
 	'import_url'   => base_url('employees/import'),
 	'template_url' => base_url('employees/template'),
 	'tk'           => $tk,
-	'entity_label' => 'vendedores',
+	'entity_label' => 'meseros',
 )); ?>
 
 <?php if( empty($employees) ) : ?>
-<p class="alert alert-info">No hay vendedores registrados</p>
+<p class="alert alert-info">No hay meseros registrados</p>
 <?php else: ?>
 <table class="table table-hover table-striped jambo_table bulk_action">
 	<thead>
@@ -32,7 +32,7 @@
 						</li>
 						<li class="divider"></li>
 						<li>
-							<a class="confirm-action" data-msg="Confirma eliminar el vendedor?" href="<?php echo base_url("employees/delete/{$e->id_employee}") . '?tk=' . $tk; ?>"><i class="fa fa-times"></i> Eliminar</a>
+							<a class="confirm-action" data-msg="Confirma eliminar el mesero?" href="<?php echo base_url("employees/delete/{$e->id_employee}") . '?tk=' . $tk; ?>"><i class="fa fa-times"></i> Eliminar</a>
 						</li>
 					</ul>
 				</div>

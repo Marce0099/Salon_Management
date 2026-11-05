@@ -727,12 +727,12 @@ class Sales extends Admin_Controller{
 
 		$logo = resolveLogoPath('logo_receipt', 'logo_invoice.png');
 
-		$receipt_ruc = $this->settings_mdl->get('receipt_ruc', '2811201760006N');
-		$receipt_address = $this->settings_mdl->get('receipt_address', "Costado sur funeraria monte\nlos olivos 2 1/2c al este,\nManagua-Nicaragua.");
-		$receipt_phone = $this->settings_mdl->get('receipt_phone', '8885-1430');
-		$receipt_tagline = $this->settings_mdl->get('receipt_tagline', 'Siente la Diferencia');
-		$receipt_footer_notice = $this->settings_mdl->get('receipt_footer_notice', 'No se aceptan devoluciones');
-		$receipt_footer_thanks = $this->settings_mdl->get('receipt_footer_thanks', "Gracias por preferirnos!!\nLe esperamos pronto.");
+		$receipt_ruc = $this->settings_mdl->get('receipt_ruc', 'RUC del restaurante');
+		$receipt_address = $this->settings_mdl->get('receipt_address', "Dirección del restaurante");
+		$receipt_phone = $this->settings_mdl->get('receipt_phone', '0000-0000');
+		$receipt_tagline = $this->settings_mdl->get('receipt_tagline', 'Buen provecho');
+		$receipt_footer_notice = $this->settings_mdl->get('receipt_footer_notice', 'Propina no incluida salvo indicación');
+		$receipt_footer_thanks = $this->settings_mdl->get('receipt_footer_thanks', "Gracias por su visita!\nLo esperamos pronto.");
 
 		$methods = [
 			'cash' => 'Efectivo',
@@ -998,12 +998,12 @@ class Sales extends Admin_Controller{
 
 			$logo_path = resolveLogoPath('logo_receipt', 'logo_invoice.png');
 
-			$receipt_ruc = $this->settings_mdl->get('receipt_ruc', '2811201760006N');
-			$receipt_address = $this->settings_mdl->get('receipt_address', "Costado sur funeraria monte\nlos olivos 2 1/2c al este,\nManagua-Nicaragua.");
-			$receipt_phone = $this->settings_mdl->get('receipt_phone', '8885-1430');
-			$receipt_tagline = $this->settings_mdl->get('receipt_tagline', 'Siente la Diferencia');
-			$receipt_footer_notice = $this->settings_mdl->get('receipt_footer_notice', 'No se aceptan devoluciones');
-			$receipt_footer_thanks = $this->settings_mdl->get('receipt_footer_thanks', "Gracias por preferirnos!!\nLe esperamos pronto.");
+			$receipt_ruc = $this->settings_mdl->get('receipt_ruc', 'RUC del restaurante');
+			$receipt_address = $this->settings_mdl->get('receipt_address', "Dirección del restaurante");
+			$receipt_phone = $this->settings_mdl->get('receipt_phone', '0000-0000');
+			$receipt_tagline = $this->settings_mdl->get('receipt_tagline', 'Buen provecho');
+			$receipt_footer_notice = $this->settings_mdl->get('receipt_footer_notice', 'Propina no incluida salvo indicación');
+			$receipt_footer_thanks = $this->settings_mdl->get('receipt_footer_thanks', "Gracias por su visita!\nLo esperamos pronto.");
 
 			$connector = new WindowsPrintConnector('CAJA');
 			$printer = new Printer($connector);
