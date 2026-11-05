@@ -1,0 +1,73 @@
+/* Restaurant app - touch / phone / tablet shell (Stage 2) */
+
+/* Bottom navigation (only on small screens, hidden when printing) */
+.bottom-nav{display:none;}
+
+@media (max-width: 991px){
+	html, body{ -webkit-text-size-adjust:100%; }
+
+	/* iOS zooms on focus when font < 16px */
+	.form-control, select.form-control, input[type=text], input[type=number], input[type=password], input[type=search], textarea{
+		font-size:16px !important;
+		min-height:44px;
+	}
+
+	/* bigger tap targets */
+	.btn{ min-height:44px; padding:10px 16px; font-size:15px; }
+	.btn-xs, .btn-sm{ min-height:38px; padding:8px 12px; }
+	.table > tbody > tr > td a, .dropdown-menu > li > a{ padding-top:10px; padding-bottom:10px; display:block; }
+	.side-menu > li > a, .nav.child_menu > li > a{ padding-top:14px !important; padding-bottom:14px !important; }
+	.nav_menu .toggle a, .nav_menu .navbar-nav > li > a{ min-width:44px; min-height:44px; }
+
+	/* content breathing room + room for the bottom bar */
+	.right_col{ padding:10px 10px 80px 10px !important; margin-left:0 !important; }
+	.x_panel, .x_content{ padding-left:8px; padding-right:8px; }
+
+	/* wide tables scroll sideways instead of breaking the layout */
+	.right_col table.table{ display:block; overflow-x:auto; -webkit-overflow-scrolling:touch; white-space:nowrap; }
+
+	/* forms: stack labels above inputs */
+	.form-horizontal .control-label{ text-align:left !important; padding-bottom:4px; }
+
+	/* modals use the full width */
+	.modal-dialog{ margin:10px; width:auto; }
+
+	/* PNotify toasts must not overflow */
+	.ui-pnotify{ left:10px !important; right:10px !important; width:auto !important; }
+
+	/* bottom nav */
+	.bottom-nav{
+		display:flex; position:fixed; left:0; right:0; bottom:0; z-index:1030;
+		background:#2A3F54; box-shadow:0 -2px 8px rgba(0,0,0,.25);
+		padding-bottom:env(safe-area-inset-bottom);
+	}
+	.bottom-nav a{
+		flex:1 1 0; text-align:center; color:#ECF0F1; text-decoration:none;
+		padding:8px 2px 6px; font-size:11px; line-height:1.2; min-height:56px;
+	}
+	.bottom-nav a i{ display:block; font-size:20px; margin-bottom:3px; }
+	.bottom-nav a.active{ background:#1ABB9C; color:#fff; }
+	.bottom-nav a:active{ background:#1f2f40; }
+}
+
+/* slide-in drawer replaces the icon-only rail on phones/tablets */
+@media (max-width: 991px){
+	body.drawer-open .left_col{
+		display:block !important; position:fixed !important; top:0; bottom:0; left:0;
+		width:80% !important; max-width:300px; z-index:1050; overflow-y:auto;
+	}
+	body.drawer-open .left_col .scroll-view{ width:100% !important; }
+	.drawer-overlay{ display:none; position:fixed; inset:0; background:rgba(0,0,0,.45); z-index:1045; }
+	body.drawer-open .drawer-overlay{ display:block; }
+	.sidebar-scroll-arrow{ display:none !important; }
+	.nav_menu .navbar-right .user-profile{ font-size:0; }
+	.nav_menu .navbar-right .user-profile i{ font-size:18px; }
+}
+
+@media (max-width: 480px){
+	.tile_count .tile_stats_count{ width:100%; }
+	.right_col .row > [class*=col-md-]{ width:100%; }
+	h3, .page-title h3{ font-size:20px; }
+}
+
+@media print{ .bottom-nav{ display:none !important; } }

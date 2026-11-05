@@ -36,6 +36,7 @@
     <!-- Custom Theme Style -->
     <link href="<?php echo base_url('assets/gentelella/build/css/custom.css'); ?>" rel="stylesheet">
     <link href="<?php echo base_url('assets/css/admin.css'); ?>" rel="stylesheet">
+    <link href="<?php echo base_url('assets/css/mobile.css'); ?>" rel="stylesheet">
     <style>
         #low-stock-bell i{
             font-size: 18px;
@@ -111,6 +112,7 @@
                       <li><a href="<?php echo base_url('products/internal_use_list'); ?>">Historial de uso interno</a></li>
                     </ul>
                   </li>
+                  <?php if($this->controller->is_admin()){ // waiters (trabajador) only see sales/cash/products ?>
                   <li><a><i class="fa fa-cutlery"></i> Categorías de menú <span class="fa fa-chevron-down"></span></a>
                     <ul class="nav child_menu">
                       <li><a href="<?php echo base_url('service_categories'); ?>">Lista</a></li>
@@ -126,6 +128,7 @@
                       <li><a href="<?php echo base_url('returns'); ?>">Devoluciones</a></li>
                     </ul>
                   </li>
+                  <?php } ?>
                   <li><a><i class="fa fa-money"></i> Caja <span class="fa fa-chevron-down"></span></a>
                     <ul class="nav child_menu">
                       <li><a href="<?php echo base_url('cash/state'); ?>">Estado</a></li>
@@ -144,6 +147,7 @@
                     </ul>
                   </li>
                   <?php } ?>
+                  <?php if($this->controller->is_admin()){ ?>
                   <li><a><i class="fa fa-users"></i> Clientes <span class="fa fa-chevron-down"></span></a>
                     <ul class="nav child_menu">
                       <li><a href="<?php echo base_url('clients'); ?>">Listado</a></li>
@@ -154,14 +158,14 @@
                     <ul class="nav child_menu">
                       <li><a href="<?php echo base_url('dollar_exchange'); ?>">Tipo de cambio</a></li>
                       <li><a href="<?php echo base_url('bank_account'); ?>">Cuentas Bancarias</a></li>
-                      <?php if($this->controller->is_admin()){ ?>
                       <li><a href="<?php echo base_url('settings'); ?>">Configuración general</a></li>
-                      <?php } ?>
                       <?php if($this->controller->is_super()){ ?>
                       <li><a href="<?php echo base_url('admins/list'); ?>">Administradores</a></li>
                       <?php } ?>
                     </ul>
                   </li>
+                  <?php } ?>
+                  <li><a href="<?php echo base_url('login/out'); ?>"><i class="fa fa-sign-out"></i> Salir</a></li>
                   <!--<li><a href="<?php //echo base_url('dollar_exchange'); ?>"><i class="fa fa-cog"></i> Tipo de cambio</a></li>-->
                 </ul>
               </div>
@@ -204,6 +208,34 @@
           </div>
         </div>
         <!-- /top navigation -->
+
+        <?php $bn_path = isset($_SERVER['PATH_INFO']) ? $_SERVER['PATH_INFO'] : ''; ?>
+        <!-- bottom navigation (phones/tablets only, see assets/css/mobile.css) -->
+        <nav class="bottom-nav hidden-print">
+          <a href="<?php echo base_url('panel'); ?>" class="<?php echo strpos($bn_path, '/panel') === 0 ? 'active' : ''; ?>"><i class="fa fa-dashboard"></i>Inicio</a>
+          <a href="<?php echo base_url('sales/register'); ?>" class="<?php echo strpos($bn_path, '/sales/register') === 0 ? 'active' : ''; ?>"><i class="fa fa-plus-circle"></i>Cobrar</a>
+          <a href="<?php echo base_url('sales/historial'); ?>" class="<?php echo strpos($bn_path, '/sales/historial') === 0 ? 'active' : ''; ?>"><i class="fa fa-list"></i>Ventas</a>
+          <a href="<?php echo base_url('cash/state'); ?>" class="<?php echo strpos($bn_path, '/cash') === 0 ? 'active' : ''; ?>"><i class="fa fa-money"></i>Caja</a>
+          <a href="javascript:;" class="js-drawer-toggle"><i class="fa fa-bars"></i>Menú</a>
+        </nav>
+        <div class="drawer-overlay js-drawer-toggle"></div>
+        <script>
+          // phones/tablets: slide-in drawer instead of Gentelella's icon-only rail (capture phase beats its handler)
+          (function(){
+            function isSmall(){ return window.matchMedia('(max-width: 991px)').matches; }
+            document.addEventListener('click', function(e){
+              var t = e.target.closest ? e.target.closest('#menu_toggle, .js-drawer-toggle') : null;
+              if( t && (isSmall() || t.classList.contains('js-drawer-toggle')) ){
+                e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
+                document.body.classList.toggle('drawer-open');
+                return;
+              }
+              if( isSmall() && document.body.classList.contains('drawer-open') && e.target.closest && e.target.closest('.child_menu a[href]') ){
+                document.body.classList.remove('drawer-open');
+              }
+            }, true);
+          })();
+        </script>
 
         <div class="modal fade" id="low-stock-modal" tabindex="-1" role="dialog">
           <div class="modal-dialog modal-lg" role="document">
