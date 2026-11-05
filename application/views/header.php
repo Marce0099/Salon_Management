@@ -103,9 +103,9 @@
                   <li><a><i class="fa fa-dollar"></i> Ventas <span class="fa fa-chevron-down"></span></a>
                     <ul class="nav child_menu">
                       <li><a href="<?php echo base_url('sales/historial'); ?>">Historial</a></li>
-                      <li><a href="<?php echo base_url('sales/register'); ?>">Registrar</a></li>
 
                       <?php if($this->controller->is_admin()){ ?>
+                      <li><a href="<?php echo base_url('sales/register'); ?>">Registrar</a></li>
                       <li><a href="<?php echo base_url('sale_goals'); ?>">Meta Mensual</a></li>
                       <li><a href="<?php echo base_url('sales_report'); ?>">Reporte Detallado</a></li>
                       <?php } ?>
@@ -141,6 +141,7 @@
                     </ul>
                   </li>
                   <?php } ?>
+                  <?php if($this->controller->is_admin()){ ?>
                   <li><a><i class="fa fa-money"></i> Caja <span class="fa fa-chevron-down"></span></a>
                     <ul class="nav child_menu">
                       <li><a href="<?php echo base_url('cash/state'); ?>">Estado</a></li>
@@ -150,6 +151,7 @@
                       <li><a href="<?php echo base_url('cash/historial'); ?>">Historial</a></li>
                     </ul>
                   </li>
+                  <?php } ?>
                   <?php if($this->controller->is_admin()){ ?>
                   <li><a href="<?php echo base_url('reports'); ?>"><i class="fa fa-bar-chart"></i> Reportes</a></li>
                   <li><a><i class="fa fa-users"></i> Meseros <span class="fa fa-chevron-down"></span></a>
@@ -225,9 +227,13 @@
         <!-- bottom navigation (phones/tablets only, see assets/css/mobile.css) -->
         <nav class="bottom-nav hidden-print">
           <a href="<?php echo base_url('floor'); ?>" class="<?php echo strpos($bn_path, '/floor') === 0 ? 'active' : ''; ?>"><i class="fa fa-th-large"></i>Mesas</a>
+          <?php if($this->controller->is_admin()){ ?>
           <a href="<?php echo base_url('sales/register'); ?>" class="<?php echo strpos($bn_path, '/sales/register') === 0 ? 'active' : ''; ?>"><i class="fa fa-plus-circle"></i>Cobrar</a>
+          <?php } ?>
           <a href="<?php echo base_url('sales/historial'); ?>" class="<?php echo strpos($bn_path, '/sales/historial') === 0 ? 'active' : ''; ?>"><i class="fa fa-list"></i>Ventas</a>
+          <?php if($this->controller->is_admin()){ ?>
           <a href="<?php echo base_url('cash/state'); ?>" class="<?php echo strpos($bn_path, '/cash') === 0 ? 'active' : ''; ?>"><i class="fa fa-money"></i>Caja</a>
+          <?php } ?>
           <a href="javascript:;" class="js-drawer-toggle"><i class="fa fa-bars"></i>Menú</a>
         </nav>
         <div class="drawer-overlay js-drawer-toggle"></div>

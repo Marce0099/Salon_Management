@@ -28,6 +28,7 @@
 
   <div class="row">
 
+    <?php if( $this->controller->is_admin() ) : ?>
     <div class="col-md-3">
       <a href="<?php echo base_url('cash/state'); ?>" style="text-decoration:none; color:inherit;">
         <div class="panel panel-default kpi-tile">
@@ -48,6 +49,7 @@
         </div>
       </a>
     </div>
+    <?php endif; ?>
 
     <div class="col-md-3">
       <a href="javascript:;" id="panel-low-stock-tile" style="text-decoration:none; color:inherit;">

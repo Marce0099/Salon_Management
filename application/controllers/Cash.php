@@ -5,6 +5,13 @@ class Cash extends Admin_Controller{
 	public function __construct(){
 
 		parent::__construct();
+
+		// the till is admin-only: waiters cannot open, close, see or register anything here
+		if( !$this->is_admin() ){
+			echo "No se encontro resultado para esta pagina";
+			exit;
+		}
+
 		$this->load->model('cash_mdl');
 	}
 

@@ -54,7 +54,7 @@ foreach( $bills as $b ){ if( $b->status === 'open' ){ $open_for_move[] = $b; } }
 				<button type="button" class="btn btn-sm btn-default js-rename" data-id="<?php echo (int) $b->id_bill; ?>" data-label="<?php echo htmlspecialchars($b->label); ?>"><i class="fa fa-pencil"></i></button>
 				<button type="button" class="btn btn-sm btn-default js-split" data-id="<?php echo (int) $b->id_bill; ?>"><i class="fa fa-pie-chart"></i> Dividir</button>
 				<?php if( count($open_for_move) > 1 ) : ?><button type="button" class="btn btn-sm btn-default js-merge" data-id="<?php echo (int) $b->id_bill; ?>"><i class="fa fa-compress"></i> Unir</button><?php endif; ?>
-				<?php if( $b->totals['subtotal'] > 0 ) : ?><a href="<?php echo base_url('sales/register?bill='.(int) $b->id_bill); ?>" class="btn btn-sm btn-primary"><i class="fa fa-money"></i> Cobrar</a><?php endif; ?>
+				<?php if( $b->totals['subtotal'] > 0 && $this->controller->is_admin() ) : ?><a href="<?php echo base_url('sales/register?bill='.(int) $b->id_bill); ?>" class="btn btn-sm btn-primary"><i class="fa fa-money"></i> Cobrar</a><?php endif; ?>
 			</div>
 			<?php endif; ?>
 
@@ -63,7 +63,7 @@ foreach( $bills as $b ){ if( $b->status === 'open' ){ $open_for_move[] = $b; } }
 			<?php foreach( isset($kids[(int) $b->id_bill]) ? $kids[(int) $b->id_bill] : array() as $k ) : ?>
 				<div style="padding:4px 0;"><?php echo htmlspecialchars($k->label); ?> <strong class="pull-right"><?php echo bills_money($k->totals['total']); ?></strong>
 					<?php if( $k->status === 'paid' ) : ?><span class="label label-success">Pagada</span>
-					<?php elseif( $k->status === 'open' ) : ?><a href="<?php echo base_url('sales/register?bill='.(int) $k->id_bill); ?>" class="btn btn-xs btn-primary" style="margin-left:6px;"><i class="fa fa-money"></i> Cobrar</a><?php endif; ?></div>
+					<?php elseif( $k->status === 'open' && $this->controller->is_admin() ) : ?><a href="<?php echo base_url('sales/register?bill='.(int) $k->id_bill); ?>" class="btn btn-xs btn-primary" style="margin-left:6px;"><i class="fa fa-money"></i> Cobrar</a><?php endif; ?></div>
 			<?php endforeach; ?>
 			<button type="button" class="btn btn-sm btn-warning js-undo" data-id="<?php echo (int) $b->id_bill; ?>" style="margin-top:6px;">Deshacer división</button>
 			<?php endif; ?>

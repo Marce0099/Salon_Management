@@ -75,6 +75,12 @@ class Sales extends Admin_Controller{
 
 	public function register(){
 
+		// checkout is admin-only: waiters cannot register sales
+		if( !$this->is_admin() ){
+			echo "No se encontro resultado para esta pagina";
+			exit;
+		}
+
 		if( !$this->cash_mdl->getOpenedCash() ){
 
 			$sess_data['status'] = array( 'message' => 'Para registrar ventas debe primero abrir la caja del día', 'class' => 'warning' );
@@ -1228,6 +1234,11 @@ class Sales extends Admin_Controller{
 	}
 
 	public function sale_form(){
+
+		if( !$this->is_admin() ){
+			echo "No se encontro resultado para esta pagina";
+			exit;
+		}
 
 		$this->load->model('settings_mdl');
 
