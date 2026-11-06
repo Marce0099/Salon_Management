@@ -84,6 +84,14 @@
 	.order-block{ border-top:1px solid #eee; padding:8px 0; }
 	.item-void{ text-decoration:line-through; opacity:.6; }
 	.item-void small{ text-decoration:none; display:inline-block; }
+	.swap-modal .sw-cats{ display:flex; gap:6px; overflow-x:auto; padding-bottom:6px; margin-bottom:6px; }
+	.swap-modal .sw-cats .btn{ white-space:nowrap; flex:0 0 auto; }
+	.swap-modal .sw-cats .btn.active{ background:#1ABB9C; border-color:#1ABB9C; color:#fff; }
+	.swap-modal .sw-grid{ max-height:42vh; overflow-y:auto; -webkit-overflow-scrolling:touch; }
+	.swap-modal .sw-foot{ margin-top:10px; border-top:1px solid #eee; padding-top:8px; }
+	.swap-modal .sw-step{ display:inline-flex; align-items:center; gap:6px; margin:0 14px 6px 0; }
+	.swap-modal .sw-step button{ width:36px; height:36px; }
+	.swap-modal .sw-step b{ min-width:24px; text-align:center; }
 </style>
 
 <script>
@@ -216,26 +224,91 @@
 		} });
 	});
 
-	/* swap the line (or some units) for another product in one step */
+	/* swap the line (or some units) for another product in one step:
+	   search + category chips + product tiles; tapping a tile is the final action */
+	function norm(s){ s = String(s == null ? '' : s).toLowerCase(); return s.normalize ? s.normalize('NFD').replace(/[\u0300-\u036f]/g, '') : s; }
+
 	$('.js-replace').on('click', function(){
 		var id = $(this).data('id'), max = parseInt($(this).data('qty'), 10), cur = parseInt($(this).data('product'), 10), name = $(this).data('name');
-		var opts = '';
-		$.each(MENU, function(_, p){
-			if( p.id === cur ){ return; }
-			opts += '<option value="' + p.id + '">' + esc(p.name) + (p.stocked ? ' (' + p.available + ' disp.)' : '') + '</option>';
+		var curP = MENU.filter(function(p){ return p.id === cur; })[0];
+		var cat = curP ? parseInt(curP.cat, 10) : -1;
+		if( isNaN(cat) ){ cat = -1; }
+		var qOld = max, qNew = max, q = '', busy = false;
+
+		function stepper(key, label, val, hi){
+			return '<div class="sw-step"><span>' + label + '</span><button type="button" class="btn btn-default" data-st="' + key + '" data-d="-1">−</button>' +
+				'<b id="sw-' + key + '">' + val + '</b><button type="button" class="btn btn-default" data-st="' + key + '" data-d="1">+</button></div>';
+		}
+
+		var html = '<p style="margin-bottom:8px;">Cambiar <strong>' + esc(name) + '</strong></p>' +
+			'<input type="text" id="sw-search" class="form-control" placeholder="Buscar producto..." autocomplete="off" style="margin-bottom:8px;">' +
+			'<div id="sw-cats" class="sw-cats"></div>' +
+			'<div id="sw-grid" class="menu-grid sw-grid"></div>' +
+			'<div class="sw-foot">' + (max > 1 ? stepper('old', 'Unidades a cambiar', qOld) : '') + stepper('new', 'Cantidad nueva', qNew) +
+			' <a href="#" id="sw-notelink">＋ Nota</a><input type="text" id="sw-notes" class="form-control" maxlength="255" placeholder="Nota (opcional)" style="display:none;margin-top:6px;"></div>';
+
+		var dlg = bootbox.dialog({ title: 'Cambiar producto', message: html, className: 'swap-modal', buttons: { cancel: { label: 'Cancelar', className: 'btn-default' } } });
+
+		function renderSwCats(){
+			var $c = $('#sw-cats').empty();
+			function chip(cid, label){ $c.append($('<button type="button" class="btn btn-default"></button>').text(label).attr('data-cat', cid).toggleClass('active', cat === cid)); }
+			chip(-1, 'Todo');
+			$.each(CATS, function(_, c){ chip(parseInt(c.id, 10), c.name); });
+			chip(0, 'Otros');
+		}
+
+		function visible(){
+			var nq = norm(q);
+			return MENU.filter(function(p){
+				if( p.id === cur ){ return false; }
+				if( cat !== -1 && (parseInt(p.cat, 10) || 0) !== cat ){ return false; }
+				return !nq || norm(p.name).indexOf(nq) !== -1;
+			});
+		}
+
+		function renderSwGrid(){
+			var $g = $('#sw-grid').empty(), list = visible();
+			$.each(list, function(_, p){
+				var out = p.stocked && p.available <= 0;
+				$g.append($('<div class="menu-item"></div>').toggleClass('disabled', out).attr('data-id', p.id)
+					.html('<div class="mi-name">' + esc(p.name) + '</div><div class="mi-price">' + money(p.price) + '</div>' +
+						(p.stocked ? '<div class="mi-stock">' + (out ? 'Agotado' : p.available + ' disp.') + '</div>' : '')));
+			});
+			if( !list.length ){ $g.html('<p class="text-muted">Sin resultados.</p>'); }
+		}
+
+		function pick(pid){
+			if( busy ){ return; }
+			var p = MENU.filter(function(x){ return x.id === pid; })[0];
+			if( !p || (p.stocked && p.available <= 0) ){ return; }
+			if( p.stocked && qNew > p.available ){ notify('error', 'Solo hay ' + p.available + ' de ' + p.name); return; }
+			busy = true; $('#sw-grid').css('opacity', .5);
+			$.post(BASE + 'replace_item', { tk: TK, id_order_item: id, quantity: max > 1 ? qOld : max, id_product: pid, new_quantity: qNew, notes: $('#sw-notes').val() }, function(r){
+				if( r.type !== 'success' ){ busy = false; $('#sw-grid').css('opacity', 1); }
+				done(r);
+			}, 'json').fail(function(){ busy = false; $('#sw-grid').css('opacity', 1); notify('error', 'Respuesta inesperada del servidor'); });
+		}
+
+		dlg.on('click', '#sw-cats button', function(){ cat = parseInt($(this).attr('data-cat'), 10); renderSwCats(); renderSwGrid(); });
+		dlg.on('input', '#sw-search', function(){ q = $.trim($(this).val()); renderSwGrid(); });
+		dlg.on('keydown', '#sw-search', function(e){
+			if( e.which === 13 ){ e.preventDefault(); var l = visible().filter(function(p){ return !(p.stocked && p.available <= 0); }); if( l.length === 1 ){ pick(l[0].id); } }
 		});
-		var html = '<p>Cambiar <strong>' + esc(name) + '</strong></p>' +
-			(max > 1 ? '<div class="form-group"><label>Unidades a cambiar (de ' + max + ')</label><select id="rp-qty" class="form-control">' + qtyOptions(max, max) + '</select></div>' : '') +
-			'<div class="form-group"><label>Nuevo producto</label><select id="rp-prod" class="form-control">' + opts + '</select></div>' +
-			'<div class="form-group"><label>Cantidad del nuevo producto</label><select id="rp-new" class="form-control">' + qtyOptions(99, max) + '</select></div>' +
-			'<div class="form-group"><label>Nota (opcional)</label><input type="text" id="rp-notes" class="form-control" maxlength="255"></div>';
-		bootbox.dialog({ title: 'Cambiar producto', message: html, buttons: {
-			cancel: { label: 'Cancelar', className: 'btn-default' },
-			ok: { label: 'Cambiar', className: 'btn-primary', callback: function(){
-				$.post(BASE + 'replace_item', { tk: TK, id_order_item: id, quantity: max > 1 ? $('#rp-qty').val() : max, id_product: $('#rp-prod').val(), new_quantity: $('#rp-new').val(), notes: $('#rp-notes').val() }, done, 'json');
-			} }
-		} });
-		$('#rp-qty').on('change', function(){ $('#rp-new').val($(this).val()); });
+		dlg.on('click', '#sw-grid .menu-item', function(){ pick(parseInt($(this).attr('data-id'), 10)); });
+		dlg.on('click', '[data-st]', function(){
+			var d = parseInt($(this).attr('data-d'), 10);
+			if( $(this).attr('data-st') === 'old' ){
+				var o = Math.min(max, Math.max(1, qOld + d));
+				if( qNew === qOld ){ qNew = o; $('#sw-new').text(qNew); }
+				qOld = o; $('#sw-old').text(qOld);
+			} else {
+				qNew = Math.min(99, Math.max(1, qNew + d)); $('#sw-new').text(qNew);
+			}
+		});
+		dlg.on('click', '#sw-notelink', function(e){ e.preventDefault(); $(this).hide(); $('#sw-notes').show().focus(); });
+
+		renderSwCats(); renderSwGrid();
+		dlg.on('shown.bs.modal', function(){ if( !(window.matchMedia && matchMedia('(pointer:coarse)').matches) ){ $('#sw-search').focus(); } });
 	});
 
 	renderCats(); renderMenu(); renderCart();
