@@ -175,8 +175,8 @@ class Bills_mdl extends CI_Model{
 	}
 
 	/**
-	 * Called inside the payment transaction once the sale is saved: marks the bill paid, deducts the items' stock for an
-	 * equal-split parent (once), closes the parent when all its parts are paid, voids empty leftover bills and closes the
+	 * Called inside the payment transaction once the sale is saved: marks the bill paid (stock already left when the
+	 * order was sent), closes the parent when all its parts are paid, voids empty leftover bills and closes the
 	 * tab when nothing remains to collect.
 	 */
 	public function settle($bill, $id_sale){
@@ -185,14 +185,7 @@ class Bills_mdl extends CI_Model{
 
 		if( $bill->parent_bill ){
 
-			$parent = $this->db->query('SELECT * FROM bills WHERE id_bill = ? FOR UPDATE', array((int) $bill->parent_bill))->row();
-
-			if( $parent && !$parent->stock_deducted ){
-				// the parent's real items leave stock when its first share is paid (shares carry only a placeholder line)
-				$this->db->query('UPDATE products p JOIN (SELECT id_product, SUM(quantity) AS q FROM order_items WHERE id_bill = ? AND status = "active" GROUP BY id_product) x
-					ON x.id_product = p.id_product SET p.stock = GREATEST(p.stock - x.q, 0) WHERE p.is_service = 0', array((int) $parent->id_bill));
-				$this->db->where('id_bill', (int) $parent->id_bill)->update('bills', array('stock_deducted' => 1));
-			}
+			$this->db->query('SELECT id_bill FROM bills WHERE id_bill = ? FOR UPDATE', array((int) $bill->parent_bill));
 
 			$left = $this->db->where('parent_bill', (int) $bill->parent_bill)->where('status !=', 'paid')->where('status !=', 'void')->count_all_results('bills');
 			if( $left === 0 ){

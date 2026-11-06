@@ -482,7 +482,7 @@ class Sales extends Admin_Controller{
 
 				$product = $sale_products_cache[$i];
 
-				if( !$product->is_service && $product->stock < $quantities[$i] ){
+				if( !$bill_ctx && !$product->is_service && $product->stock < $quantities[$i] ){
 
 					$response['type'] = 'error';
 					$response['message'] = 'Stock insuficiente para "'.$product->name.'" (disponible: '.$product->stock.')';
@@ -661,7 +661,7 @@ class Sales extends Admin_Controller{
 
 				$total_cordobas += $subtotal * $exchange->sell_price;
 
-				$stock = $this->sales_mdl->saveSaleProduct($sale_product);
+				$stock = $this->sales_mdl->saveSaleProduct($sale_product, !$bill_ctx);
 			}
 
 			if( $bill_ctx ){

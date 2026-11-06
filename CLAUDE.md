@@ -43,9 +43,9 @@ No build step. Start Apache + MySQL from XAMPP, open `http://localhost/`. Defaul
 2. **Mobile shell** — bottom nav, drawer, touch CSS, role-filtered menu.
 3. **Floor plan** — areas + free-form tables (`/floor`, admin editor `/floor/editor`), tab = open table visit; table state derived (occupied = open tab, reserved = active reservation in hold window, else free).
 4. **Reservations** — `/reservations`; seat = open the tab with the party size.
-5. **Ordering + kitchen** — `/kitchen/tab/{id_tab}`; "Enviar a cocina" creates `orders_kitchen` + `order_items`, prints the comanda; admin-only void with reason; stock is NOT touched here.
+5. **Ordering + kitchen** — `/kitchen/tab/{id_tab}`; "Enviar a cocina" creates `orders_kitchen` + `order_items`, prints the comanda; admin-only void with reason; **stock leaves here** (atomic `UPDATE … WHERE stock >= qty` inside the order transaction; non-service products only); voiding a line restocks it (unless its bill is already paid).
 6. **Floating bills** — `/bills/tab/{id_tab}`; move items (partial quantity splits the line), merge, equal split (2..20) into child bills.
-7. **Checkout** — `/sales/register?bill=ID` = the original sale form in "bill mode" (lines locked, tip editable, IVA fixed); server rebuilds everything from the bill; stock is deducted here.
+7. **Checkout** — `/sales/register?bill=ID` = the original sale form in "bill mode" (lines locked, tip editable, IVA fixed); server rebuilds everything from the bill; stock is NOT deducted again (already taken when sent to the kitchen); only free-form sales outside bill mode still deduct at save.
 8. **Reports & polish** — `/reports`, dashboard tiles, Spanish copy ("Mesero", "Platillo"), optional client birth date.
 
 Money convention: product prices, tip and IVA are stored in **dollars** (the unit of `products.price_sell`); each sale snapshots `dollar_ex_sell` and everything charged in córdobas is `$ × dollar_ex_sell`. Tip = `tip_rate`% of the subtotal (if `tip_enabled`), IVA = `tax_rate_iva`% — both ADDED on top of the subtotal.
@@ -64,9 +64,9 @@ Money convention: product prices, tip and IVA are stored in **dollars** (the uni
 | `table_reservations` | `id_table`, `name`, `phone`, `party_size`, `start_at`/`end_at`, `notes`, `status` active\|seated\|cancelled\|no_show, `id_tab` (set when seated). Reserved while `start_at - reservation_hold_minutes <= NOW() < end_at`; overlaps per table rejected |
 | `orders_kitchen` | one "Enviar a cocina" batch: `id_tab`, `created_at`, `print_status` pending\|printed\|failed\|skipped, `printed_at`, `print_error` |
 | `order_items` | `id_order`, `id_tab`, `id_bill`->bills SET NULL, `id_product` (no FK), `product_name`/`unit_price` snapshots, `quantity`, `notes`, `course` 1-5, `prints_kitchen` snapshot, `status` active\|void, void fields. Partial moves between bills clone the line |
-| `bills` | floating bill of a tab: `label`, `status` open\|split\|paid\|void, `parent_bill`+`amount_override` (equal-split child = its share), `id_sale`, `stock_deducted` (split parent). Every tab starts with "Cuenta 1"; releasing a tab voids its bills; a `split` bill is locked until undone (refused once a share is paid) |
+| `bills` | floating bill of a tab: `label`, `status` open\|split\|paid\|void, `parent_bill`+`amount_override` (equal-split child = its share), `id_sale`, `stock_deducted` (legacy, unused since stock moves at send time). Every tab starts with "Cuenta 1"; releasing a tab voids its bills; a `split` bill is locked until undone (refused once a share is paid) |
 
-Availability while ordering = stock minus qty on active lines of open tabs (`Kitchen_mdl::available`); the real decrement happens at payment. `Floor::close_tab` refuses a table with active items. Equal-split money: parts apportion subtotal/tip/IVA with floor-to-cents, last part takes the remainder (`Bills_mdl::childTotals`).
+Availability while ordering = `products.stock` (`Kitchen_mdl::available`), since the decrement happens when the order is sent. `Floor::close_tab` refuses a table with active items. Equal-split money: parts apportion subtotal/tip/IVA with floor-to-cents, last part takes the remainder (`Bills_mdl::childTotals`).
 
 ### Sales & payments
 
@@ -77,7 +77,7 @@ Availability while ordering = stock minus qty on active lines of open tabs (`Kit
 | `sale_payments` | cash\|pos\|transfer\|cupon rows per sale (split payments). `account` -> `bank_account` (transfer amounts stored in the account's currency), coupons (`cupon_code` UNIQUE, `cupon_discount_rate`), `tax_rate` (POS fee), change given (`change_*`). Only cash may overpay; one cash row and one coupon row max |
 | `sale_comments` | append-only chat notes per sale (`Sale_comments` JSON API, utf8mb4) |
 
-`Sales::register` (bill mode): rebuilds lines from `Bills_mdl::checkoutContext`, locks the bill `FOR UPDATE` in the transaction, rejects paid/split/empty/changed bills, validates tip 0..subtotal, then `Bills_mdl::settle()` marks the bill paid (+`id_sale`), deducts a split parent's stock once (first paid share), marks the parent paid when all shares are paid, voids empty leftover bills and closes the tab when nothing remains. Receipts (thermal/PDF/`/sales/details`) print Mesa, Subtotal, IVA, Propina. The form's single-use token `tk` rotates on success.
+`Sales::register` (bill mode): rebuilds lines from `Bills_mdl::checkoutContext`, locks the bill `FOR UPDATE` in the transaction, rejects paid/split/empty/changed bills, validates tip 0..subtotal, then `Bills_mdl::settle()` marks the bill paid (+`id_sale`), marks the parent paid when all shares are paid, voids empty leftover bills and closes the tab when nothing remains. Receipts (thermal/PDF/`/sales/details`) print Mesa, Subtotal, IVA, Propina. The form's single-use token `tk` rotates on success.
 
 ### Core entities
 
