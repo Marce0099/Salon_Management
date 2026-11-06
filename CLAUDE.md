@@ -35,7 +35,7 @@ No build step. Start Apache + MySQL from XAMPP, open `http://localhost/`. Defaul
 
 ## Roles
 
-`admins.role`: `super` > `administrador` > `trabajador` (waiter). `is_admin()` = super or administrador (admin-only: settings, reports, product/menu management, meseros, clients, providers, voiding sent items); `is_super()` = only `super` (admin accounts). Waiters see a reduced menu and are blocked server-side from clients/providers/menu-categories/reports/admin pages.
+`admins.role`: `super` > `administrador` > `trabajador` (waiter). `is_admin()` = super or administrador (admin-only: settings, reports, product/menu management, meseros, clients, providers); `is_super()` = only `super` (admin accounts). Waiters see a reduced menu and are blocked server-side from clients/providers/menu-categories/reports/admin pages.
 
 ## Restaurant flow (stages 1-8)
 
@@ -43,7 +43,7 @@ No build step. Start Apache + MySQL from XAMPP, open `http://localhost/`. Defaul
 2. **Mobile shell** — bottom nav, drawer, touch CSS, role-filtered menu.
 3. **Floor plan** — areas + free-form tables (`/floor`, admin editor `/floor/editor`), tab = open table visit; table state derived (occupied = open tab, reserved = active reservation in hold window, else free).
 4. **Reservations** — `/reservations`; seat = open the tab with the party size.
-5. **Ordering + kitchen** — `/kitchen/tab/{id_tab}`; "Enviar a cocina" creates `orders_kitchen` + `order_items`, prints the comanda; admin-only void with reason; **stock leaves here** (atomic `UPDATE … WHERE stock >= qty` inside the order transaction; non-service products only); voiding a line restocks it (unless its bill is already paid).
+5. **Ordering + kitchen** — `/kitchen/tab/{id_tab}`; "Enviar a cocina" creates `orders_kitchen` + `order_items`, prints the comanda; any role can void a sent line (whole or part of its units, with reason) or swap it for another product in one step (`Kitchen::replace_item`, atomic; waiters cannot touch already-collected bills, nobody can void inside a `split` bill); **stock leaves here** (atomic `UPDATE … WHERE stock >= qty` inside the order transaction; non-service products only); voiding a line restocks it (unless its bill is already paid).
 6. **Floating bills** — `/bills/tab/{id_tab}`; move items (partial quantity splits the line), merge, equal split (2..20) into child bills.
 7. **Checkout** — `/sales/register?bill=ID` = the original sale form in "bill mode" (lines locked, tip editable, IVA fixed); server rebuilds everything from the bill; stock is NOT deducted again (already taken when sent to the kitchen); only free-form sales outside bill mode still deduct at save.
 8. **Reports & polish** — `/reports`, dashboard tiles, Spanish copy ("Mesero", "Platillo"), optional client birth date.
