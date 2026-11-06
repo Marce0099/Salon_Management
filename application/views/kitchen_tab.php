@@ -57,13 +57,15 @@
 						<?php if( $i->course > 1 ) : ?><span class="label label-info">T<?php echo (int) $i->course; ?></span><?php endif; ?>
 						<?php if( $i->notes ) : ?><br><small class="text-muted"><i class="fa fa-comment-o"></i> <?php echo htmlspecialchars($i->notes); ?></small><?php endif; ?>
 						<?php if( $i->status === 'void' ) : ?><br><small class="text-danger">Anulado: <?php echo htmlspecialchars((string) $i->void_reason); ?></small>
-						<?php elseif( $is_admin ) : ?><button type="button" class="btn btn-xs btn-link text-danger js-void" data-id="<?php echo (int) $i->id_order_item; ?>">Anular</button><?php endif; ?>
+						<?php else : ?>
+							<button type="button" class="btn btn-xs btn-link js-replace" data-id="<?php echo (int) $i->id_order_item; ?>" data-qty="<?php echo (int) $i->quantity; ?>" data-product="<?php echo (int) $i->id_product; ?>" data-name="<?php echo htmlspecialchars($i->product_name); ?>">Cambiar</button>
+							<button type="button" class="btn btn-xs btn-link text-danger js-void" data-id="<?php echo (int) $i->id_order_item; ?>" data-qty="<?php echo (int) $i->quantity; ?>" data-name="<?php echo htmlspecialchars($i->product_name); ?>">Anular</button>
+						<?php endif; ?>
 					</li>
 				<?php endforeach; ?>
 				</ul>
 			</div>
 			<?php endforeach; ?>
-			<?php if( !$is_admin && !empty($orders) ) : ?><p class="text-muted"><small>Para anular un producto enviado, pida a un administrador.</small></p><?php endif; ?>
 		</div>
 	</div>
 </div>
@@ -187,15 +189,53 @@
 		$.post(BASE + 'reprint', { tk: TK, id_order: $(this).data('id') }, function(r){ notify(r.type === 'success' ? 'success' : 'error', r.message); }, 'json');
 	});
 
+	function qtyOptions(max, sel){
+		var h = '';
+		for( var q = 1; q <= max; q++ ){ h += '<option value="' + q + '"' + (q === sel ? ' selected' : '') + '>' + q + '</option>'; }
+		return h;
+	}
+
+	function done(r){
+		notify(r.type === 'success' ? (r.printed === false ? 'notice' : 'success') : 'error', r.message);
+		if( r.type === 'success' ){ setTimeout(function(){ location.reload(); }, 900); }
+	}
+
+	/* void the whole line or only some of its units */
 	$('.js-void').on('click', function(){
-		var id = $(this).data('id');
-		bootbox.prompt('Motivo de la anulación', function(reason){
-			if( reason === null ){ return; }
-			$.post(BASE + 'void_item', { tk: TK, id_order_item: id, reason: reason }, function(r){
-				notify(r.type === 'success' ? 'success' : 'error', r.message);
-				if( r.type === 'success' ){ setTimeout(function(){ location.reload(); }, 800); }
-			}, 'json');
+		var id = $(this).data('id'), max = parseInt($(this).data('qty'), 10), name = $(this).data('name');
+		var html = '<p><strong>' + esc(name) + '</strong></p>' +
+			(max > 1 ? '<div class="form-group"><label>Unidades a anular (de ' + max + ')</label><select id="vd-qty" class="form-control">' + qtyOptions(max, max) + '</select></div>' : '') +
+			'<div class="form-group"><label>Motivo de la anulación</label><input type="text" id="vd-reason" class="form-control" maxlength="255"></div>';
+		bootbox.dialog({ title: 'Anular producto', message: html, buttons: {
+			cancel: { label: 'Cancelar', className: 'btn-default' },
+			ok: { label: 'Anular', className: 'btn-danger', callback: function(){
+				var reason = $.trim($('#vd-reason').val());
+				if( !reason ){ notify('error', 'Indique el motivo de la anulación'); return false; }
+				$.post(BASE + 'void_item', { tk: TK, id_order_item: id, quantity: max > 1 ? $('#vd-qty').val() : max, reason: reason }, done, 'json');
+			} }
+		} });
+	});
+
+	/* swap the line (or some units) for another product in one step */
+	$('.js-replace').on('click', function(){
+		var id = $(this).data('id'), max = parseInt($(this).data('qty'), 10), cur = parseInt($(this).data('product'), 10), name = $(this).data('name');
+		var opts = '';
+		$.each(MENU, function(_, p){
+			if( p.id === cur ){ return; }
+			opts += '<option value="' + p.id + '">' + esc(p.name) + (p.stocked ? ' (' + p.available + ' disp.)' : '') + '</option>';
 		});
+		var html = '<p>Cambiar <strong>' + esc(name) + '</strong></p>' +
+			(max > 1 ? '<div class="form-group"><label>Unidades a cambiar (de ' + max + ')</label><select id="rp-qty" class="form-control">' + qtyOptions(max, max) + '</select></div>' : '') +
+			'<div class="form-group"><label>Nuevo producto</label><select id="rp-prod" class="form-control">' + opts + '</select></div>' +
+			'<div class="form-group"><label>Cantidad del nuevo producto</label><select id="rp-new" class="form-control">' + qtyOptions(99, max) + '</select></div>' +
+			'<div class="form-group"><label>Nota (opcional)</label><input type="text" id="rp-notes" class="form-control" maxlength="255"></div>';
+		bootbox.dialog({ title: 'Cambiar producto', message: html, buttons: {
+			cancel: { label: 'Cancelar', className: 'btn-default' },
+			ok: { label: 'Cambiar', className: 'btn-primary', callback: function(){
+				$.post(BASE + 'replace_item', { tk: TK, id_order_item: id, quantity: max > 1 ? $('#rp-qty').val() : max, id_product: $('#rp-prod').val(), new_quantity: $('#rp-new').val(), notes: $('#rp-notes').val() }, done, 'json');
+			} }
+		} });
+		$('#rp-qty').on('change', function(){ $('#rp-new').val($(this).val()); });
 	});
 
 	renderCats(); renderMenu(); renderCart();

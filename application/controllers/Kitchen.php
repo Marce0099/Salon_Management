@@ -5,8 +5,8 @@ use Mike42\Escpos\Printer;
 use Mike42\Escpos\PrintConnectors\WindowsPrintConnector;
 
 /**
- * Ordering on an open tab + kitchen ticket (comanda). Stock is NOT decremented here: it is deducted when the bill is paid (Stage 7);
- * availability only counts what other open tabs already ordered. A print failure never fails the order.
+ * Ordering on an open tab + kitchen ticket (comanda). Stock leaves when an order is sent and returns when a line is voided/replaced;
+ * bill checkout does not deduct it again. A print failure never fails the order.
  */
 class Kitchen extends Admin_Controller{
 
@@ -168,16 +168,14 @@ class Kitchen extends Admin_Controller{
 		$this->json(array('type' => $print['ok'] ? 'success' : 'error', 'message' => $print['ok'] ? 'Comanda reimpresa' : 'No se pudo imprimir: '.$print['error']));
 	}
 
-	/** Voiding sent items needs a manager (administrador/super). */
+	/** Void a sent line, whole or `quantity` units of it (waiters and admins; waiters cannot touch collected bills). */
 	public function void_item(){
 
-		if( !$this->is_admin() ){
-			$this->fail('Solo un administrador puede anular productos enviados');
-		}
 		$this->requirePost();
 
 		$item   = $this->kitchen_mdl->item($this->input->post('id_order_item'));
 		$reason = trim((string) $this->input->post('reason'));
+		$qty    = (int) $this->input->post('quantity');
 
 		if( !$item || $item->status !== 'active' ){
 			$this->fail('El producto ya fue anulado');
@@ -186,8 +184,47 @@ class Kitchen extends Admin_Controller{
 			$this->fail('Indique el motivo de la anulación');
 		}
 
-		$this->kitchen_mdl->voidItem($item->id_order_item, $reason, $this->id_admin);
-		$this->json(array('type' => 'success', 'message' => 'Producto anulado'));
+		list($ok, $msg) = $this->kitchen_mdl->voidItem($item->id_order_item, $reason, $this->id_admin, $qty, $this->is_admin());
+		$this->json(array('type' => $ok ? 'success' : 'error', 'message' => $msg));
+	}
+
+	/** Swap a sent line (or part of it) for another product in one step; the new product prints its own comanda. */
+	public function replace_item(){
+
+		$this->requirePost();
+
+		$item = $this->kitchen_mdl->item($this->input->post('id_order_item'));
+		if( !$item || $item->status !== 'active' ){
+			$this->fail('El producto ya fue anulado');
+		}
+
+		$qty     = (int) $this->input->post('quantity');            // units to replace (0 = all)
+		$new_qty = (int) $this->input->post('new_quantity');
+		$new     = $this->kitchen_mdl->product($this->input->post('id_product'));
+		$notes   = trim((string) $this->input->post('notes'));
+
+		if( !$new ){
+			$this->fail('Producto no disponible');
+		}
+		if( (int) $new->id_product === (int) $item->id_product ){
+			$this->fail('Elija un producto distinto (para quitar unidades use Anular)');
+		}
+		if( $new_qty < 1 || $new_qty > 99 ){
+			$this->fail('Cantidad inválida');
+		}
+		if( mb_strlen($notes, 'UTF-8') > 255 ){
+			$this->fail('La nota es demasiado larga');
+		}
+
+		$reason = 'Cambio por '.mb_substr($new->name, 0, 200, 'UTF-8');
+		list($ok, $msg, $id_order) = $this->kitchen_mdl->replaceItem($item->id_order_item, $qty, $new, $new_qty, $notes, $reason, $this->id_admin, $this->is_admin());
+
+		if( !$ok ){
+			$this->fail($msg);
+		}
+
+		$print = $this->printTicket($id_order);
+		$this->json(array('type' => 'success', 'message' => $print['ok'] ? 'Producto cambiado y comanda enviada' : 'Producto cambiado, pero no se pudo imprimir la comanda', 'printed' => $print['ok'], 'id_order' => $id_order));
 	}
 
 	/** Printable HTML copy of a ticket (also the fallback when the thermal printer is unavailable). */

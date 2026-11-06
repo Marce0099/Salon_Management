@@ -57,7 +57,22 @@ class Kitchen_mdl extends CI_Model{
 	/** Creates the batch + its lines atomically and takes the stocked products out of stock. Returns id_order (0 = failed, -1 = not enough stock). */
 	public function createOrder($id_tab, $id_admin, $lines, $id_bill = 0){
 
-		$this->db->trans_start();
+		// manual transaction: in CI 3.0.0 trans_rollback() is a no-op inside trans_start()
+		$this->db->trans_begin();
+		$id_order = $this->insertOrder($id_tab, $id_admin, $lines, $id_bill);
+
+		if( $id_order < 1 || $this->db->trans_status() === FALSE ){
+			$this->db->trans_rollback();
+			return $id_order < 0 ? $id_order : 0;
+		}
+
+		$this->db->trans_commit();
+
+		return $id_order;
+	}
+
+	/** Batch + lines + atomic stock decrement, WITHOUT managing the transaction (the caller owns it). Returns id_order or -1 (not enough stock). */
+	private function insertOrder($id_tab, $id_admin, $lines, $id_bill){
 
 		$this->db->insert('orders_kitchen', array('id_tab' => (int) $id_tab, 'id_admin' => (int) $id_admin));
 		$id_order = (int) $this->db->insert_id();
@@ -67,7 +82,6 @@ class Kitchen_mdl extends CI_Model{
 			// atomic guard: the decrement only applies while enough stock remains (services never touch stock)
 			$this->db->query('UPDATE products SET stock = stock - ? WHERE id_product = ? AND is_service = 0 AND stock >= ?', array((int) $l['quantity'], (int) $l['id_product'], (int) $l['quantity']));
 			if( $this->db->affected_rows() < 1 && !$this->isService($l['id_product']) ){
-				$this->db->trans_rollback();
 				return -1;
 			}
 
@@ -85,9 +99,7 @@ class Kitchen_mdl extends CI_Model{
 			));
 		}
 
-		$this->db->trans_complete();
-
-		return $this->db->trans_status() ? $id_order : 0;
+		return $id_order;
 	}
 
 	private function isService($id_product){
@@ -137,25 +149,92 @@ class Kitchen_mdl extends CI_Model{
 		return $this->db->where('id_order_item', (int) $id_item)->get('order_items')->row();
 	}
 
-	/** Voids an active line and returns its quantity to stock (unless its bill was already paid: that stock was sold). */
-	public function voidItem($id_item, $reason, $id_admin){
+	/**
+	 * Voids $qty units of an active line (0 = the whole line) and returns them to stock, unless its bill was already paid (that stock
+	 * was sold). A partial void shrinks the line and records the voided units as a cloned void line. Waiters ($is_admin = FALSE) cannot
+	 * touch already-collected consumption. Must run inside a transaction. Returns array(ok, message, item, qty_voided).
+	 */
+	private function doVoid($id_item, $reason, $id_admin, $qty, $is_admin, $need_open_bill = FALSE){
 
-		$this->db->trans_start();
+		$item = $this->db->query('SELECT oi.*, b.status AS bill_status, t.status AS tab_status FROM order_items oi
+			LEFT JOIN bills b ON b.id_bill = oi.id_bill LEFT JOIN tabs t ON t.id_tab = oi.id_tab
+			WHERE oi.id_order_item = ? FOR UPDATE', array((int) $id_item))->row();
 
-		$item = $this->db->query('SELECT oi.*, b.status AS bill_status FROM order_items oi LEFT JOIN bills b ON b.id_bill = oi.id_bill WHERE oi.id_order_item = ? FOR UPDATE', array((int) $id_item))->row();
+		if( !$item || $item->status !== 'active' ){ return array(FALSE, 'El producto ya fue anulado', NULL, 0); }
 
-		$this->db->where('id_order_item', (int) $id_item)->where('status', 'active')->update('order_items', array(
-			'status' => 'void', 'voided_at' => date('Y-m-d H:i:s'), 'void_reason' => mb_substr($reason, 0, 255, 'UTF-8'), 'voided_by' => (int) $id_admin,
-		));
+		$qty = (int) $qty;
+		if( $qty < 0 || $qty > (int) $item->quantity ){ return array(FALSE, 'Cantidad inválida', NULL, 0); }
+		if( $qty === 0 ){ $qty = (int) $item->quantity; }
 
-		$done = $this->db->affected_rows() > 0;
+		if( $item->bill_status === 'split' ){ return array(FALSE, 'La cuenta está dividida: deshaga la división antes de anular o cambiar productos', NULL, 0); }
+		if( $need_open_bill && $item->bill_status !== 'open' ){ return array(FALSE, 'La cuenta ya no está abierta', NULL, 0); }
+		if( !$is_admin && ($item->bill_status === 'paid' || $item->tab_status !== 'open') ){ return array(FALSE, 'La cuenta ya fue cobrada: solo un administrador puede anular', NULL, 0); }
 
-		if( $done && $item && $item->bill_status !== 'paid' ){
-			$this->db->query('UPDATE products SET stock = stock + ? WHERE id_product = ? AND is_service = 0', array((int) $item->quantity, (int) $item->id_product));
+		$void = array('status' => 'void', 'voided_at' => date('Y-m-d H:i:s'), 'void_reason' => mb_substr($reason, 0, 255, 'UTF-8'), 'voided_by' => (int) $id_admin);
+
+		if( $qty === (int) $item->quantity ){
+			$this->db->where('id_order_item', (int) $item->id_order_item)->update('order_items', $void);
+		}
+		else{
+			$this->db->where('id_order_item', (int) $item->id_order_item)->update('order_items', array('quantity' => (int) $item->quantity - $qty));
+			$clone = (array) $item;
+			unset($clone['id_order_item'], $clone['bill_status'], $clone['tab_status']);
+			$clone['quantity'] = $qty;
+			$this->db->insert('order_items', array_merge($clone, $void));
 		}
 
-		$this->db->trans_complete();
+		if( $item->bill_status !== 'paid' ){
+			$this->db->query('UPDATE products SET stock = stock + ? WHERE id_product = ? AND is_service = 0', array($qty, (int) $item->id_product));
+		}
 
-		return $done && $this->db->trans_status();
+		return array(TRUE, 'Producto anulado', $item, $qty);
+	}
+
+	/** Void (whole line or $qty units). Returns array(ok, message). */
+	public function voidItem($id_item, $reason, $id_admin, $qty = 0, $is_admin = TRUE){
+
+		$this->db->trans_begin();
+		$res = $this->doVoid($id_item, $reason, $id_admin, $qty, $is_admin);
+
+		if( !$res[0] || $this->db->trans_status() === FALSE ){
+			$this->db->trans_rollback();
+			return array(FALSE, $res[0] ? 'No se pudo anular el producto' : $res[1]);
+		}
+
+		$this->db->trans_commit();
+
+		return array(TRUE, $res[1]);
+	}
+
+	/**
+	 * Swap $qty units of a sent line for $new_qty of another product, atomically: the old units are voided and restocked, the new
+	 * product is ordered (same bill, same course) with its own stock guard. Any failure leaves everything untouched.
+	 * Returns array(ok, message, id_order).
+	 */
+	public function replaceItem($id_item, $qty, $new, $new_qty, $notes, $reason, $id_admin, $is_admin){
+
+		$this->db->trans_begin();
+
+		$res = $this->doVoid($id_item, $reason, $id_admin, $qty, $is_admin, TRUE);
+		if( !$res[0] ){
+			$this->db->trans_rollback();
+			return array(FALSE, $res[1], 0);
+		}
+
+		$old = $res[2];
+		$line = array(
+			'id_product' => (int) $new->id_product, 'name' => $new->name, 'quantity' => (int) $new_qty, 'price' => (float) $new->price_sell,
+			'notes' => (string) $notes, 'course' => (int) $old->course, 'prints_kitchen' => (int) $new->prints_kitchen,
+		);
+
+		$id_order = $this->insertOrder($old->id_tab, $id_admin, array($line), $old->id_bill);
+		if( $id_order < 1 || $this->db->trans_status() === FALSE ){
+			$this->db->trans_rollback();
+			return array(FALSE, $id_order === -1 ? 'Stock insuficiente de '.$new->name : 'No se pudo guardar el cambio', 0);
+		}
+
+		$this->db->trans_commit();
+
+		return array(TRUE, 'Producto cambiado', $id_order);
 	}
 }
