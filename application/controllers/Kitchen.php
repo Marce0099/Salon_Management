@@ -138,6 +138,9 @@ class Kitchen extends Admin_Controller{
 		}
 
 		$id_order = $this->kitchen_mdl->createOrder($tab->id_tab, $this->id_admin, $lines, $id_bill);
+		if( $id_order === -1 ){
+			$this->fail('Stock insuficiente: otro pedido tomó existencias. Actualice la pantalla');
+		}
 		if( !$id_order ){
 			$this->fail('No se pudo guardar el pedido');
 		}

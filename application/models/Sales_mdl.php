@@ -14,13 +14,14 @@ class Sales_mdl extends CI_Model{
 		return $this->db->insert_id();
 	}
 
-	public function saveSaleProduct( $data ){
+	/** $deduct_stock = FALSE for bill checkout: the order already took the stock when it was sent to the kitchen. */
+	public function saveSaleProduct( $data, $deduct_stock = TRUE ){
 
 		$product = $this->db->get_where( 'products', array( 'id_product' => $data['id_product'] ) )->row();
 
 		$this->db->insert( 'sale_products', $data );
 
-		if( !$product->is_service ){
+		if( $deduct_stock && !$product->is_service ){
 
 			$sql = 'update products set stock = stock - '.$data['quantity'].' where id_product = '.$data['id_product'];
 			$this->db->query($sql);
