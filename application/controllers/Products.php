@@ -37,9 +37,229 @@ class Products extends Admin_Controller{
 		$data['total_inventory'] = $this->products_mdl->getTotalInventory(array_filter($_GET),$data['query_no_limit']);
 
 		$view_data['providers'] = $this->db->get('providers')->result();
+		$view_data['tk'] = generateToken();
+		$this->session->set_userdata('tk', $view_data['tk']);
 		$this->content_data = array_merge($data,$view_data);
 
 		$this->renderPanel('products');
+	}
+
+	private function importColumns(){
+
+		return array(
+			array('key' => 'barcode',       'label' => 'Código de barras',      'required' => FALSE, 'text' => TRUE, 'width' => 20, 'note' => 'Opcional, máximo 20 caracteres, único en todo el sistema'),
+			array('key' => 'name',          'label' => 'Nombre',                'required' => TRUE,  'text' => TRUE, 'width' => 34, 'note' => 'Texto, máximo 250 caracteres'),
+			array('key' => 'category',      'label' => 'Categoría',             'required' => FALSE, 'text' => TRUE, 'width' => 20, 'note' => 'Solo platillos. Si no existe se crea'),
+			array('key' => 'price_cost',    'label' => 'Precio costo',          'required' => TRUE,  'text' => TRUE, 'width' => 14, 'note' => 'Dólares, número (por unidad). Ej.: 1.25'),
+			array('key' => 'price_sell',    'label' => 'Precio venta',          'required' => TRUE,  'text' => TRUE, 'width' => 14, 'note' => 'Dólares, número. Ej.: 2.50'),
+			array('key' => 'stock',         'label' => 'Stock',                 'required' => FALSE, 'text' => TRUE, 'width' => 10, 'note' => 'Entero, 0 si se deja vacío. Vacío para platillos'),
+			array('key' => 'alert',         'label' => 'Alerta stock mínimo',   'required' => FALSE, 'text' => TRUE, 'width' => 18, 'note' => 'Entero opcional. No aplica a platillos'),
+			array('key' => 'is_service',    'label' => 'Platillo',              'required' => FALSE, 'text' => TRUE, 'width' => 10, 'note' => 'Sí o No (No si se deja vacío). Platillo = sin inventario'),
+			array('key' => 'prints_kitchen','label' => 'Imprime en cocina',     'required' => FALSE, 'text' => TRUE, 'width' => 16, 'note' => 'Sí o No (Sí para platillos, No para productos si se deja vacío)'),
+			array('key' => 'pack_name',     'label' => 'Presentación',          'required' => FALSE, 'text' => TRUE, 'width' => 16, 'note' => 'Opcional, ej.: Six-pack. Una presentación por producto'),
+			array('key' => 'pack_units',    'label' => 'Unidades presentación', 'required' => FALSE, 'text' => TRUE, 'width' => 18, 'note' => 'Entero mayor a 1 (obligatorio si hay presentación)'),
+			array('key' => 'pack_cost',     'label' => 'Costo presentación',    'required' => FALSE, 'text' => TRUE, 'width' => 16, 'note' => 'Opcional, dólares por presentación'),
+			array('key' => 'pack_barcode',  'label' => 'Código presentación',   'required' => FALSE, 'text' => TRUE, 'width' => 20, 'note' => 'Opcional, máximo 20 caracteres, único'),
+		);
+	}
+
+	public function template(){
+
+		if( !$this->is_admin() ){ echo "No se encontro resultado para esta pagina"; exit; }
+
+		$this->load->library('excel_import');
+		$this->excel_import->sendTemplate('plantilla_productos.xlsx', $this->importColumns(), array(
+			'Un producto se considera repetido cuando coincide el código de barras (o el nombre, si no tiene código).',
+			'Los precios son en dólares, igual que en el formulario de productos.',
+		));
+	}
+
+	public function importYesNo( $value, $default ){
+
+		$v = mb_strtolower(trim($value), 'UTF-8');
+
+		if( $v === '' ) return $default;
+		if( in_array($v, array('si', 'sí', 's', '1', 'yes'), TRUE) ) return 1;
+		if( in_array($v, array('no', 'n', '0'), TRUE) ) return 0;
+
+		return NULL;
+	}
+
+	public function importNumber( $value ){
+
+		$v = str_replace(',', '.', trim($value));
+
+		return ( $v !== '' && is_numeric($v) && (float)$v >= 0 && (float)$v <= 99999999 ) ? (float)$v : NULL;
+	}
+
+	public function import(){
+
+		if( !$this->is_admin() ){
+			echo json_encode(array('type' => 'error', 'message' => 'No tiene permisos para esta acción'));
+			return;
+		}
+
+		$this->load->library('excel_import');
+
+		if( !formSubmited() ){
+			echo json_encode(array('type' => 'error', 'message' => 'Sesión inválida, recargue la página e intente de nuevo'));
+			return;
+		}
+
+		$db = $this->db;
+		$self = $this;
+		$prod_codes = array();  // upper-cased product barcodes seen in the file
+		$pack_codes = array();  // upper-cased pack barcodes seen in the file
+
+		$key = function($d){
+
+			return $d['barcode'] !== '' ? 'b:'.mb_strtoupper($d['barcode'], 'UTF-8') : 'n:'.mb_strtolower($d['name'], 'UTF-8');
+		};
+
+		$response = $this->excel_import->run(array(
+			'columns' => $this->importColumns(),
+			'db' => $db,
+			'validate' => function(&$d) use ($self, $db, &$prod_codes, &$pack_codes){
+
+				if( $d['name'] === '' ) return 'El nombre es obligatorio';
+				if( mb_strlen($d['name'], 'UTF-8') > 250 ) return 'El nombre supera 250 caracteres';
+				if( mb_strlen($d['barcode'], 'UTF-8') > 20 ) return 'El código de barras supera 20 caracteres';
+				if( mb_strlen($d['category'], 'UTF-8') > 150 ) return 'La categoría supera 150 caracteres';
+
+				$cost = $self->importNumber($d['price_cost']);
+				$sell = $self->importNumber($d['price_sell']);
+				if( $cost === NULL ) return 'Precio costo inválido';
+				if( $sell === NULL ) return 'Precio venta inválido';
+
+				$service = $self->importYesNo($d['is_service'], 0);
+				if( $service === NULL ) return 'Platillo debe ser Sí o No';
+				$kitchen = $self->importYesNo($d['prints_kitchen'], $service ? 1 : 0);
+				if( $kitchen === NULL ) return 'Imprime en cocina debe ser Sí o No';
+
+				$stock = 0;
+				if( $d['stock'] !== '' ){
+					if( !ctype_digit($d['stock']) || (int)$d['stock'] > 1000000 ) return 'Stock inválido (entero mayor o igual a 0)';
+					$stock = (int)$d['stock'];
+				}
+
+				$alert = NULL;
+				if( $d['alert'] !== '' ){
+					if( !ctype_digit($d['alert']) || (int)$d['alert'] > 1000000 ) return 'Alerta de stock inválida';
+					$alert = (int)$d['alert'];
+				}
+
+				$has_pack = ( $d['pack_name'] !== '' || $d['pack_units'] !== '' || $d['pack_cost'] !== '' || $d['pack_barcode'] !== '' );
+
+				if( $service ){
+
+					if( $stock > 0 || $alert !== NULL ) return 'Un platillo no lleva stock ni alerta de stock';
+					if( $has_pack ) return 'Un platillo no puede tener presentaciones';
+				}
+				else{
+
+					if( $d['category'] !== '' ) return 'La categoría solo aplica a platillos';
+				}
+
+				$pack_units = 0; $pack_cost = NULL;
+				if( $has_pack ){
+
+					if( $d['pack_name'] === '' || mb_strlen($d['pack_name'], 'UTF-8') > 60 ) return 'La presentación necesita un nombre (máximo 60 caracteres)';
+					if( !ctype_digit($d['pack_units']) || (int)$d['pack_units'] < 2 || (int)$d['pack_units'] > 100000 ) return 'Las unidades de la presentación deben ser un entero mayor a 1';
+					$pack_units = (int)$d['pack_units'];
+
+					if( $d['pack_cost'] !== '' ){
+						$pack_cost = $self->importNumber($d['pack_cost']);
+						if( $pack_cost === NULL ) return 'Costo de presentación inválido';
+					}
+					if( mb_strlen($d['pack_barcode'], 'UTF-8') > 20 ) return 'El código de la presentación supera 20 caracteres';
+				}
+
+				// barcodes must stay disjoint between products and packs (inside the file and against the DB)
+				$pc = mb_strtoupper($d['barcode'], 'UTF-8');
+				$kc = mb_strtoupper($d['pack_barcode'], 'UTF-8');
+
+				if( $pc !== '' && isset($pack_codes[$pc]) ) return 'El código de barras ya lo usa una presentación';
+				if( $pc !== '' && $db->query('select 1 from product_packs where upper(barcode) = ?', array($pc))->row() ) return 'El código de barras ya lo usa una presentación';
+
+				if( $kc !== '' ){
+
+					if( $kc === $pc || isset($pack_codes[$kc]) || isset($prod_codes[$kc]) ) return 'El código de la presentación está repetido';
+					if( $db->query('select 1 from products where upper(barcode) = ? union select 1 from product_packs where upper(barcode) = ?', array($kc, $kc))->row() ) return 'El código de la presentación ya está registrado';
+					$pack_codes[$kc] = TRUE;
+				}
+				if( $pc !== '' ) $prod_codes[$pc] = TRUE;
+
+				$d['_cost'] = $cost; $d['_sell'] = $sell; $d['_service'] = $service; $d['_kitchen'] = $kitchen;
+				$d['_stock'] = $stock; $d['_alert'] = $alert; $d['_pack_units'] = $pack_units; $d['_pack_cost'] = $pack_cost;
+
+				return NULL;
+			},
+			'key' => $key,
+			'existing' => function() use ($db){
+
+				$keys = array();
+				foreach( $db->select('barcode, name')->get('products')->result_array() as $r ){
+					$keys[] = ( $r['barcode'] !== NULL && $r['barcode'] !== '' ) ? 'b:'.mb_strtoupper($r['barcode'], 'UTF-8') : 'n:'.mb_strtolower((string)$r['name'], 'UTF-8');
+				}
+				return $keys;
+			},
+			'insert' => function($rows) use ($db){
+
+				$categories = array();
+				foreach( $db->get('service_category')->result_array() as $c ){
+					$categories[mb_strtolower($c['name_category'], 'UTF-8')] = (int)$c['id_service_category'];
+				}
+
+				foreach( $rows as $d ){
+
+					$id_cat = NULL;
+					if( $d['category'] !== '' ){
+
+						$ck = mb_strtolower($d['category'], 'UTF-8');
+						if( !isset($categories[$ck]) ){
+							$db->insert('service_category', array('name_category' => $d['category']));
+							$categories[$ck] = (int)$db->insert_id();
+						}
+						$id_cat = $categories[$ck];
+					}
+
+					$db->insert('products', array(
+						'barcode' => $d['barcode'] !== '' ? $d['barcode'] : NULL,
+						'name' => $d['name'],
+						'price_cost' => (string)round($d['_cost'], 4),
+						'price_sell' => (string)round($d['_sell'], 4),
+						'stock' => $d['_stock'],
+						'stock_alert_threshold' => $d['_alert'],
+						'is_service' => $d['_service'],
+						'id_service_category' => $id_cat,
+						'prints_kitchen' => $d['_kitchen'],
+						'commisssion_rate' => 0,
+					));
+					$id_product = (int)$db->insert_id();
+
+					if( $d['_pack_units'] > 0 ){
+
+						$db->insert('product_packs', array(
+							'id_product' => $id_product,
+							'name' => $d['pack_name'],
+							'units' => $d['_pack_units'],
+							'barcode' => $d['pack_barcode'] !== '' ? $d['pack_barcode'] : NULL,
+							'price_cost' => $d['_pack_cost'] !== NULL ? round($d['_pack_cost'], 2) : NULL,
+						));
+					}
+				}
+
+				if( $db->trans_status() === FALSE ){
+					throw new Exception('insert failed');
+				}
+			},
+		));
+
+		$new_tk = generateToken();
+		$this->session->set_userdata('tk', $new_tk);
+		$response['tk'] = $new_tk;
+
+		echo json_encode($response);
 	}
 
 	private function setFormRules(){
