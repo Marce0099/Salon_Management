@@ -132,6 +132,21 @@
 			}
 		}
 
+		// Mobile quick receiving: same POST target as register(), different screen.
+		public function quick(){
+
+			if( !$this->is_admin() ){
+				echo "No se encontro resultado para esta pagina";
+				exit;
+			}
+
+			$view_data['providers'] = $this->db->get_where('providers',array('active' => 1))->result();
+			$view_data['tk'] = generateToken();
+			$this->session->set_userdata('tk', $view_data['tk']);
+			$this->content_data = $view_data;
+			$this->renderPanel('form_quick_receiving');
+		}
+
 		private function registerError( $message ){
 
 			echo json_encode(array( 'type' => 'error', 'message' => $message ));
