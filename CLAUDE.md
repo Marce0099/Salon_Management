@@ -87,6 +87,7 @@ Availability while ordering = `products.stock` (`Kitchen_mdl::available`), since
 | `employees` | waiters (`name`, `phone`, `active`) — UI calls them "Meseros" |
 | `clients` | optional customers: `id_card_client` UNIQUE nullable, names, `birth_client` **nullable**, `active`; `default_client_id` setting points at "Consumidor Final" |
 | `products` | `barcode` UNIQUE, `name`, `price_cost`/`price_sell` VARCHAR, `stock`, `stock_alert_threshold` (low-stock bell), `is_service` (1 = "platillo": made to order, no stock), `id_service_category`, `prints_kitchen` (appears on the comanda), `id_provider`, `active` |
+| `product_packs` | purchase presentations of a product: `id_product`->products CASCADE, `name` (e.g. "Six-pack"), `units` (>=2), optional `barcode` (UNIQUE among packs; app keeps it disjoint from `products.barcode` via `Products_mdl::barcodeTaken`), optional `price_cost` (pack cost). Receiving a pack in `Invoices::register` stores `qty*units` base units with cost per unit; stock stays one integer per product. Not for services |
 | `service_category` | menu categories (`name_category` UNIQUE), admin-editable via `/service_categories` |
 | `providers`, `invoices`, `invoice_products`, `returns`, `returns_products` | purchasing (`UNIQUE(invoice_no,id_provider)`); `orders`/`orders_products` = supplier orders, feature disabled |
 | `internal_uses`, `internal_use_products` | stock withdrawals for internal use (waste/staff), decrement stock |

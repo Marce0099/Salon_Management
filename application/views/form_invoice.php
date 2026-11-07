@@ -45,7 +45,7 @@
 				<th width="2%"></th>
 				<th width="52%">Producto/Platillo</th>
 				<th width="10%">Cantidad</th>
-				<th width="13%">Precio costo ($)</th>
+				<th width="13%">Costo por unidad ($)</th>
 				<th width="13%">Precio venta ($)</th>
 				<th width="10%">Valor costo</th>
 			</tr>
@@ -78,6 +78,7 @@
 		</td>
 		<td>
 			<input type="text" name="quantities[]" class="p-quantity text-center" placeholder="Cantidad" required="true" data-parsley-type="integer" onkeyup="updateTotal($(this).parents('tr'));">
+			<select name="id_packs[]" class="p-pack" style="display:none;margin-top:4px;width:100%;"><option value="" data-units="1">Unidad</option></select>
 		</td>
 		<td>
 			<input type="text" name="prices_cost[]" class="p-price-cost text-center" placeholder="Precio costo" required="true" data-parsley-type="number" onkeyup="updateTotal($(this).parents('tr'));" >
@@ -277,6 +278,7 @@
 			_pickerRow.find('.p-price-sell').val(_pickerSelected.price_sell);
 			_pickerRow.find('.p-price-cost').val(_pickerSelected.price_cost);
 			_pickerRow.find('.p-id-products').val(_pickerSelected.id_product);
+			loadPacks(_pickerRow, _pickerSelected.id_product);
 			updateTotal(_pickerRow);
 			_pickerSuccess = true;
 			$('#product-picker-modal').modal('hide');
@@ -295,6 +297,7 @@
 					_pickerRow.find('.p-price-sell').val(data.product.price_sell);
 					_pickerRow.find('.p-price-cost').val(data.product.price_cost);
 					_pickerRow.find('.p-id-products').val(data.product.id_product);
+					loadPacks(_pickerRow, data.product.id_product);
 					updateTotal(_pickerRow);
 					_pickerSuccess = true;
 					$('#product-picker-modal').modal('hide');
@@ -460,10 +463,53 @@
 	  });
 	});
 
+	// Fills the row's presentation select from the product's packs (hidden when it has none).
+	function loadPacks(row, idProduct){
+
+		var $sel = row.find('.p-pack');
+		$sel.html('<option value="" data-units="1">Unidad</option>').hide();
+
+		$.getJSON('<?php echo base_url('products/packs'); ?>/' + idProduct, function(data){
+
+			if( data.packs && data.packs.length ){
+
+				$.each(data.packs, function(i, pk){
+					$('<option>').val(pk.id_pack).attr('data-units', pk.units).attr('data-cost', pk.price_cost === null ? '' : pk.price_cost)
+						.text(pk.name + ' (x' + pk.units + ')').appendTo($sel);
+				});
+
+				$sel.show();
+			}
+
+			updateTotal(row);
+		});
+	}
+
+	$(document).on('change', '.p-pack', function(){
+
+		var row = $(this).closest('tr');
+		var opt = $(this).find('option:selected');
+		var units = parseInt(opt.attr('data-units'), 10) || 1;
+		var packCost = parseFloat(opt.attr('data-cost'));
+
+		if( units > 1 && !isNaN(packCost) ){
+
+			// the cost field always holds the cost per unit
+			row.find('.p-price-cost').val( (packCost / units).toFixed(4).replace(/0+$/, '').replace(/\.$/, '') );
+		}
+
+		updateTotal(row);
+	});
+
+	function rowUnits(row){
+
+		return parseInt(row.find('.p-pack option:selected').attr('data-units'), 10) || 1;
+	}
+
 	function updateTotal(row){
 
 		var p = numeral( row.find('.p-price-cost').val() ).value();
-		var q = numeral( row.find('.p-quantity').val() ).value();
+		var q = numeral( row.find('.p-quantity').val() ).value() * rowUnits(row);
 		row.find('.subtotal').html( numeral(p*q).format('0,0.00') );
 		var subtotales = 0;
 

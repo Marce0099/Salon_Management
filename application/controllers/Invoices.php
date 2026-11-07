@@ -78,7 +78,8 @@
 					(array)$this->input->post('id_products'),
 					(array)$this->input->post('quantities'),
 					(array)$this->input->post('prices_cost'),
-					(array)$this->input->post('prices_sell')
+					(array)$this->input->post('prices_sell'),
+						(array)$this->input->post('id_packs')
 				);
 
 				if( $this->invoices_mdl->invoiceNumberExists( $invoice['invoice_no'], NULL, $invoice['id_provider'] ) ){
@@ -138,7 +139,7 @@
 		}
 
 		// Validates the posted line arrays; returns clean lines or answers with an error and exits.
-		private function validatedLines( $ids, $quantities, $costs, $sells ){
+		private function validatedLines( $ids, $quantities, $costs, $sells, $packs = array() ){
 
 			$lines = array();
 
@@ -172,9 +173,30 @@
 					$this->registerError('El producto seleccionado no existe');
 				}
 
+				// a pack multiplies the quantity into base units; cost and sell price stay per unit
+				$units = 1;
+				$raw_pack = isset($packs[$i]) ? trim((string)$packs[$i]) : '';
+
+				if( $raw_pack !== '' ){
+
+					$pack = ctype_digit($raw_pack)
+						? $this->db->get_where('product_packs',array('id_pack'=>(int)$raw_pack,'id_product'=>(int)$id,'active'=>1))->row()
+						: NULL;
+
+					if( !$pack || $product->is_service ){
+						$this->registerError('Presentación inválida para el producto seleccionado');
+					}
+
+					$units = (int)$pack->units;
+
+					if( (int)$qty * $units > 1000000 ){
+						$this->registerError('La cantidad total es demasiado grande');
+					}
+				}
+
 				$lines[] = array(
 					'id_product' => (int)$id,
-					'quantity' => (int)$qty,
+					'quantity' => (int)$qty * $units,
 					'price_cost' => $cost,
 					'price_sell' => $sell,
 					'is_service' => (int)$product->is_service

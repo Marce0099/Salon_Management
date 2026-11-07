@@ -80,6 +80,73 @@ class Products extends Admin_Controller{
 		return $exists ? $data['id_service_category'] : NULL;
 	}
 
+	// Reads and validates the "Presentaciones" rows posted with the product form (removes them from $data).
+	private function extractPacks( &$data, $id_product = NULL ){
+
+		$names    = isset($data['pack_names'])    ? (array)$data['pack_names']    : array();
+		$units    = isset($data['pack_units'])    ? (array)$data['pack_units']    : array();
+		$costs    = isset($data['pack_costs'])    ? (array)$data['pack_costs']    : array();
+		$barcodes = isset($data['pack_barcodes']) ? (array)$data['pack_barcodes'] : array();
+
+		unset($data['pack_names'], $data['pack_units'], $data['pack_costs'], $data['pack_barcodes']);
+
+		if( !empty($data['is_service']) ){
+
+			return array();
+		}
+
+		$packs = array();
+		$seen = array();
+
+		if( !empty($data['barcode']) ){
+
+			$seen[strtoupper(trim($data['barcode']))] = TRUE;
+		}
+
+		foreach( $names as $i => $name ){
+
+			$name = trim((string)$name);
+			$u = isset($units[$i]) ? trim((string)$units[$i]) : '';
+			$cost = isset($costs[$i]) ? trim((string)$costs[$i]) : '';
+			$bc = isset($barcodes[$i]) ? trim((string)$barcodes[$i]) : '';
+
+			if( $name === '' && $u === '' && $cost === '' && $bc === '' ){
+				continue;
+			}
+
+			if( $name === '' || strlen($name) > 60 ){
+				throw new Exception('Cada presentación necesita un nombre (máximo 60 caracteres)');
+			}
+			if( !ctype_digit($u) || (int)$u < 2 || (int)$u > 100000 ){
+				throw new Exception('Las unidades de la presentación "'.$name.'" deben ser un entero mayor a 1');
+			}
+			if( $cost !== '' && ( !is_numeric($cost) || (float)$cost < 0 || (float)$cost > 99999999 ) ){
+				throw new Exception('El costo de la presentación "'.$name.'" es inválido');
+			}
+			if( strlen($bc) > 20 ){
+				throw new Exception('El código de barra de la presentación "'.$name.'" es muy largo (máximo 20)');
+			}
+			if( $bc !== '' ){
+
+				$key = strtoupper($bc);
+
+				if( isset($seen[$key]) || $this->products_mdl->barcodeTaken($bc, $id_product) ){
+					throw new Exception('El código de barra "'.$bc.'" ya está registrado');
+				}
+				$seen[$key] = TRUE;
+			}
+
+			$packs[] = array(
+				'name' => $name,
+				'units' => (int)$u,
+				'barcode' => $bc === '' ? NULL : $bc,
+				'price_cost' => $cost === '' ? NULL : round((float)$cost, 2)
+			);
+		}
+
+		return $packs;
+	}
+
 	public function register(){
 
 		if( !$this->is_admin() ){
@@ -102,10 +169,12 @@ class Products extends Admin_Controller{
 					if (empty($data['barcode'])) {
 						$data['barcode'] = NULL;
 					} else {
-						if( $this->products_mdl->barcodeExists($data['barcode']) ){
+						if( $this->products_mdl->barcodeTaken($data['barcode']) ){
 							throw new Exception('El código de barra ya esta registrado a un producto');
 						}
 					}
+
+					$packs = $this->extractPacks( $data );
 
 					if(!$data['id_provider'])
 						$data['id_provider'] = NULL;
@@ -113,7 +182,15 @@ class Products extends Admin_Controller{
 					$data['id_service_category'] = $this->resolveServiceCategory( $data );
 					$this->normalizeStockAlertThreshold( $data );
 
-					$this->products_mdl->save( $data );
+					$this->db->trans_begin();
+					$id_product = $this->products_mdl->save( $data );
+					$this->products_mdl->savePacks( $id_product, $packs );
+
+					if( $this->db->trans_status() === FALSE ){
+						$this->db->trans_rollback();
+						throw new Exception('No se ha podido guardar el producto');
+					}
+					$this->db->trans_commit();
 
 					$new_tk = generateToken();
 					$this->session->set_userdata('tk', $new_tk);
@@ -153,6 +230,7 @@ class Products extends Admin_Controller{
 		}
 
 		$view_data['providers'] = $this->db->get('providers')->result();
+		$view_data['packs'] = isset($view_data['product']) ? $this->products_mdl->getPacks($view_data['product']->id_product) : array();
 		$this->content_data = $view_data;
 		$this->renderPanel('form_products');
 	}
@@ -183,16 +261,15 @@ class Products extends Admin_Controller{
 					}
 
 					if( empty($data['barcode']) ){
-
 						$data['barcode'] = NULL;
 					}
 					else{
-
-						if( $this->products_mdl->barcodeExists($data['barcode'],$id_product) ){
-
+						if( $this->products_mdl->barcodeTaken($data['barcode'],$id_product) ){
 							throw new Exception('El código de barra ya esta registrado a un producto');
 						}
 					}
+
+					$packs = $this->extractPacks( $data, $id_product );
 
 					if(!$data['id_provider'])
 						$data['id_provider'] = NULL;
@@ -200,7 +277,15 @@ class Products extends Admin_Controller{
 					$data['id_service_category'] = $this->resolveServiceCategory( $data );
 					$this->normalizeStockAlertThreshold( $data );
 
+					$this->db->trans_begin();
 					$this->products_mdl->edit( $id_product, $data );
+					$this->products_mdl->savePacks( $id_product, $packs );
+
+					if( $this->db->trans_status() === FALSE ){
+						$this->db->trans_rollback();
+						throw new Exception('No se ha podido guardar el producto');
+					}
+					$this->db->trans_commit();
 
 					$response = array( 'type' => 'success', 'message' => 'Producto editado', 'edit' => true );
 
@@ -260,6 +345,11 @@ class Products extends Admin_Controller{
 			$this->session->set_userdata( 'view_data', $view_data );
 			redirect('products');
 		}
+	}
+
+	public function packs( $id_product = 0 ){
+
+		echo json_encode( array( 'packs' => $this->products_mdl->getPacks( (int)$id_product ) ) );
 	}
 
 	public function getByBarCode(){

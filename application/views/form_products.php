@@ -109,6 +109,25 @@
             <ul class="dropdown-menu" id="service-category-dropdown" style="display:none; width:100%; max-height:200px; overflow-y:auto;"></ul>
         </div>
 	</div>
+	<div class="form-group" id="packs-group">
+		<label class="control-label col-md-3 col-sm-3 col-xs-12">Presentaciones de compra:
+		</label>
+		<div class="col-md-8 col-sm-9 col-xs-12">
+			<p class="text-muted" style="margin-top:7px;">Ej.: "Six-pack" = 6 unidades. Al recibir compras se ingresan presentaciones y el stock se suma en unidades.</p>
+			<div id="packs-list">
+				<?php foreach( (isset($packs) ? $packs : array()) as $pk ) : ?>
+				<div class="row pack-row" style="margin-bottom:6px;">
+					<div class="col-xs-6 col-sm-3"><input type="text" name="pack_names[]" class="form-control" placeholder="Nombre" maxlength="60" value="<?php echo htmlspecialchars($pk->name); ?>"></div>
+					<div class="col-xs-6 col-sm-2"><input type="text" name="pack_units[]" class="form-control" placeholder="Unidades" data-parsley-type="integer" value="<?php echo (int)$pk->units; ?>"></div>
+					<div class="col-xs-6 col-sm-2"><input type="text" name="pack_costs[]" class="form-control" placeholder="Costo $" data-parsley-type="number" value="<?php echo $pk->price_cost !== NULL ? htmlspecialchars($pk->price_cost) : ''; ?>"></div>
+					<div class="col-xs-5 col-sm-3"><input type="text" name="pack_barcodes[]" class="form-control" placeholder="Código barra" maxlength="20" value="<?php echo htmlspecialchars((string)$pk->barcode); ?>"></div>
+					<div class="col-xs-1 col-sm-1"><a href="javascript:;" class="btn btn-link text-danger remove-pack"><i class="fa fa-times"></i></a></div>
+				</div>
+				<?php endforeach; ?>
+			</div>
+			<a href="javascript:;" class="btn btn-default btn-sm" id="add-pack"><i class="fa fa-plus"></i> Agregar presentación</a>
+		</div>
+	</div>
 	<div class="form-group">
 		<div class="col-md-offset-3 col-sm-offset-3 col-md-3 col-sm-3">
 			<button class="btn btn-success" id="btn-submit" type="submit">Guardar</button>
@@ -116,6 +135,16 @@
 	</div>
 </form>
 
+
+<div class="hidden" id="pack-template">
+	<div class="row pack-row" style="margin-bottom:6px;">
+		<div class="col-xs-6 col-sm-3"><input type="text" name="pack_names[]" class="form-control" placeholder="Nombre" maxlength="60" disabled></div>
+		<div class="col-xs-6 col-sm-2"><input type="text" name="pack_units[]" class="form-control" placeholder="Unidades" data-parsley-type="integer" disabled></div>
+		<div class="col-xs-6 col-sm-2"><input type="text" name="pack_costs[]" class="form-control" placeholder="Costo $" data-parsley-type="number" disabled></div>
+		<div class="col-xs-5 col-sm-3"><input type="text" name="pack_barcodes[]" class="form-control" placeholder="Código barra" maxlength="20" disabled></div>
+		<div class="col-xs-1 col-sm-1"><a href="javascript:;" class="btn btn-link text-danger remove-pack"><i class="fa fa-times"></i></a></div>
+	</div>
+</div>
 
 <script>
 	const system = {
@@ -153,7 +182,29 @@
 		}
 	}
 
+	function togglePacks(element){
+		if(system.is_service){
+			element.addClass('hide');
+			element.find('input').prop('disabled', true);
+		}else{
+			element.removeClass('hide');
+			element.find('input').prop('disabled', false);
+		}
+	}
+
+	$('#add-pack').on('click', function(){
+		var row = $('#pack-template .pack-row').clone();
+		row.find('input').prop('disabled', false);
+		$('#packs-list').append(row);
+		row.find('input').first().focus();
+	});
+
+	$(document).on('click', '.remove-pack', function(){
+		$(this).closest('.pack-row').remove();
+	});
+
 	$(document).ready(function() {
+		togglePacks($('#packs-group'));
 		toggleCommission($('#commission'));
 		toggleServiceCategory($('#service-category-group'));
 		toggleStockAlert($('#stock-alert-group'));
@@ -174,6 +225,7 @@
 		toggleCommission($('#commission'));
 		toggleServiceCategory($('#service-category-group'));
 		toggleStockAlert($('#stock-alert-group'));
+		togglePacks($('#packs-group'));
 	});
 
 	var _categoryTimer = null;
@@ -303,6 +355,7 @@
 		        	if( data.type == 'success' && !data.edit ){
 
 		        		$('#form input, #form textarea').val('');
+			        	$('#packs-list').empty();
 
 		        		var urlParams = new URLSearchParams(window.location.search);
 
