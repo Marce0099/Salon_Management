@@ -88,6 +88,9 @@ class Cash_mdl extends CI_Model{
 					$sale_total += $subtotal;
 				}
 
+				// tip and IVA are charged on top of the lines (dollars, same unit as the lines), so the real invoice total includes them
+				$sale_total += floatval($s->tip ?? 0) + floatval($s->iva ?? 0);
+
 				$s->sale_total = $sale_total;
 
 				$sql = "SELECT SPA.* FROM sale_payments SPA WHERE id_sale=";
