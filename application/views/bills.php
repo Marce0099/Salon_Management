@@ -1,6 +1,6 @@
 <?php
-function bills_money($n){ global $rate; return 'C$'.number_format((float) $n * (float) $rate, 2); }
-$rate = isset($rate) ? $rate : 1;
+$bills_rate = isset($rate) ? (float) $rate : 1.0;
+$bills_money = function($n) use ($bills_rate){ return 'C$'.number_format((float) $n * $bills_rate, 2); };
 $open_for_move = array();
 foreach( $bills as $b ){ if( $b->status === 'open' ){ $open_for_move[] = $b; } }
 ?>
@@ -34,7 +34,7 @@ foreach( $bills as $b ){ if( $b->status === 'open' ){ $open_for_move[] = $b; } }
 			<?php foreach( $b->items as $i ) : ?>
 				<li style="padding:5px 0; border-bottom:1px solid #f0f0f0;">
 					<?php echo (int) $i->quantity; ?> × <?php echo htmlspecialchars($i->product_name); ?>
-					<span class="pull-right"><?php echo bills_money($i->quantity * $i->unit_price); ?></span>
+					<span class="pull-right"><?php echo $bills_money($i->quantity * $i->unit_price); ?></span>
 					<?php if( $isOpen ) : ?>
 					<br><button type="button" class="btn btn-xs btn-default js-move" data-id="<?php echo (int) $i->id_order_item; ?>"
 						data-qty="<?php echo (int) $i->quantity; ?>" data-name="<?php echo htmlspecialchars($i->product_name); ?>" data-bill="<?php echo (int) $b->id_bill; ?>"><i class="fa fa-exchange"></i> Mover</button>
@@ -44,10 +44,10 @@ foreach( $bills as $b ){ if( $b->status === 'open' ){ $open_for_move[] = $b; } }
 			</ul>
 
 			<table class="table table-condensed" style="margin-bottom:6px;">
-				<tr><td>Subtotal</td><td class="text-right"><?php echo bills_money($b->totals['subtotal']); ?></td></tr>
-				<?php if( $rates['tip'] > 0 ) : ?><tr><td>Propina</td><td class="text-right"><?php echo bills_money($b->totals['tip']); ?></td></tr><?php endif; ?>
-				<?php if( $rates['iva'] > 0 ) : ?><tr><td>IVA</td><td class="text-right"><?php echo bills_money($b->totals['iva']); ?></td></tr><?php endif; ?>
-				<tr><th>Total</th><th class="text-right"><?php echo bills_money($b->totals['total']); ?></th></tr>
+				<tr><td>Subtotal</td><td class="text-right"><?php echo $bills_money($b->totals['subtotal']); ?></td></tr>
+				<?php if( $rates['tip'] > 0 ) : ?><tr><td>Propina</td><td class="text-right"><?php echo $bills_money($b->totals['tip']); ?></td></tr><?php endif; ?>
+				<?php if( $rates['iva'] > 0 ) : ?><tr><td>IVA</td><td class="text-right"><?php echo $bills_money($b->totals['iva']); ?></td></tr><?php endif; ?>
+				<tr><th>Total</th><th class="text-right"><?php echo $bills_money($b->totals['total']); ?></th></tr>
 			</table>
 
 			<?php if( $isOpen ) : ?>
@@ -62,7 +62,7 @@ foreach( $bills as $b ){ if( $b->status === 'open' ){ $open_for_move[] = $b; } }
 			<?php if( $b->status === 'split' ) : ?>
 			<hr style="margin:8px 0;">
 			<?php foreach( isset($kids[(int) $b->id_bill]) ? $kids[(int) $b->id_bill] : array() as $k ) : ?>
-				<div style="padding:4px 0;"><?php echo htmlspecialchars($k->label); ?> <strong class="pull-right"><?php echo bills_money($k->totals['total']); ?></strong>
+				<div style="padding:4px 0;"><?php echo htmlspecialchars($k->label); ?> <strong class="pull-right"><?php echo $bills_money($k->totals['total']); ?></strong>
 					<?php if( $k->status === 'paid' ) : ?><span class="label label-success">Pagada</span>
 					<?php elseif( $k->status === 'open' && $this->controller->is_admin() ) : ?><a href="<?php echo base_url('sales/register?bill='.(int) $k->id_bill); ?>" class="btn btn-xs btn-primary" style="margin-left:6px;"><i class="fa fa-money"></i> Cobrar</a><?php endif; ?></div>
 			<?php endforeach; ?>
