@@ -280,9 +280,9 @@ $(function(){
 			<tr>
 				<td>C$<?php
 					if($pay->payment_method === 'cash'){
-						echo $cash_rows_seen === 1 ? $_total_cordobas : "0.00";
+						echo $cash_rows_seen === 1 ? number_format(floatval($_total_cordobas), 2) : "0.00";
 					}else{
-						echo $total_cor;
+						echo number_format($total_cor, 2);
 						$_total_cordobas -= $total_cor;
 					}
 					?>
