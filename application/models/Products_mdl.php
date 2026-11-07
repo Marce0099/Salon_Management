@@ -9,14 +9,56 @@ class Products_mdl extends CI_Model{
 
 	public function barcodeExists( $barcode, $id_product = NULL ){
 
-		$sql = 'select * from products where trim(upper(barcode)) = trim(upper("'.$barcode.'"))';
+		$sql = 'select * from products where trim(upper(barcode)) = trim(upper(?))';
+		$params = array( $barcode );
 
 		if( $id_product ){
 
-			$sql .= ' and id_product != '. $id_product;
+			$sql .= ' and id_product != ?';
+			$params[] = (int)$id_product;
 		}
 
-		return $this->db->query( $sql )->row();
+		return $this->db->query( $sql, $params )->row();
+	}
+
+	// True when the barcode belongs to another product or to any pack not owned by $id_product.
+	public function barcodeTaken( $barcode, $id_product = NULL ){
+
+		if( $this->barcodeExists($barcode, $id_product) ){
+
+			return TRUE;
+		}
+
+		$sql = 'select id_pack from product_packs where trim(upper(barcode)) = trim(upper(?))';
+		$params = array( $barcode );
+
+		if( $id_product ){
+
+			$sql .= ' and id_product != ?';
+			$params[] = (int)$id_product;
+		}
+
+		return (bool)$this->db->query( $sql, $params )->row();
+	}
+
+	public function getPacks( $id_product ){
+
+		return $this->db->query(
+			'select id_pack, name, units, barcode, price_cost from product_packs where id_product = ? and active = 1 order by units asc, id_pack asc',
+			array( (int)$id_product )
+		)->result();
+	}
+
+	// Replaces the product's packs with the given list (rows: name, units, barcode|NULL, price_cost|NULL).
+	public function savePacks( $id_product, $packs ){
+
+		$this->db->delete( 'product_packs', array( 'id_product' => (int)$id_product ) );
+
+		foreach( $packs as $pack ){
+
+			$pack['id_product'] = (int)$id_product;
+			$this->db->insert( 'product_packs', $pack );
+		}
 	}
 
 	public function barcodeExistsForProvider( $barcode, $id_provider ){
@@ -31,6 +73,8 @@ class Products_mdl extends CI_Model{
 	public function save( $data ){
 
 		$this->db->insert( 'products', $data );
+
+		return $this->db->insert_id();
 	}
 
 	public function getProduct( $id_product ){
