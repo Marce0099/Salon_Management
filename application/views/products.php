@@ -1,5 +1,12 @@
 <h3 class="section-title">Inventario de productos</h3>
 
+<?php if( $this->controller->is_admin() ) $this->load->view('partials/bulk_import', array(
+	'import_url'   => base_url('products/import'),
+	'template_url' => base_url('products/template'),
+	'tk'           => $tk,
+	'entity_label' => 'productos',
+)); ?>
+
 <div class="panel panel-default">
 	<div class="panel-heading">Búsqueda
 	</div>
