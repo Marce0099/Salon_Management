@@ -29,6 +29,17 @@ class Kitchen extends Admin_Controller{
 		$this->json(array('type' => 'error', 'message' => $message));
 	}
 
+	/** Stock rejection: same error JSON plus the fresh availability of every stocked/recipe product so the screen can update itself. */
+	private function failStock($message){
+
+		$avail = array();
+		foreach( $this->kitchen_mdl->menu() as $m ){
+			if( $m->stocked ){ $avail[$m->id] = (int) $m->available; }
+		}
+
+		$this->json(array('type' => 'error', 'message' => $message, 'availability' => $avail));
+	}
+
 	private function requirePost(){
 
 		if( !formSubmited() ){
@@ -116,7 +127,7 @@ class Kitchen extends Admin_Controller{
 				$asked[(int) $p->id_product] = (isset($asked[(int) $p->id_product]) ? $asked[(int) $p->id_product] : 0) + $qty;
 				$avail = $this->kitchen_mdl->available($p->id_product);
 				if( $asked[(int) $p->id_product] > $avail ){
-					$this->fail('Stock insuficiente de '.$p->name.' (disponible: '.$avail.')');
+					$this->failStock('Stock insuficiente de '.$p->name.' (disponible: '.$avail.')');
 				}
 			}
 
@@ -125,7 +136,7 @@ class Kitchen extends Admin_Controller{
 			if( $portions !== NULL ){
 				$asked_recipe[(int) $p->id_product] = (isset($asked_recipe[(int) $p->id_product]) ? $asked_recipe[(int) $p->id_product] : 0) + $qty;
 				if( $asked_recipe[(int) $p->id_product] > $portions ){
-					$this->fail($portions > 0 ? 'Solo quedan '.$portions.' porciones de '.$p->name.' (ingredientes insuficientes)' : $p->name.' está agotado (faltan ingredientes)');
+					$this->failStock($portions > 0 ? 'Solo quedan '.$portions.' porciones de '.$p->name.' (ingredientes insuficientes)' : $p->name.' está agotado (faltan ingredientes)');
 				}
 			}
 
@@ -149,10 +160,13 @@ class Kitchen extends Admin_Controller{
 
 		$id_order = $this->kitchen_mdl->createOrder($tab->id_tab, $this->id_admin, $lines, $id_bill);
 		if( $id_order === -1 ){
-			$this->fail('Stock insuficiente: otro pedido tomó existencias. Actualice la pantalla');
+			$this->failStock('Otro pedido tomó las existencias primero. Se actualizó la disponibilidad');
 		}
 		if( $id_order === -2 ){
-			$this->fail('Ingredientes insuficientes ('.$this->kitchen_mdl->short_ingredient.'). Actualice la pantalla');
+			$this->failStock('Otro pedido tomó los ingredientes primero ('.$this->kitchen_mdl->short_ingredient.'). Se actualizó la disponibilidad');
+		}
+		if( $id_order === -3 ){
+			$this->fail('Hay mucha actividad en este momento, intente de nuevo');
 		}
 		if( !$id_order ){
 			$this->fail('No se pudo guardar el pedido');

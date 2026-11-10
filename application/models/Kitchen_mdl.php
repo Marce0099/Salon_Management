@@ -77,67 +77,183 @@ class Kitchen_mdl extends CI_Model{
 		return isset($r[(int) $id_product]) ? Ingredients_mdl::portions($r[(int) $id_product]) : NULL;
 	}
 
+	/** Recipe rows read by the last takeStock(): array(id_product => rows). Used to log the per-line ingredient movements. */
+	private $cur_recipes = array();
+
 	/**
-	 * Takes (sign = -1) or returns (+1) the ingredients of $qty portions of a product. Taking is atomic per ingredient
-	 * (UPDATE ... WHERE stock >= need). Returns '' when fine, else the name of the ingredient that fell short. Caller owns the transaction.
+	 * Locks the product and ingredient rows involved, ALWAYS in the same global order (all products by id, then all ingredients by id).
+	 * Two concurrent transactions therefore can never wait for each other in a cycle (no deadlock), whatever order their lines have.
+	 * Returns array('products' => id => row, 'ingredients' => id => row) with the locked, stable values.
 	 */
-	private function moveIngredients($id_product, $qty, $sign, $id_order_item, $id_admin){
-
-		$rows = $this->db->query('SELECT r.id_ingredient, r.quantity, i.name FROM recipe_items r JOIN ingredients i ON i.id_ingredient = r.id_ingredient
-			WHERE r.id_product = ? ORDER BY r.id_ingredient', array((int) $id_product))->result();
-
-		if( !$rows ){ return ''; }
+	private function lockFor($product_ids, $extra_ingredient_ids = array()){
 
 		$this->load->model('ingredients_mdl');
 
-		foreach( $rows as $r ){
+		$pids = array();
+		foreach( $product_ids as $id ){ $pids[(int) $id] = (int) $id; }
+		ksort($pids);
 
-			$need = round((float) $r->quantity * (int) $qty, 3);
+		$iids = array();
+		foreach( $extra_ingredient_ids as $id ){ $iids[(int) $id] = (int) $id; }
+		foreach( $this->ingredients_mdl->recipesFor(array_values($pids)) as $rows ){
+			foreach( $rows as $r ){ $iids[(int) $r->id_ingredient] = (int) $r->id_ingredient; }
+		}
+		ksort($iids);
 
-			if( $sign < 0 ){
-				$this->db->query('UPDATE ingredients SET stock = stock - ? WHERE id_ingredient = ? AND stock >= ?', array($need, (int) $r->id_ingredient, $need));
-				if( $this->db->affected_rows() < 1 ){ return $r->name; }
-			}
-			else{
-				$this->db->query('UPDATE ingredients SET stock = stock + ? WHERE id_ingredient = ?', array($need, (int) $r->id_ingredient));
-			}
+		$out = array('products' => array(), 'ingredients' => array());
 
-			$this->ingredients_mdl->log($r->id_ingredient, $sign < 0 ? 'order' : 'void', $sign * $need, NULL, $id_admin, $id_order_item);
+		if( $pids ){
+			$rows = $this->db->query('SELECT id_product, is_service, stock FROM products WHERE id_product IN ('.implode(',', $pids).') ORDER BY id_product FOR UPDATE')->result();
+			foreach( $rows as $r ){ $out['products'][(int) $r->id_product] = $r; }
+		}
+		if( $iids ){
+			$rows = $this->db->query('SELECT id_ingredient, name, stock FROM ingredients WHERE id_ingredient IN ('.implode(',', $iids).') ORDER BY id_ingredient FOR UPDATE')->result();
+			foreach( $rows as $r ){ $out['ingredients'][(int) $r->id_ingredient] = $r; }
 		}
 
-		return '';
+		return $out;
 	}
 
-	/** Creates the batch + its lines atomically and takes the stocked products out of stock. Returns id_order (0 = failed, -1 = not enough stock). */
+	/**
+	 * Takes the stock of all lines of an order at once: locks everything in the global order, checks the WHOLE order against the locked
+	 * stock, then decrements. First transaction to get the locks wins; a later one sees the reduced stock and is refused untouched.
+	 * Returns 0 = ok, -1 = product stock short, -2 = ingredient short (name in $short_ingredient). Caller owns the transaction.
+	 */
+	private function takeStock($lines){
+
+		$this->short_ingredient = '';
+
+		$need_p = array();
+		$ids = array();
+		foreach( $lines as $l ){
+			$ids[] = (int) $l['id_product'];
+			$need_p[(int) $l['id_product']] = (isset($need_p[(int) $l['id_product']]) ? $need_p[(int) $l['id_product']] : 0) + (int) $l['quantity'];
+		}
+
+		$locked = $this->lockFor($ids);
+		$this->cur_recipes = $this->ingredients_mdl->recipesFor($ids);
+
+		// ingredient needs aggregated across every line (same ingredient may feed several dishes of the order)
+		$need_i = array();
+		foreach( $need_p as $id => $qty ){
+			if( !isset($this->cur_recipes[$id]) ){ continue; }
+			foreach( $this->cur_recipes[$id] as $r ){
+				$need_i[(int) $r->id_ingredient] = (isset($need_i[(int) $r->id_ingredient]) ? $need_i[(int) $r->id_ingredient] : 0) + round((float) $r->quantity * $qty, 3);
+			}
+		}
+		ksort($need_i);
+
+		foreach( $need_p as $id => $qty ){
+			$p = isset($locked['products'][$id]) ? $locked['products'][$id] : NULL;
+			if( $p && !(int) $p->is_service && (int) $p->stock < $qty ){ return -1; }
+		}
+		foreach( $need_i as $id => $need ){
+			if( !isset($locked['ingredients'][$id]) || round((float) $locked['ingredients'][$id]->stock, 3) < round($need, 3) ){
+				$this->short_ingredient = isset($locked['ingredients'][$id]) ? $locked['ingredients'][$id]->name : '?';
+				return -2;
+			}
+		}
+
+		foreach( $need_p as $id => $qty ){
+			$p = isset($locked['products'][$id]) ? $locked['products'][$id] : NULL;
+			if( $p && !(int) $p->is_service ){
+				$this->db->query('UPDATE products SET stock = stock - ? WHERE id_product = ?', array($qty, $id));
+			}
+		}
+		foreach( $need_i as $id => $need ){
+			$this->db->query('UPDATE ingredients SET stock = stock - ? WHERE id_ingredient = ?', array($need, $id));
+		}
+
+		return 0;
+	}
+
+	/** Movement-log rows (no stock change) for the ingredients that one order line consumed / gave back. */
+	private function logIngredients($recipes, $id_product, $qty, $sign, $id_order_item, $id_admin){
+
+		if( !isset($recipes[(int) $id_product]) ){ return; }
+
+		$this->load->model('ingredients_mdl');
+
+		foreach( $recipes[(int) $id_product] as $r ){
+			$this->ingredients_mdl->log($r->id_ingredient, $sign < 0 ? 'order' : 'void', $sign * round((float) $r->quantity * (int) $qty, 3), NULL, $id_admin, $id_order_item);
+		}
+	}
+
+	/** Returns the ingredients of $qty voided portions (rows are already locked by the caller) and logs it. */
+	private function restoreIngredients($id_product, $qty, $id_order_item, $id_admin){
+
+		$this->load->model('ingredients_mdl');
+		$recipes = $this->ingredients_mdl->recipesFor(array($id_product));
+
+		if( !isset($recipes[(int) $id_product]) ){ return; }
+
+		foreach( $recipes[(int) $id_product] as $r ){
+			$this->db->query('UPDATE ingredients SET stock = stock + ? WHERE id_ingredient = ?', array(round((float) $r->quantity * (int) $qty, 3), (int) $r->id_ingredient));
+		}
+
+		$this->logIngredients($recipes, $id_product, $qty, 1, $id_order_item, $id_admin);
+	}
+
+	/**
+	 * Runs $fn inside a transaction. $fn returns array(ok, payload). A deadlock / lock timeout (or any DB exception) rolls back and
+	 * retries up to 3 times with a tiny random pause. Returns array(ok, payload, db_failed).
+	 */
+	private function runTx($fn){
+
+		for( $try = 0; $try < 3; $try++ ){
+
+			try{
+				$this->db->trans_begin();
+				$r = $fn();
+
+				if( $r[0] ){
+					$this->db->trans_commit();
+				}
+				else{
+					$this->db->trans_rollback();
+				}
+
+				return array((bool) $r[0], $r[1], FALSE);
+			}
+			catch( Exception $e ){
+
+				log_message('error', 'Kitchen transaction failed (try '.($try + 1).'): '.$e->getMessage());
+
+				try{ $this->db->trans_rollback(); }catch( Exception $e2 ){ /* server already rolled it back */ }
+
+				usleep(mt_rand(20000, 90000));
+			}
+		}
+
+		return array(FALSE, NULL, TRUE);
+	}
+
+	/**
+	 * Creates the batch + its lines atomically and takes the stock (products and ingredients) of the whole order in one go.
+	 * Returns id_order (0 = failed, -1 = not enough product stock, -2 = ingredient short, -3 = system busy, retry).
+	 */
 	public function createOrder($id_tab, $id_admin, $lines, $id_bill = 0){
 
-		// manual transaction: in CI 3.0.0 trans_rollback() is a no-op inside trans_start()
-		$this->db->trans_begin();
-		$id_order = $this->insertOrder($id_tab, $id_admin, $lines, $id_bill);
+		$res = $this->runTx(function() use ($id_tab, $id_admin, $lines, $id_bill){
+			$id = $this->insertOrder($id_tab, $id_admin, $lines, $id_bill);
+			return array($id > 0, $id);
+		});
 
-		if( $id_order < 1 || $this->db->trans_status() === FALSE ){
-			$this->db->trans_rollback();
-			return $id_order < 0 ? $id_order : 0; // -1 = product stock, -2 = ingredient short (see $short_ingredient)
-		}
+		if( $res[2] ){ return -3; }
 
-		$this->db->trans_commit();
-
-		return $id_order;
+		return $res[0] ? (int) $res[1] : ((int) $res[1] < 0 ? (int) $res[1] : 0);
 	}
 
-	/** Batch + lines + atomic stock decrement, WITHOUT managing the transaction (the caller owns it). Returns id_order or -1 (not enough stock). */
+	/** Stock check/decrement + batch + lines, WITHOUT managing the transaction (the caller owns it). Returns id_order, -1 or -2. */
 	private function insertOrder($id_tab, $id_admin, $lines, $id_bill){
+
+		$short = $this->takeStock($lines);
+		if( $short < 0 ){ return $short; }
 
 		$this->db->insert('orders_kitchen', array('id_tab' => (int) $id_tab, 'id_admin' => (int) $id_admin));
 		$id_order = (int) $this->db->insert_id();
 
 		foreach( $lines as $l ){
-
-			// atomic guard: the decrement only applies while enough stock remains (services never touch stock)
-			$this->db->query('UPDATE products SET stock = stock - ? WHERE id_product = ? AND is_service = 0 AND stock >= ?', array((int) $l['quantity'], (int) $l['id_product'], (int) $l['quantity']));
-			if( $this->db->affected_rows() < 1 && !$this->isService($l['id_product']) ){
-				return -1;
-			}
 
 			$this->db->insert('order_items', array(
 				'id_order'       => $id_order,
@@ -152,11 +268,7 @@ class Kitchen_mdl extends CI_Model{
 				'prints_kitchen' => (int) $l['prints_kitchen'],
 			));
 
-			$short = $this->moveIngredients($l['id_product'], $l['quantity'], -1, $this->db->insert_id(), $id_admin);
-			if( $short !== '' ){
-				$this->short_ingredient = $short;
-				return -2;
-			}
+			$this->logIngredients($this->cur_recipes, $l['id_product'], $l['quantity'], -1, $this->db->insert_id(), $id_admin);
 		}
 
 		return $id_order;
@@ -245,26 +357,27 @@ class Kitchen_mdl extends CI_Model{
 
 		if( $item->bill_status !== 'paid' ){
 			$this->db->query('UPDATE products SET stock = stock + ? WHERE id_product = ? AND is_service = 0', array($qty, (int) $item->id_product));
-			$this->moveIngredients($item->id_product, $qty, 1, $item->id_order_item, $id_admin);
+			$this->restoreIngredients($item->id_product, $qty, $item->id_order_item, $id_admin);
 		}
 
 		return array(TRUE, 'Producto anulado', $item, $qty);
 	}
 
-	/** Void (whole line or $qty units). Returns array(ok, message). */
+	/** Void (whole line or $qty units). Locks stock rows first (same global order as orders) and retries on deadlock. Returns array(ok, message). */
 	public function voidItem($id_item, $reason, $id_admin, $qty = 0, $is_admin = TRUE){
 
-		$this->db->trans_begin();
-		$res = $this->doVoid($id_item, $reason, $id_admin, $qty, $is_admin);
+		$item = $this->item($id_item);
+		if( !$item ){ return array(FALSE, 'El producto ya fue anulado'); }
 
-		if( !$res[0] || $this->db->trans_status() === FALSE ){
-			$this->db->trans_rollback();
-			return array(FALSE, $res[0] ? 'No se pudo anular el producto' : $res[1]);
-		}
+		$res = $this->runTx(function() use ($item, $id_item, $reason, $id_admin, $qty, $is_admin){
+			$this->lockFor(array($item->id_product));
+			$r = $this->doVoid($id_item, $reason, $id_admin, $qty, $is_admin);
+			return array($r[0], $r[1]);
+		});
 
-		$this->db->trans_commit();
+		if( $res[2] ){ return array(FALSE, 'Hay mucha actividad en este momento, intente de nuevo'); }
 
-		return array(TRUE, $res[1]);
+		return array($res[0], $res[1]);
 	}
 
 	/**
@@ -274,29 +387,34 @@ class Kitchen_mdl extends CI_Model{
 	 */
 	public function replaceItem($id_item, $qty, $new, $new_qty, $notes, $reason, $id_admin, $is_admin){
 
-		$this->db->trans_begin();
+		$first = $this->item($id_item);
+		if( !$first ){ return array(FALSE, 'El producto ya fue anulado', 0); }
 
-		$res = $this->doVoid($id_item, $reason, $id_admin, $qty, $is_admin, TRUE);
-		if( !$res[0] ){
-			$this->db->trans_rollback();
-			return array(FALSE, $res[1], 0);
-		}
+		$res = $this->runTx(function() use ($first, $id_item, $qty, $new, $new_qty, $notes, $reason, $id_admin, $is_admin){
 
-		$old = $res[2];
-		$line = array(
-			'id_product' => (int) $new->id_product, 'name' => $new->name, 'quantity' => (int) $new_qty, 'price' => (float) $new->price_sell,
-			'notes' => (string) $notes, 'course' => (int) $old->course, 'prints_kitchen' => (int) $new->prints_kitchen,
-		);
+			// lock old + new product (and both recipes' ingredients) up front, in the global order
+			$this->lockFor(array($first->id_product, $new->id_product));
 
-		$id_order = $this->insertOrder($old->id_tab, $id_admin, array($line), $old->id_bill);
-		if( $id_order < 1 || $this->db->trans_status() === FALSE ){
-			$this->db->trans_rollback();
-			$msg = $id_order === -1 ? 'Stock insuficiente de '.$new->name : ($id_order === -2 ? 'Ingredientes insuficientes para '.$new->name.' (falta '.$this->short_ingredient.')' : 'No se pudo guardar el cambio');
-			return array(FALSE, $msg, 0);
-		}
+			$v = $this->doVoid($id_item, $reason, $id_admin, $qty, $is_admin, TRUE);
+			if( !$v[0] ){ return array(FALSE, array($v[1], 0)); }
 
-		$this->db->trans_commit();
+			$old = $v[2];
+			$line = array(
+				'id_product' => (int) $new->id_product, 'name' => $new->name, 'quantity' => (int) $new_qty, 'price' => (float) $new->price_sell,
+				'notes' => (string) $notes, 'course' => (int) $old->course, 'prints_kitchen' => (int) $new->prints_kitchen,
+			);
 
-		return array(TRUE, 'Producto cambiado', $id_order);
+			$id_order = $this->insertOrder($old->id_tab, $id_admin, array($line), $old->id_bill);
+			if( $id_order < 1 ){
+				$msg = $id_order === -1 ? 'Stock insuficiente de '.$new->name : 'Ingredientes insuficientes para '.$new->name.' (falta '.$this->short_ingredient.')';
+				return array(FALSE, array($msg, 0));
+			}
+
+			return array(TRUE, array('Producto cambiado', $id_order));
+		});
+
+		if( $res[2] ){ return array(FALSE, 'Hay mucha actividad en este momento, intente de nuevo', 0); }
+
+		return array($res[0], $res[1][0], $res[1][1]);
 	}
 }

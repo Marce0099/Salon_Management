@@ -187,10 +187,26 @@
 				notify(r.printed ? 'success' : 'notice', r.message);
 				setTimeout(function(){ location.reload(); }, 1200);
 			} else {
+				if( r.availability ){ applyAvailability(r.availability); }
 				notify('error', r.message); $b.prop('disabled', false);
 			}
 		}, 'json').fail(function(){ notify('error', 'Respuesta inesperada del servidor; se recargará para evitar duplicados'); setTimeout(function(){ location.reload(); }, 1800); });
 	});
+
+	/* A stock rejection (another waiter took the ingredients first) carries fresh availability: update the menu and trim the cart to it. */
+	function applyAvailability(av){
+		$.each(MENU, function(_, p){ if( p.stocked && av[p.id] !== undefined ){ p.available = av[p.id]; } });
+		var left = {};
+		cart = cart.filter(function(l){
+			if( !l.stocked || av[l.id] === undefined ){ return true; }
+			if( left[l.id] === undefined ){ left[l.id] = av[l.id]; }
+			l.available = av[l.id];
+			l.qty = Math.min(l.qty, left[l.id]);
+			left[l.id] -= l.qty;
+			return l.qty > 0;
+		});
+		renderMenu(); renderCart();
+	}
 
 	/* ---- consumption actions ---- */
 	$('.js-reprint').on('click', function(){
