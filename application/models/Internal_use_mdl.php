@@ -44,10 +44,6 @@ class Internal_use_mdl extends CI_Model{
     				throw new Exception('Producto inválido: ' . ($product ? $product->name : 'ID '.$id_products[$i]));
     			}
 
-    			if( $product->stock < $quantities[$i] ){
-    				throw new Exception('Stock insuficiente para: ' . $product->name);
-    			}
-
     			$data[] = array(
     				'id_internal_use' => $id_internal_use,
     				'id_product'      => $id_products[$i],
@@ -58,11 +54,17 @@ class Internal_use_mdl extends CI_Model{
     			$updates[] = array( 'id' => $id_products[$i], 'qty' => $quantities[$i] );
     		}
 
+    		// lock + check + decrement all products in ascending id order (no oversell, no deadlock with kitchen orders / sales)
+    		$qty_by_product = array();
     		foreach( $updates as $u ){
-    			$this->db->query(
-    				'UPDATE products SET stock = stock - ? WHERE id_product = ?',
-    				array( (int) $u['qty'], (int) $u['id'] )
-    			);
+    			$qty_by_product[(int) $u['id']] = (isset($qty_by_product[(int) $u['id']]) ? $qty_by_product[(int) $u['id']] : 0) + (int) $u['qty'];
+    		}
+
+    		$this->load->model('products_mdl');
+    		$short = $this->products_mdl->takeStock( $qty_by_product );
+
+    		if( $short ){
+    			throw new Exception('Stock insuficiente para: ' . $short->name);
     		}
 
     		$this->db->insert_batch('internal_use_products', $data);
