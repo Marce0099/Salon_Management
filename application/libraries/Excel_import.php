@@ -47,7 +47,7 @@ class Excel_import{
 	/**
 	 * Streams the empty template (sheet "Datos" + sheet "Instrucciones") and exits.
 	 */
-	public function sendTemplate( $filename, array $columns, array $extra_notes = array() ){
+	public function sendTemplate( $filename, array $columns, array $extra_notes = array(), array $example_rows = array() ){
 
 		$this->loadPhpExcel();
 
@@ -75,17 +75,37 @@ class Excel_import{
 
 		$help = $excel->createSheet();
 		$help->setTitle('Instrucciones');
+		// optional extra columns: "purpose" (what the column is for) and "example"
+		$has_purpose = FALSE;
+		foreach( $columns as $col ){
+			if( !empty($col['purpose']) || !empty($col['example']) ){ $has_purpose = TRUE; break; }
+		}
+
 		$help->setCellValue('A1', 'Columna');
 		$help->setCellValue('B1', 'Obligatorio');
-		$help->setCellValue('C1', 'Formato');
-		$help->getStyle('A1:C1')->getFont()->setBold(TRUE);
+		$help->setCellValue('C1', $has_purpose ? 'Para qué sirve' : 'Formato');
+		if( $has_purpose ){
+			$help->setCellValue('D1', 'Formato');
+			$help->setCellValue('E1', 'Ejemplo');
+		}
+		$help->getStyle('A1:'.( $has_purpose ? 'E' : 'C' ).'1')->getFont()->setBold(TRUE);
 
 		$row = 2;
 		foreach( $columns as $col ){
 			$help->setCellValue('A'.$row, $col['label']);
 			$help->setCellValue('B'.$row, !empty($col['required']) ? 'Sí' : 'No');
-			$help->setCellValue('C'.$row, isset($col['note']) ? $col['note'] : '');
+			if( $has_purpose ){
+				$help->setCellValue('C'.$row, isset($col['purpose']) ? $col['purpose'] : '');
+				$help->setCellValue('D'.$row, isset($col['note']) ? $col['note'] : '');
+				$help->setCellValueExplicit('E'.$row, isset($col['example']) ? (string)$col['example'] : '', PHPExcel_Cell_DataType::TYPE_STRING);
+			}
+			else{
+				$help->setCellValue('C'.$row, isset($col['note']) ? $col['note'] : '');
+			}
 			$row++;
+		}
+		if( $has_purpose ){
+			$help->getStyle('A2:E'.($row - 1))->getAlignment()->setWrapText(TRUE)->setVertical(PHPExcel_Style_Alignment::VERTICAL_TOP);
 		}
 
 		$row++;
@@ -101,9 +121,36 @@ class Excel_import{
 			$row++;
 		}
 
+		// worked examples: one line per row, in the order of the "Datos" columns
+		if( $example_rows ){
+
+			$row++;
+			$help->setCellValue('A'.$row, 'Ejemplos de filas completas (no se importan, solo sirven de guía):');
+			$help->getStyle('A'.$row)->getFont()->setBold(TRUE);
+			$row++;
+
+			foreach( array_merge(array(array_map(function($c){ return $c['label']; }, $columns)), $example_rows) as $n => $ex ){
+
+				foreach( $ex as $i => $value ){
+					$help->setCellValueExplicitByColumnAndRow($i, $row, (string)$value, PHPExcel_Cell_DataType::TYPE_STRING);
+				}
+				if( $n === 0 ){
+					$help->getStyle('A'.$row.':'.$last_letter.$row)->getFont()->setBold(TRUE);
+				}
+				$row++;
+			}
+		}
+
 		$help->getColumnDimension('A')->setWidth(28);
-		$help->getColumnDimension('B')->setWidth(14);
-		$help->getColumnDimension('C')->setWidth(70);
+		$help->getColumnDimension('B')->setWidth($has_purpose ? 16 : 14);
+		$help->getColumnDimension('C')->setWidth($has_purpose ? 50 : 70);
+		if( $has_purpose ){
+			$help->getColumnDimension('D')->setWidth(46);
+			$help->getColumnDimension('E')->setWidth(22);
+			for( $i = 5; $i < count($columns); $i++ ){
+				$help->getColumnDimension( PHPExcel_Cell::stringFromColumnIndex($i) )->setWidth(18);
+			}
+		}
 
 		$excel->setActiveSheetIndex(0);
 
@@ -325,7 +372,10 @@ class Excel_import{
 	 *   columns   column specs (see header)
 	 *   validate  callable( array &$data ): ?string   -> error message or NULL; may normalize $data in place
 	 *   key       callable( array $data ): string     -> duplicate key of a validated row
-	 *   existing  callable(): array                   -> list of duplicate keys already in the DB
+	 *   merge     (optional) callable( array &$first, array $dupe ): TRUE|string|FALSE
+ *                                                  -> a row repeated inside the file: TRUE = merged into $first,
+ *                                                     string = skipped with that reason, FALSE = plain duplicate
+ *   existing  callable(): array                   -> list of duplicate keys already in the DB
 	 *   insert    callable( array $rows ): void       -> inserts validated rows (throws on failure)
 	 *   db        CI database object (used for the transaction)
 	 * Returns the JSON response array (without the token).
@@ -406,16 +456,34 @@ class Excel_import{
 			$to_insert = array();
 			$duplicates = array();
 
+			$in_file = array(); // key => index in $to_insert of the row that first introduced it
+
 			foreach( $valid as $r ){
 
 				$key = call_user_func($cfg['key'], $r['data']);
 
 				if( isset($seen[$key]) ){
+
+					// optional: a repeated row inside the file may enrich the first one (e.g. one more pack)
+					if( isset($in_file[$key]) && !empty($cfg['merge']) ){
+
+						$merged = call_user_func_array($cfg['merge'], array( &$to_insert[$in_file[$key]], $r['data'] ));
+
+						if( $merged === TRUE ){
+							continue;
+						}
+						if( is_string($merged) ){
+							$duplicates[] = array( 'row' => $r['row'], 'reason' => $merged );
+							continue;
+						}
+					}
+
 					$duplicates[] = array( 'row' => $r['row'], 'reason' => 'Registro duplicado, se omitió' );
 					continue;
 				}
 
 				$seen[$key] = TRUE;
+				$in_file[$key] = count($to_insert);
 				$to_insert[] = $r['data'];
 			}
 

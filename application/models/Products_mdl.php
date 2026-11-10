@@ -49,15 +49,47 @@ class Products_mdl extends CI_Model{
 		)->result();
 	}
 
-	// Replaces the product's packs with the given list (rows: name, units, barcode|NULL, price_cost|NULL).
+	// Syncs the product's packs with the given list (rows: [id_pack,] name, units, barcode|NULL, price_cost|NULL).
+	// Rows carrying the id of one of the product's packs are updated in place so pack ids stay stable;
+	// rows without a (valid) id are inserted; stored packs missing from the list are deleted.
 	public function savePacks( $id_product, $packs ){
 
-		$this->db->delete( 'product_packs', array( 'id_product' => (int)$id_product ) );
+		$id_product = (int)$id_product;
+
+		$existing = array();
+		foreach( $this->db->select('id_pack')->get_where('product_packs', array( 'id_product' => $id_product ))->result() as $r ){
+			$existing[(int)$r->id_pack] = TRUE;
+		}
+
+		// free every barcode first so rows can swap codes without tripping the UNIQUE index mid-way
+		if( $existing ){
+			$this->db->where( 'id_product', $id_product )->update( 'product_packs', array( 'barcode' => NULL ) );
+		}
+
+		$kept = array();
 
 		foreach( $packs as $pack ){
 
-			$pack['id_product'] = (int)$id_product;
-			$this->db->insert( 'product_packs', $pack );
+			$id_pack = isset($pack['id_pack']) ? (int)$pack['id_pack'] : 0;
+			unset($pack['id_pack']);
+
+			if( $id_pack && isset($existing[$id_pack]) && !isset($kept[$id_pack]) ){
+
+				$this->db->where( array( 'id_pack' => $id_pack, 'id_product' => $id_product ) )->update( 'product_packs', $pack );
+				$kept[$id_pack] = TRUE;
+			}
+			else{
+
+				$pack['id_product'] = $id_product;
+				$this->db->insert( 'product_packs', $pack );
+			}
+		}
+
+		foreach( array_keys($existing) as $id_pack ){
+
+			if( !isset($kept[$id_pack]) ){
+				$this->db->delete( 'product_packs', array( 'id_pack' => $id_pack, 'id_product' => $id_product ) );
+			}
 		}
 	}
 

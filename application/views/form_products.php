@@ -117,8 +117,9 @@
 			<div id="packs-list">
 				<?php foreach( (isset($packs) ? $packs : array()) as $pk ) : ?>
 				<div class="row pack-row" style="margin-bottom:6px;">
+					<input type="hidden" name="pack_ids[]" value="<?php echo (int)$pk->id_pack; ?>">
 					<div class="col-xs-6 col-sm-3"><input type="text" name="pack_names[]" class="form-control" placeholder="Nombre" maxlength="60" value="<?php echo htmlspecialchars($pk->name); ?>"></div>
-					<div class="col-xs-6 col-sm-2"><input type="text" name="pack_units[]" class="form-control" placeholder="Unidades" data-parsley-type="integer" value="<?php echo (int)$pk->units; ?>"></div>
+					<div class="col-xs-6 col-sm-2"><input type="text" name="pack_units[]" class="form-control" placeholder="Unidades (2 o más)" data-parsley-type="integer" data-parsley-min="2" data-parsley-max="100000" value="<?php echo (int)$pk->units; ?>"></div>
 					<div class="col-xs-6 col-sm-2"><input type="text" name="pack_costs[]" class="form-control" placeholder="Costo $" data-parsley-type="number" value="<?php echo $pk->price_cost !== NULL ? htmlspecialchars($pk->price_cost) : ''; ?>"></div>
 					<div class="col-xs-5 col-sm-3"><input type="text" name="pack_barcodes[]" class="form-control" placeholder="Código barra" maxlength="20" value="<?php echo htmlspecialchars((string)$pk->barcode); ?>"></div>
 					<div class="col-xs-1 col-sm-1"><a href="javascript:;" class="btn btn-link text-danger remove-pack"><i class="fa fa-times"></i></a></div>
@@ -138,8 +139,9 @@
 
 <div class="hidden" id="pack-template">
 	<div class="row pack-row" style="margin-bottom:6px;">
+		<input type="hidden" name="pack_ids[]" value="" disabled>
 		<div class="col-xs-6 col-sm-3"><input type="text" name="pack_names[]" class="form-control" placeholder="Nombre" maxlength="60" disabled></div>
-		<div class="col-xs-6 col-sm-2"><input type="text" name="pack_units[]" class="form-control" placeholder="Unidades" data-parsley-type="integer" disabled></div>
+		<div class="col-xs-6 col-sm-2"><input type="text" name="pack_units[]" class="form-control" placeholder="Unidades (2 o más)" data-parsley-type="integer" data-parsley-min="2" data-parsley-max="100000" disabled></div>
 		<div class="col-xs-6 col-sm-2"><input type="text" name="pack_costs[]" class="form-control" placeholder="Costo $" data-parsley-type="number" disabled></div>
 		<div class="col-xs-5 col-sm-3"><input type="text" name="pack_barcodes[]" class="form-control" placeholder="Código barra" maxlength="20" disabled></div>
 		<div class="col-xs-1 col-sm-1"><a href="javascript:;" class="btn btn-link text-danger remove-pack"><i class="fa fa-times"></i></a></div>

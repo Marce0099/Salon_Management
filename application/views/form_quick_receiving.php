@@ -116,7 +116,7 @@
 	function addLine(p){
 
 		var $c = $(
-			'<div class="qr-card" data-id="' + parseInt(p.id_product, 10) + '">' +
+			'<div class="qr-card" data-id="' + parseInt(p.id_product, 10) + '" data-prev-cost="' + esc(p.price_cost) + '">' +
 				'<span class="qr-remove"><i class="fa fa-times"></i></span>' +
 				'<div class="qr-name">' + esc(p.name) + '</div>' +
 				'<div class="row">' +
@@ -125,6 +125,7 @@
 					'<div class="col-xs-6"><label>Costo por unidad ($)</label><input type="text" inputmode="decimal" class="form-control qr-cost" value="' + esc(p.price_cost) + '"></div>' +
 					'<div class="col-xs-6"><label>Precio venta ($)</label><input type="text" inputmode="decimal" class="form-control qr-sell" value="' + esc(p.price_sell) + '"></div>' +
 				'</div>' +
+				'<div class="small qr-warn" style="margin-top:4px;"></div>' +
 				'<div class="text-right text-muted qr-units" style="margin-top:4px;"></div>' +
 			'</div>'
 		);
@@ -154,6 +155,34 @@
 
 	function num(v){ var n = parseFloat(String(v).replace(',', '.')); return isNaN(n) ? 0 : n; }
 
+	// Soft warnings (never block saving): cost jump vs. the last cost, and thin or negative margin.
+	function costWarning(cost, sell, prev){
+
+		var msgs = [];
+
+		if( prev > 0 && cost > 0 ){
+
+			var jump = (cost - prev) / prev * 100;
+
+			if( Math.abs(jump) >= 20 ){
+				msgs.push('<span class="text-warning"><i class="fa fa-exclamation-triangle"></i> Costo ' + (jump > 0 ? 'subió ' : 'bajó ') + Math.abs(jump).toFixed(0) + '% (antes $' + prev.toFixed(2) + ')</span>');
+			}
+		}
+
+		if( sell > 0 && cost > 0 ){
+
+			if( sell <= cost ){
+				msgs.push('<span class="text-danger"><i class="fa fa-exclamation-circle"></i> Venta menor o igual al costo: pérdida</span>');
+			}
+			else{
+				var margin = (sell - cost) / sell * 100;
+				msgs.push('<span class="' + (margin < 30 ? 'text-warning' : 'text-muted') + '">Margen ' + margin.toFixed(0) + '%' + (margin < 30 ? ' (bajo)' : '') + '</span>');
+			}
+		}
+
+		return msgs.join('<br>');
+	}
+
 	function recalc(){
 
 		var total = 0;
@@ -164,6 +193,7 @@
 			var u = units($c) * (parseInt($c.find('.qr-qty').val(), 10) || 0);
 			total += u * num($c.find('.qr-cost').val());
 			$c.find('.qr-units').text(u + ' unidades');
+			$c.find('.qr-warn').html( costWarning(num($c.find('.qr-cost').val()), num($c.find('.qr-sell').val()), num($c.attr('data-prev-cost'))) );
 		});
 
 		$('#qr-total').text('Total: $' + total.toFixed(2));
@@ -222,7 +252,36 @@
 
 		if( bad ){ notify('La cantidad debe ser un entero mayor a cero', 'error'); return; }
 
-		var $btn = $(this).prop('disabled', true);
+		// summary so a wrong quantity is caught before it hits the stock (there is no edit afterwards)
+		var rows = '', alerts = 0;
+		$cards.each(function(){
+
+			var $c = $(this);
+			var q = (parseInt($c.find('.qr-qty').val(), 10) || 0);
+			var pk = $c.find('.qr-pack option:selected');
+			var label = pk.val() ? ' ' + esc(pk.text()) : '';
+			if( $c.find('.qr-warn .text-warning, .qr-warn .text-danger').length ){ alerts++; }
+
+			rows += '<tr><td>' + esc($c.find('.qr-name').text()) + '</td><td class="text-right">' + q + label + '<br><small class="text-muted">' + (q * units($c)) + ' unid.</small></td></tr>';
+		});
+
+		var provider = $('#qr-provider').val() ? esc($('#qr-provider option:selected').text()) : '<em>Sin proveedor</em>';
+		var summary = '<p><strong>' + esc($('#qr-invoice-no').val()) + '</strong> · ' + provider + '</p>' +
+			'<table class="table table-condensed"><tbody>' + rows + '</tbody></table>' +
+			'<h4>' + esc($('#qr-total').text()) + '</h4>' +
+			( alerts ? '<p class="text-warning"><i class="fa fa-exclamation-triangle"></i> ' + alerts + ' producto(s) con aviso de costo o margen.</p>' : '' );
+
+		bootbox.confirm({
+			title : 'Confirmar recepción',
+			message : summary,
+			buttons : { confirm : { label : 'Guardar', className : 'btn-success' }, cancel : { label : 'Revisar', className : 'btn-default' } },
+			callback : function(ok){ if( ok ){ send(post); } }
+		});
+	});
+
+	function send(post){
+
+		var $btn = $('#qr-save').prop('disabled', true);
 
 		$.ajax({
 			url : '<?php echo base_url('invoices/register'); ?>',
@@ -245,7 +304,7 @@
 			},
 			error : function(){ notify('Ha ocurrido un error guardando la recepción', 'error'); $btn.prop('disabled', false); }
 		});
-	});
+	}
 
 })();
 </script>

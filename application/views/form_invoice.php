@@ -82,6 +82,7 @@
 		</td>
 		<td>
 			<input type="text" name="prices_cost[]" class="p-price-cost text-center" placeholder="Precio costo" required="true" data-parsley-type="number" onkeyup="updateTotal($(this).parents('tr'));" >
+			<div class="p-warn small" style="margin-top:3px;"></div>
 		</td>
 		<td>
 			<input type="text" name="prices_sell[]" class="p-price-sell text-center" placeholder="Precio venta" required="true" data-parsley-type="number" onkeyup="updateTotal($(this).parents('tr'));" >
@@ -469,6 +470,9 @@
 		var $sel = row.find('.p-pack');
 		$sel.html('<option value="" data-units="1">Unidad</option>').hide();
 
+		// the cost the product had when it was picked = "last cost" to compare against
+		row.data('prevCost', numeral( row.find('.p-price-cost').val() ).value() || 0);
+
 		$.getJSON('<?php echo base_url('products/packs'); ?>/' + idProduct, function(data){
 
 			if( data.packs && data.packs.length ){
@@ -506,7 +510,41 @@
 		return parseInt(row.find('.p-pack option:selected').attr('data-units'), 10) || 1;
 	}
 
+	// Soft warnings (never block saving): cost jump vs. the last cost, and thin or negative margin.
+	function costWarning(cost, sell, prev){
+
+		var msgs = [];
+
+		if( prev > 0 && cost > 0 ){
+
+			var jump = (cost - prev) / prev * 100;
+
+			if( Math.abs(jump) >= 20 ){
+				msgs.push('<span class="text-warning"><i class="fa fa-exclamation-triangle"></i> Costo ' + (jump > 0 ? 'subió ' : 'bajó ') + Math.abs(jump).toFixed(0) + '% (antes $' + prev.toFixed(2) + ')</span>');
+			}
+		}
+
+		if( sell > 0 && cost > 0 ){
+
+			if( sell <= cost ){
+				msgs.push('<span class="text-danger"><i class="fa fa-exclamation-circle"></i> Venta menor o igual al costo: pérdida</span>');
+			}
+			else{
+				var margin = (sell - cost) / sell * 100;
+				msgs.push('<span class="' + (margin < 30 ? 'text-warning' : 'text-muted') + '">Margen ' + margin.toFixed(0) + '%' + (margin < 30 ? ' (bajo)' : '') + '</span>');
+			}
+		}
+
+		return msgs.join('<br>');
+	}
+
 	function updateTotal(row){
+
+		row.find('.p-warn').html( costWarning(
+			numeral( row.find('.p-price-cost').val() ).value() || 0,
+			numeral( row.find('.p-price-sell').val() ).value() || 0,
+			row.data('prevCost') || 0
+		) );
 
 		var p = numeral( row.find('.p-price-cost').val() ).value();
 		var q = numeral( row.find('.p-quantity').val() ).value() * rowUnits(row);
