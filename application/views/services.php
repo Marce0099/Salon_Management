@@ -106,6 +106,9 @@
 						<li>
 							<a href="<?php echo base_url("products/edit/{$s->id_product}"); ?>"><i class="fa fa-pencil"></i> Editar</a>
 						</li>
+						<li>
+							<a href="<?php echo base_url("ingredients/recipe/{$s->id_product}"); ?>"><i class="fa fa-list-alt"></i> Receta</a>
+						</li>
 						<li class="divider"></li>
 						<li>
 							<a class="confirm-action" data-msg="Confirma eliminar el platillo?" href="<?php echo base_url("products/delete/{$s->id_product}"); ?>"><i class="fa fa-times"></i> Eliminar</a>

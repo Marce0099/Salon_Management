@@ -89,6 +89,7 @@ class Kitchen extends Admin_Controller{
 
 		$lines = array();
 		$asked = array(); // qty per stocked product across lines
+		$asked_recipe = array(); // portions per recipe dish across lines
 
 		foreach( $raw as $r ){
 
@@ -119,6 +120,15 @@ class Kitchen extends Admin_Controller{
 				}
 			}
 
+			// recipe dishes: the ingredient stock must cover every portion asked (across all lines of the order)
+			$portions = $this->kitchen_mdl->recipePortions($p->id_product);
+			if( $portions !== NULL ){
+				$asked_recipe[(int) $p->id_product] = (isset($asked_recipe[(int) $p->id_product]) ? $asked_recipe[(int) $p->id_product] : 0) + $qty;
+				if( $asked_recipe[(int) $p->id_product] > $portions ){
+					$this->fail($portions > 0 ? 'Solo quedan '.$portions.' porciones de '.$p->name.' (ingredientes insuficientes)' : $p->name.' está agotado (faltan ingredientes)');
+				}
+			}
+
 			$lines[] = array(
 				'id_product' => (int) $p->id_product, 'name' => $p->name, 'quantity' => $qty, 'price' => (float) $p->price_sell,
 				'notes' => $notes, 'course' => $course, 'prints_kitchen' => (int) $p->prints_kitchen,
@@ -140,6 +150,9 @@ class Kitchen extends Admin_Controller{
 		$id_order = $this->kitchen_mdl->createOrder($tab->id_tab, $this->id_admin, $lines, $id_bill);
 		if( $id_order === -1 ){
 			$this->fail('Stock insuficiente: otro pedido tomó existencias. Actualice la pantalla');
+		}
+		if( $id_order === -2 ){
+			$this->fail('Ingredientes insuficientes ('.$this->kitchen_mdl->short_ingredient.'). Actualice la pantalla');
 		}
 		if( !$id_order ){
 			$this->fail('No se pudo guardar el pedido');

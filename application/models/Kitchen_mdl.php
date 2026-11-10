@@ -3,6 +3,9 @@
 /** Ordering on a tab + kitchen tickets. (Named Kitchen_mdl: Orders_mdl belongs to the disabled supplier-orders feature.) */
 class Kitchen_mdl extends CI_Model{
 
+	/** Name of the ingredient that could not cover an order (set when createOrder/replaceItem fail with -2). */
+	public $short_ingredient = '';
+
 	public function tab($id_tab){
 
 		$sql = 'SELECT t.*, d.label AS table_label, a.name AS area_name, e.name AS waiter
@@ -29,11 +32,22 @@ class Kitchen_mdl extends CI_Model{
 
 		$rows = $this->db->query($sql)->result();
 
+		$this->load->model('ingredients_mdl');
+		$recipes = $this->ingredients_mdl->recipesFor(array_map(function($r){ return $r->id; }, $rows));
+
 		foreach( $rows as $r ){
 			$r->id    = (int) $r->id;
 			$r->price = (float) $r->price_sell;
 			$r->stocked = !$r->is_service;
 			$r->available = $r->stocked ? max(0, (int) $r->stock) : NULL;
+
+			// dishes with a recipe: availability = portions the ingredient stock still covers ("Agotado" at 0)
+			if( isset($recipes[$r->id]) ){
+				$portions = Ingredients_mdl::portions($recipes[$r->id]);
+				$r->stocked   = TRUE;
+				$r->available = $r->available === NULL ? $portions : min($r->available, $portions);
+			}
+
 			unset($r->price_sell, $r->stock, $r->is_service);
 		}
 
@@ -54,6 +68,46 @@ class Kitchen_mdl extends CI_Model{
 		return max(0, (int) $p->stock);
 	}
 
+	/** Portions of a product that its recipe's ingredient stock covers; NULL when it has no recipe. */
+	public function recipePortions($id_product){
+
+		$this->load->model('ingredients_mdl');
+		$r = $this->ingredients_mdl->recipesFor(array($id_product));
+
+		return isset($r[(int) $id_product]) ? Ingredients_mdl::portions($r[(int) $id_product]) : NULL;
+	}
+
+	/**
+	 * Takes (sign = -1) or returns (+1) the ingredients of $qty portions of a product. Taking is atomic per ingredient
+	 * (UPDATE ... WHERE stock >= need). Returns '' when fine, else the name of the ingredient that fell short. Caller owns the transaction.
+	 */
+	private function moveIngredients($id_product, $qty, $sign, $id_order_item, $id_admin){
+
+		$rows = $this->db->query('SELECT r.id_ingredient, r.quantity, i.name FROM recipe_items r JOIN ingredients i ON i.id_ingredient = r.id_ingredient
+			WHERE r.id_product = ? ORDER BY r.id_ingredient', array((int) $id_product))->result();
+
+		if( !$rows ){ return ''; }
+
+		$this->load->model('ingredients_mdl');
+
+		foreach( $rows as $r ){
+
+			$need = round((float) $r->quantity * (int) $qty, 3);
+
+			if( $sign < 0 ){
+				$this->db->query('UPDATE ingredients SET stock = stock - ? WHERE id_ingredient = ? AND stock >= ?', array($need, (int) $r->id_ingredient, $need));
+				if( $this->db->affected_rows() < 1 ){ return $r->name; }
+			}
+			else{
+				$this->db->query('UPDATE ingredients SET stock = stock + ? WHERE id_ingredient = ?', array($need, (int) $r->id_ingredient));
+			}
+
+			$this->ingredients_mdl->log($r->id_ingredient, $sign < 0 ? 'order' : 'void', $sign * $need, NULL, $id_admin, $id_order_item);
+		}
+
+		return '';
+	}
+
 	/** Creates the batch + its lines atomically and takes the stocked products out of stock. Returns id_order (0 = failed, -1 = not enough stock). */
 	public function createOrder($id_tab, $id_admin, $lines, $id_bill = 0){
 
@@ -63,7 +117,7 @@ class Kitchen_mdl extends CI_Model{
 
 		if( $id_order < 1 || $this->db->trans_status() === FALSE ){
 			$this->db->trans_rollback();
-			return $id_order < 0 ? $id_order : 0;
+			return $id_order < 0 ? $id_order : 0; // -1 = product stock, -2 = ingredient short (see $short_ingredient)
 		}
 
 		$this->db->trans_commit();
@@ -97,6 +151,12 @@ class Kitchen_mdl extends CI_Model{
 				'course'         => (int) $l['course'],
 				'prints_kitchen' => (int) $l['prints_kitchen'],
 			));
+
+			$short = $this->moveIngredients($l['id_product'], $l['quantity'], -1, $this->db->insert_id(), $id_admin);
+			if( $short !== '' ){
+				$this->short_ingredient = $short;
+				return -2;
+			}
 		}
 
 		return $id_order;
@@ -185,6 +245,7 @@ class Kitchen_mdl extends CI_Model{
 
 		if( $item->bill_status !== 'paid' ){
 			$this->db->query('UPDATE products SET stock = stock + ? WHERE id_product = ? AND is_service = 0', array($qty, (int) $item->id_product));
+			$this->moveIngredients($item->id_product, $qty, 1, $item->id_order_item, $id_admin);
 		}
 
 		return array(TRUE, 'Producto anulado', $item, $qty);
@@ -230,7 +291,8 @@ class Kitchen_mdl extends CI_Model{
 		$id_order = $this->insertOrder($old->id_tab, $id_admin, array($line), $old->id_bill);
 		if( $id_order < 1 || $this->db->trans_status() === FALSE ){
 			$this->db->trans_rollback();
-			return array(FALSE, $id_order === -1 ? 'Stock insuficiente de '.$new->name : 'No se pudo guardar el cambio', 0);
+			$msg = $id_order === -1 ? 'Stock insuficiente de '.$new->name : ($id_order === -2 ? 'Ingredientes insuficientes para '.$new->name.' (falta '.$this->short_ingredient.')' : 'No se pudo guardar el cambio');
+			return array(FALSE, $msg, 0);
 		}
 
 		$this->db->trans_commit();
