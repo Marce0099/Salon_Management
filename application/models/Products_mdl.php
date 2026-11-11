@@ -7,6 +7,35 @@ class Products_mdl extends CI_Model{
 		parent::__construct();
 	}
 
+	/**
+	 * Takes stock of several products at once, for any flow that sells/uses products outside the kitchen order (free-form sales, internal use).
+	 * Locks the rows in ascending id order (the same global order as Kitchen_mdl::lockFor, so no deadlock cycle with kitchen orders),
+	 * checks every product against the LOCKED stock and only then decrements. Services are ignored.
+	 * $qty_by_product = array(id_product => quantity). Returns NULL when taken, else the first short row (name, stock) with nothing
+	 * decremented. The caller owns the transaction.
+	 */
+	public function takeStock( $qty_by_product ){
+
+		$want = array();
+		foreach( $qty_by_product as $id => $qty ){ $want[(int) $id] = (isset($want[(int) $id]) ? $want[(int) $id] : 0) + (int) $qty; }
+		ksort($want);
+
+		if( !$want ){ return NULL; }
+
+		$rows = $this->db->query('SELECT id_product, name, is_service, stock FROM products WHERE id_product IN ('.implode(',', array_keys($want)).') ORDER BY id_product FOR UPDATE')->result();
+
+		foreach( $rows as $r ){
+			if( !(int) $r->is_service && (int) $r->stock < $want[(int) $r->id_product] ){ return $r; }
+		}
+		foreach( $rows as $r ){
+			if( !(int) $r->is_service ){
+				$this->db->query('UPDATE products SET stock = stock - ? WHERE id_product = ?', array($want[(int) $r->id_product], (int) $r->id_product));
+			}
+		}
+
+		return NULL;
+	}
+
 	public function barcodeExists( $barcode, $id_product = NULL ){
 
 		$sql = 'select * from products where trim(upper(barcode)) = trim(upper(?))';

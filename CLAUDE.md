@@ -68,6 +68,16 @@ Money convention: product prices, tip and IVA are stored in **dollars** (the uni
 
 Availability while ordering = `products.stock` (`Kitchen_mdl::available`), since the decrement happens when the order is sent. `Floor::close_tab` refuses a table with active items. Equal-split money: parts apportion subtotal/tip/IVA with floor-to-cents, last part takes the remainder (`Bills_mdl::childTotals`).
 
+### Ingredients & recipes (Block B)
+
+| Table | Key columns / rules |
+|---|---|
+| `ingredients` | `name` UNIQUE, `unit` g\|ml\|u (single base unit), `stock` DECIMAL(12,3), `alert_threshold` (low-stock banner at `stock <= threshold`, 0 = off), `cost_unit` $/base unit (refreshed when receiving with a total cost), optional pack (`pack_name`, `pack_size` base units), `active` soft delete (refused while an active dish recipe uses it) |
+| `recipe_items` | `id_product`->products CASCADE, `id_ingredient`->ingredients CASCADE, `quantity` per portion; UNIQUE(product, ingredient). Edited at `/ingredients/recipe/{id_product}` (admin; link in Platillos menu) with cost/portion and margin |
+| `ingredient_movements` | log: `type` receive\|order\|void\|waste\|adjustment, signed `quantity`, `reason`, `id_admin`, `id_order_item` |
+
+`Kitchen_mdl::insertOrder` takes ingredients per line in the same transaction (atomic `UPDATE … WHERE stock >= need`; failure = -2 + `short_ingredient`, order refused); voiding/replacing a line returns them (by the CURRENT recipe) unless its bill is paid. Menu `available` for a recipe dish = portions covered by the scarcest ingredient (0 = "Agotado"); `Kitchen::send` also pre-checks. **Concurrency:** `Kitchen_mdl` locks product and ingredient rows (`SELECT … FOR UPDATE`) in one global order (products by id, then ingredients by id) for sends, voids and swaps, checks the WHOLE order against the locked stock, then decrements; the first transaction to get the locks wins and a competing one is refused untouched (`-2`, rolled back). `runTx()` retries deadlock/lock-timeout exceptions up to 3 times (the DB driver is PDO and throws), then answers `-3` ("mucha actividad"). Stock rejections return `availability` so the order screen updates itself. Free-form sales (`Sales::register`) and internal use take product stock through `Products_mdl::takeStock()` (same ascending-id row locks, whole-document check against locked stock, then decrement), so they can neither oversell nor deadlock against kitchen orders; `Sales_mdl::saveSaleProduct` no longer decrements.  Admin UI `/ingredients` (receive by pack, waste, physical count, history).
+
 ### Sales & payments
 
 | Table | Key columns / rules |

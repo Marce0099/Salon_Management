@@ -493,6 +493,28 @@ class Sales extends Admin_Controller{
 
 			$this->db->trans_start();
 
+			// free-form sale: take the stock of ALL lines up front under row locks (ascending product id), so a concurrent kitchen order,
+			// sale or internal use can neither oversell nor deadlock with this one. Bill checkout takes none (the order already did).
+			if( !$bill_ctx ){
+
+				$qty_by_product = array();
+				for( $i=0; $i < count($id_products); $i++ ){
+					$qty_by_product[(int) $id_products[$i]] = (isset($qty_by_product[(int) $id_products[$i]]) ? $qty_by_product[(int) $id_products[$i]] : 0) + (int) $quantities[$i];
+				}
+
+				$this->load->model('products_mdl');
+				$short = $this->products_mdl->takeStock( $qty_by_product );
+
+				if( $short ){
+
+					$this->db->trans_rollback();
+					$response['type'] = 'error';
+					$response['message'] = 'Stock insuficiente para "'.$short->name.'" (disponible: '.(int) $short->stock.')';
+					echo json_encode($response);
+					exit();
+				}
+			}
+
 			if( $bill_ctx ){
 
 				// exclusive lock on the bill, then make sure nobody changed or paid it since the checkout screen was built
@@ -661,7 +683,7 @@ class Sales extends Admin_Controller{
 
 				$total_cordobas += $subtotal * $exchange->sell_price;
 
-				$stock = $this->sales_mdl->saveSaleProduct($sale_product, !$bill_ctx);
+				$stock = $this->sales_mdl->saveSaleProduct($sale_product, FALSE); // stock already taken under lock above (free-form) or by the kitchen order (bill)
 			}
 
 			if( $bill_ctx ){
