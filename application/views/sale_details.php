@@ -187,7 +187,7 @@ $(function(){
 	<tbody>
 		<?php foreach( $details as $d ) : ?>
 		<tr>
-			<td><?php echo $d->barcode .' : '. $d->name; ?></td>
+			<td><?php echo $d->barcode .' : '. $d->name; ?><?php if( !empty($d->mods_text) ) : ?><br><small class="text-muted"><i class="fa fa-asterisk"></i> <?php echo htmlspecialchars($d->mods_text); ?></small><?php endif; ?></td>
 			<td>$<?php echo number_format($d->price_sell,2); ?></td>
 			<td><?php echo $d->quantity; ?></td>
 			<td><?php echo $d->discount; ?></td>

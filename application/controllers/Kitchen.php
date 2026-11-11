@@ -33,11 +33,15 @@ class Kitchen extends Admin_Controller{
 	private function failStock($message){
 
 		$avail = array();
+		$stock = array();
 		foreach( $this->kitchen_mdl->menu() as $m ){
-			if( $m->stocked ){ $avail[$m->id] = (int) $m->available; }
+			if( $m->stocked ){
+				$avail[$m->id] = (int) $m->available;
+				$stock[$m->id] = array('base' => $m->base, 'rec' => $m->rec);
+			}
 		}
 
-		$this->json(array('type' => 'error', 'message' => $message, 'availability' => $avail));
+		$this->json(array('type' => 'error', 'message' => $message, 'availability' => $avail, 'stock' => $stock));
 	}
 
 	private function requirePost(){
@@ -99,6 +103,10 @@ class Kitchen extends Admin_Controller{
 		}
 
 		$lines = array();
+		$has_mods = array(); // products with at least one modified line: their recipe check is done on the net need below
+		foreach( $raw as $r0 ){
+			if( isset($r0['id_product'], $r0['modifiers']) && is_array($r0['modifiers']) && count($r0['modifiers']) ){ $has_mods[(int) $r0['id_product']] = TRUE; }
+		}
 		$asked = array(); // qty per stocked product across lines
 		$asked_recipe = array(); // portions per recipe dish across lines
 
@@ -123,6 +131,15 @@ class Kitchen extends Admin_Controller{
 				$course = 1;
 			}
 
+			// modifiers picked for this line: must belong to the dish; their ingredient removals are clamped to the recipe
+			$this->load->model('modifiers_mdl');
+			$this->load->model('ingredients_mdl');
+			$rec = $this->ingredients_mdl->recipesFor(array((int) $p->id_product));
+			list($mod_err, $mods) = $this->modifiers_mdl->resolve($p->id_product, isset($r['modifiers']) ? $r['modifiers'] : array(), isset($rec[(int) $p->id_product]) ? $rec[(int) $p->id_product] : NULL);
+			if( $mod_err ){
+				$this->fail($mod_err);
+			}
+
 			if( !$p->is_service ){
 				$asked[(int) $p->id_product] = (isset($asked[(int) $p->id_product]) ? $asked[(int) $p->id_product] : 0) + $qty;
 				$avail = $this->kitchen_mdl->available($p->id_product);
@@ -133,7 +150,7 @@ class Kitchen extends Admin_Controller{
 
 			// recipe dishes: the ingredient stock must cover every portion asked (across all lines of the order)
 			$portions = $this->kitchen_mdl->recipePortions($p->id_product);
-			if( $portions !== NULL ){
+			if( $portions !== NULL && empty($has_mods[(int) $p->id_product]) ){
 				$asked_recipe[(int) $p->id_product] = (isset($asked_recipe[(int) $p->id_product]) ? $asked_recipe[(int) $p->id_product] : 0) + $qty;
 				if( $asked_recipe[(int) $p->id_product] > $portions ){
 					$this->failStock($portions > 0 ? 'Solo quedan '.$portions.' porciones de '.$p->name.' (ingredientes insuficientes)' : $p->name.' está agotado (faltan ingredientes)');
@@ -142,8 +159,33 @@ class Kitchen extends Admin_Controller{
 
 			$lines[] = array(
 				'id_product' => (int) $p->id_product, 'name' => $p->name, 'quantity' => $qty, 'price' => (float) $p->price_sell,
-				'notes' => $notes, 'course' => $course, 'prints_kitchen' => (int) $p->prints_kitchen,
+				'notes' => $notes, 'course' => $course, 'prints_kitchen' => (int) $p->prints_kitchen, 'modifiers' => $mods,
 			);
+		}
+
+		// products with modified lines: all their lines together must fit the ingredient stock once each line's removals are taken off
+		foreach( array_keys($has_mods) as $pid ){
+
+			$rec = $this->ingredients_mdl->recipesFor(array($pid));
+			if( empty($rec[$pid]) ){ continue; }
+
+			$need = array();
+			$pname = '';
+			foreach( $lines as $l ){
+				if( (int) $l['id_product'] !== (int) $pid ){ continue; }
+				$pname = $l['name'];
+				$removal = Modifiers_mdl::removalMap($l['modifiers']);
+				foreach( $rec[$pid] as $rr ){
+					$per = max(0, round((float) $rr->quantity - (isset($removal[(int) $rr->id_ingredient]) ? $removal[(int) $rr->id_ingredient] : 0), 3));
+					$need[(int) $rr->id_ingredient] = (isset($need[(int) $rr->id_ingredient]) ? $need[(int) $rr->id_ingredient] : 0) + round($per * (int) $l['quantity'], 3);
+				}
+			}
+
+			foreach( $rec[$pid] as $rr ){
+				if( isset($need[(int) $rr->id_ingredient]) && round($need[(int) $rr->id_ingredient], 3) > round((float) $rr->stock, 3) ){
+					$this->failStock('Ingredientes insuficientes para '.$pname.' (falta '.$rr->name.')');
+				}
+			}
 		}
 
 		// target bill: the one chosen on screen if it is an open bill of this tab, else the first open bill (or a new one)
@@ -243,8 +285,16 @@ class Kitchen extends Admin_Controller{
 			$this->fail('La nota es demasiado larga');
 		}
 
+		// modifiers of the old line that also apply to the new dish are kept ("sin queso" survives a swap between two burgers)
+		$this->load->model('modifiers_mdl');
+		$this->load->model('ingredients_mdl');
+		$keep = $this->modifiers_mdl->compatibleIds($new->id_product, $this->modifiers_mdl->itemModifierIds($item->id_order_item));
+		$rec = $this->ingredients_mdl->recipesFor(array((int) $new->id_product));
+		list($mod_err, $mods) = $this->modifiers_mdl->resolve($new->id_product, $keep, isset($rec[(int) $new->id_product]) ? $rec[(int) $new->id_product] : NULL);
+		if( $mod_err ){ $this->fail($mod_err); }
+
 		$reason = 'Cambio por '.mb_substr($new->name, 0, 200, 'UTF-8');
-		list($ok, $msg, $id_order) = $this->kitchen_mdl->replaceItem($item->id_order_item, $qty, $new, $new_qty, $notes, $reason, $this->id_admin, $this->is_admin());
+		list($ok, $msg, $id_order) = $this->kitchen_mdl->replaceItem($item->id_order_item, $qty, $new, $new_qty, $notes, $reason, $this->id_admin, $this->is_admin(), $mods);
 
 		if( !$ok ){
 			$this->fail($msg);
@@ -335,6 +385,10 @@ class Kitchen extends Admin_Controller{
 				$printer->setTextSize(2, 2);
 				$printer->text($i->quantity." x ".$this->ascii($i->product_name)."\n");
 				$printer->setTextSize(1, 1);
+
+				foreach( $i->mods as $mod_text ){
+					$printer->text("   ** ".$this->ascii($mod_text)."\n");
+				}
 
 				if( $i->notes ){
 					$printer->text("   >> ".$this->ascii($i->notes)."\n");

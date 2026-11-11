@@ -34,16 +34,22 @@ class Kitchen_mdl extends CI_Model{
 
 		$this->load->model('ingredients_mdl');
 		$recipes = $this->ingredients_mdl->recipesFor(array_map(function($r){ return $r->id; }, $rows));
+		$this->load->model('modifiers_mdl');
+		$mods = $this->modifiers_mdl->menuMap();
 
 		foreach( $rows as $r ){
 			$r->id    = (int) $r->id;
 			$r->price = (float) $r->price_sell;
 			$r->stocked = !$r->is_service;
 			$r->available = $r->stocked ? max(0, (int) $r->stock) : NULL;
+			$r->base = $r->available; // product stock only (NULL for dishes); the recipe part is in rec
+			$r->mods = isset($mods[$r->id]) ? $mods[$r->id] : array();
+			$r->rec = array();
 
 			// dishes with a recipe: availability = portions the ingredient stock still covers ("Agotado" at 0)
 			if( isset($recipes[$r->id]) ){
 				$portions = Ingredients_mdl::portions($recipes[$r->id]);
+				foreach( $recipes[$r->id] as $rr ){ $r->rec[] = array('i' => (int) $rr->id_ingredient, 'q' => (float) $rr->quantity, 's' => (float) $rr->stock); }
 				$r->stocked   = TRUE;
 				$r->available = $r->available === NULL ? $portions : min($r->available, $portions);
 			}
@@ -133,12 +139,18 @@ class Kitchen_mdl extends CI_Model{
 		$locked = $this->lockFor($ids);
 		$this->cur_recipes = $this->ingredients_mdl->recipesFor($ids);
 
-		// ingredient needs aggregated across every line (same ingredient may feed several dishes of the order)
+		// ingredient needs aggregated across every line (same ingredient may feed several dishes of the order); a line's modifiers
+		// remove part of its recipe (never more than the recipe amount, see Modifiers_mdl::resolve), so locks and checks stay valid
+		$this->load->model('modifiers_mdl');
 		$need_i = array();
-		foreach( $need_p as $id => $qty ){
-			if( !isset($this->cur_recipes[$id]) ){ continue; }
-			foreach( $this->cur_recipes[$id] as $r ){
-				$need_i[(int) $r->id_ingredient] = (isset($need_i[(int) $r->id_ingredient]) ? $need_i[(int) $r->id_ingredient] : 0) + round((float) $r->quantity * $qty, 3);
+		foreach( $lines as $l ){
+			$pid = (int) $l['id_product'];
+			if( !isset($this->cur_recipes[$pid]) ){ continue; }
+			$rem = isset($l['modifiers']) ? Modifiers_mdl::removalMap($l['modifiers']) : array();
+			foreach( $this->cur_recipes[$pid] as $r ){
+				$ing = (int) $r->id_ingredient;
+				$per = max(0, round((float) $r->quantity - (isset($rem[$ing]) ? $rem[$ing] : 0), 3));
+				$need_i[$ing] = (isset($need_i[$ing]) ? $need_i[$ing] : 0) + round($per * (int) $l['quantity'], 3);
 			}
 		}
 		ksort($need_i);
@@ -168,30 +180,71 @@ class Kitchen_mdl extends CI_Model{
 	}
 
 	/** Movement-log rows (no stock change) for the ingredients that one order line consumed / gave back. */
-	private function logIngredients($recipes, $id_product, $qty, $sign, $id_order_item, $id_admin){
+	private function logIngredients($recipes, $id_product, $qty, $sign, $id_order_item, $id_admin, $removal = array()){
 
 		if( !isset($recipes[(int) $id_product]) ){ return; }
 
 		$this->load->model('ingredients_mdl');
 
 		foreach( $recipes[(int) $id_product] as $r ){
-			$this->ingredients_mdl->log($r->id_ingredient, $sign < 0 ? 'order' : 'void', $sign * round((float) $r->quantity * (int) $qty, 3), NULL, $id_admin, $id_order_item);
+			$per = max(0, round((float) $r->quantity - (isset($removal[(int) $r->id_ingredient]) ? $removal[(int) $r->id_ingredient] : 0), 3));
+			$amount = $sign * round($per * (int) $qty, 3);
+			if( $amount == 0 ){ continue; }
+			$this->ingredients_mdl->log($r->id_ingredient, $sign < 0 ? 'order' : 'void', $amount, NULL, $id_admin, $id_order_item);
 		}
 	}
 
+	/** Ingredient ids in the exact-restock snapshot of a line (they must be locked together with the recipe's). */
+	private function snapshotIngredientIds($id_item){
+
+		$out = array();
+		foreach( $this->db->where('id_order_item', (int) $id_item)->get('order_item_ingredients')->result() as $r ){ $out[] = (int) $r->id_ingredient; }
+
+		return $out;
+	}
+
+	/** Copies the per-line snapshots (modifiers + exact ingredient amounts) of $from to its clone $to (partial void / partial move). */
+	public function cloneItemData($from, $to){
+
+		$this->load->model('modifiers_mdl');
+		$this->modifiers_mdl->cloneRows($from, $to);
+
+		$this->db->query('INSERT INTO order_item_ingredients (id_order_item, id_ingredient, qty_per_unit)
+			SELECT ?, id_ingredient, qty_per_unit FROM order_item_ingredients WHERE id_order_item = ?', array((int) $to, (int) $from));
+	}
 	/** Returns the ingredients of $qty voided portions (rows are already locked by the caller) and logs it. */
 	private function restoreIngredients($id_product, $qty, $id_order_item, $id_admin){
 
 		$this->load->model('ingredients_mdl');
+
+		// lines sent after migration 014 carry the exact amounts they took: give back exactly that, whatever the recipe says now
+		$snap = $this->db->query('SELECT stock_snapshot FROM order_items WHERE id_order_item = ?', array((int) $id_order_item))->row();
+		if( $snap && (int) $snap->stock_snapshot === 1 ){
+
+			foreach( $this->db->where('id_order_item', (int) $id_order_item)->get('order_item_ingredients')->result() as $r ){
+				$amount = round((float) $r->qty_per_unit * (int) $qty, 3);
+				if( $amount <= 0 ){ continue; }
+				$this->db->query('UPDATE ingredients SET stock = stock + ? WHERE id_ingredient = ?', array($amount, (int) $r->id_ingredient));
+				$this->ingredients_mdl->log($r->id_ingredient, 'void', $amount, NULL, $id_admin, $id_order_item);
+			}
+
+			return;
+		}
+
 		$recipes = $this->ingredients_mdl->recipesFor(array($id_product));
 
 		if( !isset($recipes[(int) $id_product]) ){ return; }
 
+		// legacy line (no snapshot): what it took = current recipe minus the removals its modifiers snapshotted when it was sent
+		$this->load->model('modifiers_mdl');
+		$removal = $this->modifiers_mdl->snapshotRemoval($id_order_item);
+
 		foreach( $recipes[(int) $id_product] as $r ){
-			$this->db->query('UPDATE ingredients SET stock = stock + ? WHERE id_ingredient = ?', array(round((float) $r->quantity * (int) $qty, 3), (int) $r->id_ingredient));
+			$per = max(0, round((float) $r->quantity - (isset($removal[(int) $r->id_ingredient]) ? $removal[(int) $r->id_ingredient] : 0), 3));
+			$this->db->query('UPDATE ingredients SET stock = stock + ? WHERE id_ingredient = ?', array(round($per * (int) $qty, 3), (int) $r->id_ingredient));
 		}
 
-		$this->logIngredients($recipes, $id_product, $qty, 1, $id_order_item, $id_admin);
+		$this->logIngredients($recipes, $id_product, $qty, 1, $id_order_item, $id_admin, $removal);
 	}
 
 	/**
@@ -247,6 +300,7 @@ class Kitchen_mdl extends CI_Model{
 	/** Stock check/decrement + batch + lines, WITHOUT managing the transaction (the caller owns it). Returns id_order, -1 or -2. */
 	private function insertOrder($id_tab, $id_admin, $lines, $id_bill){
 
+		$this->load->model('modifiers_mdl');
 		$short = $this->takeStock($lines);
 		if( $short < 0 ){ return $short; }
 
@@ -266,9 +320,25 @@ class Kitchen_mdl extends CI_Model{
 				'notes'          => $l['notes'] !== '' ? $l['notes'] : NULL,
 				'course'         => (int) $l['course'],
 				'prints_kitchen' => (int) $l['prints_kitchen'],
+				'stock_snapshot' => 1,
 			));
 
-			$this->logIngredients($this->cur_recipes, $l['id_product'], $l['quantity'], -1, $this->db->insert_id(), $id_admin);
+			$id_item = (int) $this->db->insert_id();
+			$mods = isset($l['modifiers']) ? $l['modifiers'] : array();
+			if( $mods ){
+				$this->load->model('modifiers_mdl');
+				$this->modifiers_mdl->saveForItem($id_item, $mods);
+			}
+
+			$removal = Modifiers_mdl::removalMap($mods);
+			if( isset($this->cur_recipes[(int) $l['id_product']]) ){
+				foreach( $this->cur_recipes[(int) $l['id_product']] as $rr ){
+					$per = max(0, round((float) $rr->quantity - (isset($removal[(int) $rr->id_ingredient]) ? $removal[(int) $rr->id_ingredient] : 0), 3));
+					if( $per > 0 ){ $this->db->insert('order_item_ingredients', array('id_order_item' => $id_item, 'id_ingredient' => (int) $rr->id_ingredient, 'qty_per_unit' => $per)); }
+				}
+			}
+
+			$this->logIngredients($this->cur_recipes, $l['id_product'], $l['quantity'], -1, $id_item, $id_admin, $removal);
 		}
 
 		return $id_order;
@@ -287,7 +357,9 @@ class Kitchen_mdl extends CI_Model{
 
 	public function orderItems($id_order){
 
-		return $this->db->where('id_order', (int) $id_order)->order_by('course')->order_by('id_order_item')->get('order_items')->result();
+		$this->load->model('modifiers_mdl');
+
+		return $this->modifiers_mdl->attachTexts($this->db->where('id_order', (int) $id_order)->order_by('course')->order_by('id_order_item')->get('order_items')->result());
 	}
 
 	/** All batches of a tab, newest first, each with its lines. */
@@ -353,6 +425,7 @@ class Kitchen_mdl extends CI_Model{
 			unset($clone['id_order_item'], $clone['bill_status'], $clone['tab_status']);
 			$clone['quantity'] = $qty;
 			$this->db->insert('order_items', array_merge($clone, $void));
+			$this->cloneItemData($item->id_order_item, $this->db->insert_id());
 		}
 
 		if( $item->bill_status !== 'paid' ){
@@ -370,7 +443,7 @@ class Kitchen_mdl extends CI_Model{
 		if( !$item ){ return array(FALSE, 'El producto ya fue anulado'); }
 
 		$res = $this->runTx(function() use ($item, $id_item, $reason, $id_admin, $qty, $is_admin){
-			$this->lockFor(array($item->id_product));
+			$this->lockFor(array($item->id_product), $this->snapshotIngredientIds($id_item));
 			$r = $this->doVoid($id_item, $reason, $id_admin, $qty, $is_admin);
 			return array($r[0], $r[1]);
 		});
@@ -385,15 +458,15 @@ class Kitchen_mdl extends CI_Model{
 	 * product is ordered (same bill, same course) with its own stock guard. Any failure leaves everything untouched.
 	 * Returns array(ok, message, id_order).
 	 */
-	public function replaceItem($id_item, $qty, $new, $new_qty, $notes, $reason, $id_admin, $is_admin){
+	public function replaceItem($id_item, $qty, $new, $new_qty, $notes, $reason, $id_admin, $is_admin, $mods = array()){
 
 		$first = $this->item($id_item);
 		if( !$first ){ return array(FALSE, 'El producto ya fue anulado', 0); }
 
-		$res = $this->runTx(function() use ($first, $id_item, $qty, $new, $new_qty, $notes, $reason, $id_admin, $is_admin){
+		$res = $this->runTx(function() use ($first, $id_item, $qty, $new, $new_qty, $notes, $reason, $id_admin, $is_admin, $mods){
 
 			// lock old + new product (and both recipes' ingredients) up front, in the global order
-			$this->lockFor(array($first->id_product, $new->id_product));
+			$this->lockFor(array($first->id_product, $new->id_product), $this->snapshotIngredientIds($id_item));
 
 			$v = $this->doVoid($id_item, $reason, $id_admin, $qty, $is_admin, TRUE);
 			if( !$v[0] ){ return array(FALSE, array($v[1], 0)); }
@@ -401,7 +474,7 @@ class Kitchen_mdl extends CI_Model{
 			$old = $v[2];
 			$line = array(
 				'id_product' => (int) $new->id_product, 'name' => $new->name, 'quantity' => (int) $new_qty, 'price' => (float) $new->price_sell,
-				'notes' => (string) $notes, 'course' => (int) $old->course, 'prints_kitchen' => (int) $new->prints_kitchen,
+				'notes' => (string) $notes, 'course' => (int) $old->course, 'prints_kitchen' => (int) $new->prints_kitchen, 'modifiers' => $mods,
 			);
 
 			$id_order = $this->insertOrder($old->id_tab, $id_admin, array($line), $old->id_bill);
