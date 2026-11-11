@@ -19,7 +19,7 @@ foreach( $rows as $r ){
 
 <p class="text-muted" style="font-size:13px;">
 	<strong>Consumo teórico</strong> = lo que las recetas descontaron en pedidos, menos anulaciones. <strong>Merma</strong> = salidas registradas como desperdicio.
-	<strong>Diferencia de conteo</strong> = ajustes por conteo físico (negativo = hay menos en bodega de lo que el sistema decía: faltante no explicado).
+	<strong>Usado en lotes / Producido</strong> = materia prima convertida en preparados (salsas, masas); no cuenta como consumo para no duplicar el costo. <strong>Diferencia de conteo</strong> = ajustes por conteo físico (negativo = hay menos en bodega de lo que el sistema decía: faltante no explicado).
 </p>
 
 <?php if( empty($rows) ) : ?>
@@ -32,7 +32,7 @@ foreach( $rows as $r ){
 </div>
 <div class="table-responsive">
 <table class="table table-striped jambo_table">
-	<thead><tr><th>#</th><th>Ingrediente</th><th class="text-right">Consumo teórico</th><th class="text-right">Costo</th><th class="text-right">Merma</th><th class="text-right">Diferencia de conteo</th><th class="text-right">Entradas</th><th class="text-right">Existencia</th></tr></thead>
+	<thead><tr><th>#</th><th>Ingrediente</th><th class="text-right">Consumo teórico</th><th class="text-right">Costo</th><th class="text-right">Merma</th><th class="text-right">Diferencia de conteo</th><th class="text-right">Usado en lotes</th><th class="text-right">Producido</th><th class="text-right">Entradas</th><th class="text-right">Existencia</th></tr></thead>
 	<tbody>
 	<?php foreach( $rows as $i => $r ) : ?>
 		<tr>
@@ -42,6 +42,8 @@ foreach( $rows as $r ){
 			<td class="text-right"><?php echo $r->cost_unit === NULL ? '<span class="text-muted">—</span>' : '$'.number_format($r->consumed * $r->cost_unit, 2); ?></td>
 			<td class="text-right <?php echo $r->waste > 0 ? 'text-warning' : ''; ?>"><?php echo $n($r->waste).' '.$r->unit; ?></td>
 			<td class="text-right <?php echo $r->counted < 0 ? 'text-danger' : ( $r->counted > 0 ? 'text-success' : '' ); ?>"><?php echo ($r->counted > 0 ? '+' : '').$n($r->counted).' '.$r->unit; ?></td>
+			<td class="text-right"><?php echo $n($r->used_in_batches).' '.$r->unit; ?></td>
+			<td class="text-right"><?php echo $n($r->produced).' '.$r->unit; ?></td>
 			<td class="text-right"><?php echo $n($r->received).' '.$r->unit; ?></td>
 			<td class="text-right"><?php echo $n($r->stock).' '.$r->unit; ?></td>
 		</tr>
