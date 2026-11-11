@@ -82,6 +82,19 @@ class Ingredients extends Admin_Controller{
 		$this->renderPanel('ingredients');
 	}
 
+	/** Ingredient usage report: theoretical consumption (orders - voids) vs waste and physical-count differences. */
+	public function usage(){
+
+		$ok = function($v, $d){ return ( is_string($v) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $v) && strtotime($v) !== FALSE ) ? $v : $d; };
+		$from = $ok($this->input->get('from'), date('Y-m-01'));
+		$to   = $ok($this->input->get('to'), date('Y-m-d'));
+		if( $from > $to ){ list($from, $to) = array($to, $from); }
+
+		$this->footer_data = load_data($this->session);
+		$this->content_data = array('rows' => $this->ingredients_mdl->usage($from, $to), 'from' => $from, 'to' => $to);
+		$this->renderPanel('ingredient_usage');
+	}
+
 	public function register(){
 
 		$this->form(0);

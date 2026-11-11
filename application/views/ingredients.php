@@ -1,5 +1,5 @@
 <?php if( !function_exists('ing_n') ){ function ing_n($v){ return rtrim(rtrim(number_format((float) $v, 3, '.', ','), '0'), '.'); } } ?>
-<h3 class="section-title">Ingredientes</h3>
+<h3 class="section-title">Ingredientes <a href="<?php echo base_url('ingredients/usage'); ?>" class="btn btn-default btn-sm pull-right"><i class="fa fa-bar-chart"></i> Consumo</a></h3>
 
 <?php if( !empty($low) ) : ?>
 <div class="alert alert-warning">

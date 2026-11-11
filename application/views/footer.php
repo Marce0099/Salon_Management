@@ -103,9 +103,19 @@
                             $('<td>').text(p.stock_alert_threshold)
                         ).appendTo($tbody);
                     });
-                }else{
+                }
 
-                    $tbody.append('<tr><td colspan="3">No hay productos con stock bajo</td></tr>');
+                $.each(data.ingredients || [], function(i, g){
+                    $('<tr>').append(
+                        $('<td>').text(g.name + ' ').append($('<span class="label label-info">').text('Ingrediente')),
+                        $('<td>').text(parseFloat(g.stock) + ' ' + g.unit),
+                        $('<td>').text(parseFloat(g.alert_threshold) + ' ' + g.unit)
+                    ).appendTo($tbody);
+                });
+
+                if( !$tbody.children().length ){
+
+                    $tbody.append('<tr><td colspan="3">No hay productos ni ingredientes con stock bajo</td></tr>');
                 }
             });
         }
