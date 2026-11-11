@@ -33,15 +33,16 @@
 	</thead>
 	<tbody>
 		<?php foreach( $ingredients as $i ) : $is_low = $i->alert_threshold > 0 && $i->stock <= $i->alert_threshold; ?>
-		<tr class="ing-row" data-id="<?php echo $i->id_ingredient; ?>" data-name="<?php echo htmlspecialchars($i->name); ?>" data-unit="<?php echo $i->unit; ?>" data-pack="<?php echo htmlspecialchars((string) $i->pack_name); ?>" data-packsize="<?php echo $i->pack_size !== NULL ? ing_n($i->pack_size) : ''; ?>">
-			<td><?php echo htmlspecialchars($i->name); ?></td>
+		<tr class="ing-row" data-id="<?php echo $i->id_ingredient; ?>" data-name="<?php echo htmlspecialchars($i->name); ?>" data-unit="<?php echo $i->unit; ?>" data-pack="<?php echo htmlspecialchars((string) $i->pack_name); ?>" data-packsize="<?php echo $i->pack_size !== NULL ? ing_n($i->pack_size) : ''; ?>" data-yield="<?php echo $i->batch_yield !== NULL ? rtrim(rtrim(number_format((float) $i->batch_yield, 3, '.', ''), '0'), '.') : ''; ?>" data-comps="<?php echo htmlspecialchars(json_encode(isset($components[(int) $i->id_ingredient]) ? $components[(int) $i->id_ingredient] : array())); ?>">
+			<td><?php echo htmlspecialchars($i->name); ?><?php if( $i->batch_yield !== NULL ) : ?> <span class="label label-primary">Preparado</span><?php endif; ?></td>
 			<td class="text-right"><span class="<?php echo $is_low ? 'text-danger' : ''; ?>"><strong><?php echo ing_n($i->stock).' '.$i->unit; ?></strong></span><?php if( $is_low ) : ?> <span class="label label-danger">Bajo</span><?php endif; ?></td>
 			<td class="text-right"><?php echo $i->alert_threshold > 0 ? ing_n($i->alert_threshold).' '.$i->unit : '—'; ?></td>
-			<td class="text-right"><?php echo $i->cost_unit !== NULL ? '$ '.rtrim(rtrim(number_format((float) $i->cost_unit, 6, '.', ''), '0'), '.') : '—'; ?></td>
+			<td class="text-right"><?php echo $i->eff_cost !== NULL ? '$ '.rtrim(rtrim(number_format((float) $i->eff_cost, 6, '.', ''), '0'), '.') : '—'; ?></td>
 			<td><?php echo $i->pack_name ? htmlspecialchars($i->pack_name).' = '.ing_n($i->pack_size).' '.$i->unit : '—'; ?></td>
 			<td>
 				<?php if( $i->active ) : ?>
-				<button type="button" class="btn btn-success btn-xs btn-receive">Recibir</button>
+				<?php if( $i->batch_yield !== NULL ) : ?><button type="button" class="btn btn-primary btn-xs btn-prepare">Preparar lote</button>
+				<?php else : ?><button type="button" class="btn btn-success btn-xs btn-receive">Recibir</button><?php endif; ?>
 				<button type="button" class="btn btn-warning btn-xs btn-adjust">Merma / conteo</button>
 				<a href="<?php echo base_url('ingredients/movements/'.$i->id_ingredient); ?>" class="btn btn-default btn-xs">Historial</a>
 				<a href="<?php echo base_url('ingredients/edit/'.$i->id_ingredient); ?>" class="btn btn-default btn-xs">Editar</a>
@@ -86,6 +87,18 @@
 	<div class="modal-footer"><button type="button" class="btn btn-default" data-dismiss="modal">Cancelar</button><button type="button" class="btn btn-warning" id="aj-save">Guardar</button></div>
 </div></div></div>
 
+<!-- Prepare batch modal -->
+<div class="modal fade" id="modal-prepare" tabindex="-1"><div class="modal-dialog"><div class="modal-content">
+	<div class="modal-header"><button type="button" class="close" data-dismiss="modal">&times;</button><h4 class="modal-title">Preparar lote: <span class="ing-name"></span></h4></div>
+	<div class="modal-body">
+		<p class="text-muted" style="margin-bottom:8px;">Un lote rinde <strong id="pr-yield"></strong>. Se descuentan los componentes y se suma lo producido.</p>
+		<div class="form-group"><label>Lotes a preparar</label><input type="text" inputmode="decimal" id="pr-batches" class="form-control" value="1"></div>
+		<table class="table table-condensed" id="pr-table"><thead><tr><th>Componente</th><th class="text-right">Necesario</th><th class="text-right">Existencia</th></tr></thead><tbody></tbody></table>
+		<p>Producirá: <strong id="pr-made">—</strong> · Lotes posibles con la existencia actual: <strong id="pr-max">0</strong></p>
+	</div>
+	<div class="modal-footer"><button type="button" class="btn btn-default" data-dismiss="modal">Cancelar</button><button type="button" class="btn btn-primary" id="pr-save">Preparar</button></div>
+</div></div></div>
+
 <input type="hidden" id="ing-tk" value="<?php echo $tk; ?>">
 <script>
 (function(){
@@ -119,6 +132,29 @@
 	$('#rc-save').on('click', function(){
 		send('<?php echo base_url('ingredients/receive'); ?>', { mode: $('#rc-mode').val(), quantity: $('#rc-qty').val(), total_cost: $('#rc-cost').val(), reason: $('#rc-reason').val() }, $(this));
 	});
+
+	var prData = null;
+	function fmt(x){ return (Math.round(x * 1000) / 1000).toString(); }
+	function prRecalc(){
+		var b = parseFloat(String($('#pr-batches').val()).replace(',', '.')) || 0, max = null;
+		$('#pr-table tbody').empty();
+		prData.comps.forEach(function(c){
+			var need = c.quantity * b, can = c.quantity > 0 ? Math.floor((parseFloat(c.stock) + 0.0005) / c.quantity) : 0;
+			max = max === null ? can : Math.min(max, can);
+			$('<tr>').toggleClass('danger', need > parseFloat(c.stock) + 0.0005).append($('<td>').text(c.name), $('<td class="text-right">').text(fmt(need) + ' ' + c.unit), $('<td class="text-right">').text(fmt(parseFloat(c.stock)) + ' ' + c.unit)).appendTo('#pr-table tbody');
+		});
+		$('#pr-made').text(b > 0 ? fmt(prData.yield * b) + ' ' + prData.unit : '—');
+		$('#pr-max').text(max === null ? 0 : max);
+	}
+	$('.btn-prepare').on('click', function(){
+		var tr = $(this).closest('tr'); cur = rowData(tr);
+		prData = { yield: parseFloat(tr.data('yield')), unit: cur.unit, comps: tr.data('comps') || [] };
+		$('#modal-prepare .ing-name').text(cur.name); $('#pr-yield').text(fmt(prData.yield) + ' ' + cur.unit);
+		$('#pr-batches').val('1'); prRecalc(); $('#pr-save').prop('disabled', false);
+		$('#modal-prepare').modal('show');
+	});
+	$('#pr-batches').on('input', function(){ if( prData ){ prRecalc(); } });
+	$('#pr-save').on('click', function(){ send('<?php echo base_url('ingredients/prepare'); ?>', { batches: $('#pr-batches').val() }, $(this)); });
 
 	$('.btn-adjust').on('click', function(){
 		cur = rowData($(this).closest('tr'));

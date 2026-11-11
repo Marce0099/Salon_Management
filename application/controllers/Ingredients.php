@@ -65,7 +65,7 @@ class Ingredients extends Admin_Controller{
 		$show_inactive = (int) $this->input->get('inactive') === 1;
 		$q = trim((string) $this->input->get('name'));
 
-		$this->db->from('ingredients')->where('active', $show_inactive ? 0 : 1);
+		$this->db->select('ingredients.*, '.Ingredients_mdl::costSql('ingredients').' AS eff_cost', FALSE)->from('ingredients')->where('active', $show_inactive ? 0 : 1);
 		if( $q !== '' ){ $this->db->like('name', $q); }
 		$rows = $this->db->order_by('name')->get()->result();
 
@@ -77,6 +77,7 @@ class Ingredients extends Admin_Controller{
 			'q'             => $q,
 			'tk'            => $this->token(),
 			'units'         => Ingredients_mdl::$units,
+			'components'    => $this->ingredients_mdl->allComponents(),
 		), array());
 
 		$this->renderPanel('ingredients');
@@ -95,6 +96,23 @@ class Ingredients extends Admin_Controller{
 		$this->renderPanel('ingredient_usage');
 	}
 
+	/** "Preparar lote": converts the raw components into the prepared ingredient (batches > 0, up to 2 decimals). */
+	public function prepare(){
+
+		$this->requirePost();
+
+		$ing = $this->ingredients_mdl->get($this->input->post('id_ingredient'));
+		if( !$ing || !$ing->active || $ing->batch_yield === NULL ){ $this->fail('Ingrediente inválido'); }
+
+		$t = str_replace(',', '.', trim((string) $this->input->post('batches')));
+		if( !preg_match('/^\d{1,4}(\.\d{1,2})?$/', $t) || (float) $t <= 0 ){ $this->fail('Cantidad de lotes inválida (mayor que 0, hasta 9999)'); }
+
+		$r = $this->ingredients_mdl->prepare($ing->id_ingredient, (float) $t, $this->id_admin);
+		if( !$r[0] ){ $this->fail($r[1]); }
+
+		$this->ok($r[1]);
+	}
+
 	public function register(){
 
 		$this->form(0);
@@ -107,7 +125,7 @@ class Ingredients extends Admin_Controller{
 
 	private function form($id){
 
-		$view = array('tk' => $this->token(), 'units' => Ingredients_mdl::$units);
+		$view = array('tk' => $this->token(), 'units' => Ingredients_mdl::$units, 'raw_choices' => $this->db->query('SELECT id_ingredient, name, unit, cost_unit FROM ingredients WHERE active = 1 AND batch_yield IS NULL AND id_ingredient != ? ORDER BY name', array((int) $id))->result(), 'components' => array());
 
 		if( $id ){
 			$ing = $this->ingredients_mdl->get($id);
@@ -116,6 +134,7 @@ class Ingredients extends Admin_Controller{
 				redirect('ingredients');
 			}
 			$view['ingredient'] = $ing;
+			$view['components'] = $this->ingredients_mdl->components($id);
 		}
 
 		$this->content_data = $view;
@@ -159,12 +178,50 @@ class Ingredients extends Admin_Controller{
 
 		if( $this->ingredients_mdl->nameTaken($name, $id) ){ $this->fail('Ya existe un ingrediente con ese nombre'); }
 
+		// Prepared ingredient (sub-recipe): yield per batch + raw components consumed per batch.
+		$prepared = (string) $this->input->post('prepared') === '1';
+		$yield = NULL;
+		$comps = array();
+
+		if( $prepared ){
+			$yield = $this->num($this->input->post('batch_yield'));
+			if( $yield === NULL ){ $this->fail('Indique cuánto rinde un lote (mayor que 0)'); }
+
+			$raw = json_decode((string) $this->input->post('components'), TRUE);
+			if( !is_array($raw) || count($raw) < 1 ){ $this->fail('Agregue al menos un componente del lote'); }
+			if( count($raw) > 40 ){ $this->fail('Demasiados componentes'); }
+
+			foreach( $raw as $r ){
+				$cid = (int) ( isset($r['id_ingredient']) ? $r['id_ingredient'] : 0 );
+				$comp = $cid ? $this->ingredients_mdl->get($cid) : NULL;
+				$q = $this->num(isset($r['quantity']) ? $r['quantity'] : '');
+				if( !$comp || !$comp->active ){ $this->fail('Hay un componente inválido en el lote'); }
+				if( $id && $cid === $id ){ $this->fail('Un ingrediente no puede ser componente de sí mismo'); }
+				if( $comp->batch_yield !== NULL ){ $this->fail($comp->name.' es un ingrediente preparado: solo se permiten ingredientes simples como componentes'); }
+				if( $q === NULL ){ $this->fail('Cantidad inválida para '.$comp->name); }
+				if( isset($comps[$cid]) ){ $this->fail($comp->name.' está repetido en el lote'); }
+				$comps[$cid] = $q;
+			}
+
+			// An ingredient that other prepared ingredients use as a component must stay a simple one.
+			if( $id && ($users = $this->ingredients_mdl->usedAsComponentBy($id)) ){
+				$this->fail('No puede convertirse en preparado: es componente de '.$users[0]->name);
+			}
+		}
+
 		$data = array('name' => $name, 'unit' => $unit, 'alert_threshold' => $alert, 'cost_unit' => $cost, 'pack_name' => $pack_name, 'pack_size' => $pack_size);
 
 		if( $id ){
 			$ing = $this->ingredients_mdl->get($id);
 			if( !$ing ){ $this->fail('Ingrediente inválido'); }
+			$this->db->trans_begin();
 			$this->db->where('id_ingredient', $id)->update('ingredients', $data);
+			$this->ingredients_mdl->applyPrepared($id, $yield, $comps);
+			if( $this->db->trans_status() === FALSE ){
+				$this->db->trans_rollback();
+				$this->fail('No se pudo guardar el ingrediente');
+			}
+			$this->db->trans_commit();
 			$this->ok('Ingrediente actualizado', array('redirect' => base_url('ingredients')));
 		}
 
@@ -179,6 +236,7 @@ class Ingredients extends Admin_Controller{
 			$this->db->query('UPDATE ingredients SET stock = ? WHERE id_ingredient = ?', array($stock, $new));
 			$this->ingredients_mdl->log($new, 'adjustment', $stock, 'Stock inicial', $this->id_admin);
 		}
+		if( $prepared ){ $this->ingredients_mdl->applyPrepared($new, $yield, $comps); }
 		if( $this->db->trans_status() === FALSE ){
 			$this->db->trans_rollback();
 			$this->fail('No se pudo guardar el ingrediente');
@@ -197,6 +255,9 @@ class Ingredients extends Admin_Controller{
 			$used = $this->db->query('SELECT COUNT(*) AS c FROM recipe_items r JOIN products p ON p.id_product = r.id_product WHERE r.id_ingredient = ? AND p.active = 1', array((int) $id))->row();
 			if( (int) $used->c > 0 ){
 				$flash = array('class' => 'error', 'message' => 'No se puede desactivar: lo usan '.$used->c.' receta(s) de platillos activos');
+			}
+			elseif( ($users = $this->ingredients_mdl->usedAsComponentBy($id)) ){
+				$flash = array('class' => 'error', 'message' => 'No se puede desactivar: es componente de '.$users[0]->name);
 			}
 			else{
 				$this->db->where('id_ingredient', (int) $id)->update('ingredients', array('active' => 0));
@@ -222,6 +283,8 @@ class Ingredients extends Admin_Controller{
 
 		$ing = $this->ingredients_mdl->get($this->input->post('id_ingredient'));
 		if( !$ing || !$ing->active ){ $this->fail('Ingrediente inválido'); }
+
+		if( $ing->batch_yield !== NULL ){ $this->fail('Este ingrediente se prepara en la cocina: use "Preparar lote"'); }
 
 		$qty = $this->num($this->input->post('quantity'));
 		if( $qty === NULL ){ $this->fail('Cantidad inválida'); }

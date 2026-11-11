@@ -2,7 +2,7 @@
 $price = (float) $product->price_sell;
 $n = function($x){ return rtrim(rtrim(number_format((float) $x, 3, '.', ''), '0'), '.'); };
 $ing_json = array();
-foreach( $ingredients as $i ){ $ing_json[] = array('id' => (int) $i->id_ingredient, 'name' => $i->name, 'unit' => $i->unit, 'cost' => $i->cost_unit !== NULL ? (float) $i->cost_unit : NULL); }
+foreach( $ingredients as $i ){ $ing_json[] = array('id' => (int) $i->id_ingredient, 'name' => $i->name, 'unit' => $i->unit, 'cost' => $i->eff_cost !== NULL ? (float) $i->eff_cost : NULL); }
 $rec_json = array();
 foreach( $recipe as $r ){ $rec_json[] = array('id' => (int) $r->id_ingredient, 'qty' => $n($r->quantity)); }
 ?>

@@ -1,5 +1,5 @@
 <?php
-$labels = array('receive' => 'Entrada', 'order' => 'Pedido', 'void' => 'Anulación', 'waste' => 'Merma', 'adjustment' => 'Ajuste / conteo');
+$labels = array('receive' => 'Entrada', 'order' => 'Pedido', 'void' => 'Anulación', 'waste' => 'Merma', 'adjustment' => 'Ajuste / conteo', 'prepare_in' => 'Lote preparado', 'prepare_out' => 'Usado en lote');
 $n = function($x){ return rtrim(rtrim(number_format((float) $x, 3, '.', ','), '0'), '.'); };
 ?>
 <h3 class="section-title">Historial: <?php echo htmlspecialchars($ingredient->name); ?></h3>
