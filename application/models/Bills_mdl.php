@@ -147,11 +147,19 @@ class Bills_mdl extends CI_Model{
 			GROUP BY oi.id_product, p.name, p.barcode, p.is_service, p.commisssion_rate
 			ORDER BY MIN(oi.id_order_item)', array((int) $bill->id_bill))->result();
 
+		// modifiers per product for the receipt: "Sin queso x2, Término medio x1" (units of that product carrying each modifier)
+		$texts = array();
+		$mrows = $this->db->query('SELECT oi.id_product, d.name, SUM(oi.quantity) AS n FROM order_items oi
+			JOIN (SELECT DISTINCT id_order_item, id_modifier, name FROM order_item_modifiers) d ON d.id_order_item = oi.id_order_item
+			WHERE oi.id_bill = ? AND oi.status = "active" GROUP BY oi.id_product, d.id_modifier, d.name ORDER BY d.name', array((int) $bill->id_bill))->result();
+		foreach( $mrows as $m ){ $texts[(int) $m->id_product][] = $m->name.' x'.(int) $m->n; }
+
 		$out = array();
 		foreach( $rows as $r ){
 			$out[] = array(
 				'id_product' => (int) $r->id_product, 'name' => $r->name, 'barcode' => (string) $r->barcode, 'is_service' => (int) $r->is_service,
 				'commisssion_rate' => $r->commisssion_rate, 'quantity' => (int) $r->q, 'price' => round((float) $r->amt / (int) $r->q, 6),
+				'mods_text' => isset($texts[(int) $r->id_product]) ? mb_substr(implode(', ', $texts[(int) $r->id_product]), 0, 255, 'UTF-8') : '',
 			);
 		}
 		return $out;
@@ -256,8 +264,8 @@ class Bills_mdl extends CI_Model{
 			$clone['quantity'] = $qty;
 			$clone['id_bill']  = (int) $to->id_bill;
 			$this->db->insert('order_items', $clone);
-			$this->load->model('modifiers_mdl');
-			$this->modifiers_mdl->cloneRows($item->id_order_item, $this->db->insert_id());
+			$this->load->model('kitchen_mdl');
+			$this->kitchen_mdl->cloneItemData($item->id_order_item, $this->db->insert_id());
 		}
 
 		return array(TRUE, 'Producto movido', (int) $to->id_bill);

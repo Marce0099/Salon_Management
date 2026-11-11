@@ -675,6 +675,7 @@ class Sales extends Admin_Controller{
 				$sale_product['commission_rate'] = $cr;
 				$ae = isset($attended_employees[$i]) && $attended_employees[$i] !== '' ? (int) $attended_employees[$i] : NULL;
 				$sale_product['id_employee'] = $ae;
+				$sale_product['mods_text'] = ( $bill_ctx && !empty($bill_ctx['lines'][$i]['mods_text']) ) ? $bill_ctx['lines'][$i]['mods_text'] : NULL;
 
 				$subtotal = $sale_product['price'] * $sale_product['quantity'];
 
@@ -799,7 +800,7 @@ class Sales extends Admin_Controller{
 					<td class="left">'.htmlspecialchars(str_pad($name,34,".",STR_PAD_RIGHT)).'</td>
 					<td class="left">C$'.number_format($subtotal_cor,2).str_repeat('&nbsp;',3).'</td>
 				</tr>
-			';
+			'.( !empty($d->mods_text) ? '<tr><td></td><td class="left" colspan="2" style="font-size:8px;">'.htmlspecialchars('   * '.$d->mods_text).'</td></tr>' : '' );
 		}
 
 		// restaurant checkout: IVA and tip (stored in dollars) are charged on top of the lines
@@ -1017,6 +1018,12 @@ class Sales extends Admin_Controller{
 		}
 	}
 
+	/** Printer-safe text (the thermal code page has no accents). */
+	private function asciiText($t){
+
+		return strtr((string) $t, array('á' => 'a', 'é' => 'e', 'í' => 'i', 'ó' => 'o', 'ú' => 'u', 'ü' => 'u', 'ñ' => 'n', 'Á' => 'A', 'É' => 'E', 'Í' => 'I', 'Ó' => 'O', 'Ú' => 'U', 'Ü' => 'U', 'Ñ' => 'N'));
+	}
+
 	private function printInvoice( $id_sale = 0, $copy = FALSE ){
 
 		$sale = $this->sales_mdl->getSale( $id_sale );
@@ -1101,6 +1108,10 @@ class Sales extends Admin_Controller{
 					$d->name,
 					"C$".number_format( $subtotal_cor,2)
 				));
+
+				if( !empty($d->mods_text) ){
+					$printer->text( '  * '.$this->asciiText($d->mods_text)."\n" );
+				}
 			}
 
 			if( (float) $sale->tip > 0 || (float) $sale->iva > 0 ){

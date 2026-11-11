@@ -86,7 +86,34 @@ Concurrency rows used a temporary, never-committed harness controller (the form 
 - [x] PASS Usage report "consumo teórico" equals the net of `order`/`void` movements per ingredient (carne 750, queso 100, tomate 80, arroz -50 from the drift test) — removals are reflected.
 
 ### Known limitations / observations
-- "Agotado" (menu tile, send pre-check) ignores modifiers: with queso at 0 the burger is Agotado even though "sin queso" could be made. Possible follow-up: net the line's removals in `Kitchen::send`'s portion check and let the tile stay orderable.
-- Modifiers are not carried through "Cambiar plato"; receipts/`sale_products` do not list modifiers.
-- Full checkout in bill mode not executed (cash drawer closed today).
+- The four limitations originally listed here (Agotado ignoring modifiers, swap dropping modifiers, receipts without modifiers, restock by the current recipe) were fixed afterwards: see "Limitation fixes" below.
 - Parallel `fetch` bursts occasionally hit the CodeIgniter session regeneration (see Block C note).
+
+## Limitation fixes (branch `fix/modifier-limitations`, migration 014, 2026-11-10)
+
+### 1. Agotado nets the modifiers
+- [x] PASS Queso at 0: Burger, Burger doble and Arroz plato tiles show "Solo con modificador" and stay enabled; "Sin receta" unaffected. A dish short of an ingredient that NO modifier covers (queso 0 AND carne 0, modifier only removes queso) shows "Agotado", the tile is disabled and tapping it adds nothing; after restocking the carne the same tile switches to "Solo con modificador".
+- [x] PASS Order screen with queso 0: tapping Burger adds a flagged line (one warning per product) and disables "Enviar"; ticking "Sin queso" clears the warning and enables send; "+" to 2 still fits; turning "Sin queso" OFF is refused; adding a plain Burger flags the product again and disables send. Real "Enviar a cocina" click: 2 burgers [Sin queso, Término medio] with queso 0 -> carne -300, tomate -40, queso stays 0.
+- [x] PASS Server pre-check: plain burger with queso 0 -> "está agotado"; [sin queso + plain] with queso 0 -> "Ingredientes insuficientes para ZZTEST Burger (falta ZZTEST Queso)" (+ fresh stock payload); only "sin queso" -> OK; plain x2 with one portion of queso -> "Solo quedan 1 porciones" (old path kept); [plain + sin queso] with one portion -> OK.
+- [x] PASS Race: 3 plain + 3 "sin queso" burgers simultaneously with exactly one portion of queso -> 1 plain + 3 sin queso won, queso 0 (never negative), carne/tomate consistent (5000 - 4 x 150 / 4 x 20).
+- [x] PASS 390 px iframe: tile text "Solo con modificador", warning + disabled send readable.
+
+### 2. "Cambiar plato" keeps compatible modifiers
+- [x] PASS Burger [Sin queso, Término medio] swapped for Burger doble (only Sin queso attached): new line keeps Sin queso (queso 60 removed, carne -300 only), drops Término medio; old unit restocked exactly (carne +150, tomate +20, no queso).
+- [x] PASS Same line swapped for "Sin receta" (only Término medio attached): keeps Término medio only. Swap to the same product still refused.
+
+### 3. Receipts list the modifiers
+- [x] PASS Real checkout of the bill in bill mode (cash drawer opened for the test, then removed): `sale_products.mods_text` = "Sin queso x6", "Sin queso x1", "Término medio x1" per product; `/sales/details/N` shows them under each dish; the archived PDF receipt prints "* Sin queso x6" under the burger line; totals/tip unchanged; stock NOT deducted again at checkout; bill paid, empty leftover bill voided.
+- [x] PASS Thermal receipt code ran twice (receipt + copy) during the sale without PHP errors (printer missing, usual warning); its output could not be inspected. The PDF accent for "Término" was not re-checked after fixing a mis-seeded name (the test data had a literal `?` from the CLI seed; the app stores accents correctly, details page verified).
+- [x] NOT CHANGED Receipts for free-form sales (no bill) have no modifiers; equal-split shares carry none.
+
+### 4. Exact restock (snapshot of what each line took)
+- [x] PASS Send 3 Arroz plato; recipe then changed (arroz 200 -> 300, queso removed from the recipe, carne 50 added): partial void of 1 gives back arroz +200 and queso +10 (NOT 300 / nothing / carne), the clone keeps the snapshot rows; voiding the remaining 2 returns the stock to exactly the starting values (arroz 5000, queso 100, carne untouched).
+- [x] PASS Partial move of a modified line clones the snapshot; after raising the burger's carne to 400, voiding the moved clone returns carne +150 / tomate +20 (the amounts taken).
+- [x] PASS Legacy line (snapshot flag cleared by SQL) still restocks by the current recipe like before (+30/+150/+20).
+- [x] PASS Swap restocks exact snapshot amounts (see section 2). The paid-bill "no restock" rule was NOT re-run this round (the code path was not touched).
+
+### Remaining notes
+- The swap picker tiles ("Cambiar") still disable a dish whose full recipe is short even if the carried modifier would cover it (the server accepts it); only the order screen was made modifier-aware.
+- Waiter role was not re-run for this round (same front-end code, role-independent; the waiter flow was verified in Block D).
+- Free-form sale receipts and equal-split shares show no modifiers by design.

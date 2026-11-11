@@ -104,12 +104,45 @@ class Modifiers_mdl extends CI_Model{
 		return TRUE;
 	}
 
-	/** Active modifiers per product for the order screen: array(id_product => rows[id, name]). */
+	/**
+	 * Active modifiers per product for the order screen: array(id_product => list of array(id, name, rem)) where rem maps
+	 * id_ingredient => amount removed alone (NULL = the dish's whole amount). The screen clamps and combines them like resolve() does.
+	 */
 	public function menuMap(){
+
+		$rem = array();
+		foreach( $this->db->get('modifier_ingredients')->result() as $r ){
+			$rem[(int) $r->id_modifier][(int) $r->id_ingredient] = $r->quantity === NULL ? NULL : (float) $r->quantity;
+		}
 
 		$out = array();
 		$rows = $this->db->query('SELECT pm.id_product, m.id_modifier AS id, m.name FROM product_modifiers pm JOIN modifiers m ON m.id_modifier = pm.id_modifier AND m.active = 1 ORDER BY m.name')->result();
-		foreach( $rows as $r ){ $out[(int) $r->id_product][] = array('id' => (int) $r->id, 'name' => $r->name); }
+		foreach( $rows as $r ){
+			$out[(int) $r->id_product][] = array('id' => (int) $r->id, 'name' => $r->name, 'rem' => isset($rem[(int) $r->id]) ? (object) $rem[(int) $r->id] : new stdClass());
+		}
+
+		return $out;
+	}
+
+	/** Modifier ids recorded on an order line (distinct, in the order they were picked). */
+	public function itemModifierIds($id_order_item){
+
+		$out = array();
+		$rows = $this->db->query('SELECT DISTINCT id_modifier FROM order_item_modifiers WHERE id_order_item = ? AND id_modifier IS NOT NULL ORDER BY id_modifier', array((int) $id_order_item))->result();
+		foreach( $rows as $r ){ $out[] = (int) $r->id_modifier; }
+
+		return $out;
+	}
+
+	/** Of $ids, those that are active and attached to $id_product (what a swapped dish can keep). */
+	public function compatibleIds($id_product, $ids){
+
+		if( !$ids ){ return array(); }
+
+		$out = array();
+		$rows = $this->db->query('SELECT m.id_modifier FROM modifiers m JOIN product_modifiers pm ON pm.id_modifier = m.id_modifier AND pm.id_product = ?
+			WHERE m.active = 1 AND m.id_modifier IN ('.implode(',', array_map('intval', $ids)).') ORDER BY m.id_modifier', array((int) $id_product))->result();
+		foreach( $rows as $r ){ $out[] = (int) $r->id_modifier; }
 
 		return $out;
 	}

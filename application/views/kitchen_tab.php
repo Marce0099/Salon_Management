@@ -120,15 +120,42 @@
 		chip(0, 'Otros');
 	}
 
+	/* ---- availability net of modifiers: ingredient stock of a dish vs the need of ALL its cart lines (modifiers remove part of the recipe) ---- */
+	function prod(id){ for( var i = 0; i < MENU.length; i++ ){ if( MENU[i].id === id ){ return MENU[i]; } } return null; }
+	function recOf(p, i){ for( var j = 0; j < (p.rec || []).length; j++ ){ if( String(p.rec[j].i) === String(i) ){ return p.rec[j]; } } return null; }
+	function remOf(p, ids){
+		var want = {}, k, r;
+		$.each(ids || [], function(_, id){
+			var m = (p.mods || []).filter(function(x){ return x.id === id; })[0];
+			if( !m ){ return; }
+			for( k in m.rem ){ r = recOf(p, k); if( r ){ want[k] = (want[k] || 0) + (m.rem[k] === null ? r.q : m.rem[k]); } }
+		});
+		for( k in want ){ want[k] = Math.min(want[k], recOf(p, k).q); }
+		return want;
+	}
+	function fitsLines(p, lines){
+		var tot = 0, need = {};
+		$.each(lines, function(_, l){ tot += l.qty; });
+		if( p.base !== null && p.base !== undefined && tot > p.base ){ return false; }
+		if( !p.rec || !p.rec.length ){ return true; }
+		$.each(lines, function(_, l){
+			var rem = remOf(p, l.mods);
+			$.each(p.rec, function(_, r){ need[r.i] = (need[r.i] || 0) + Math.max(0, r.q - (rem[r.i] || 0)) * l.qty; });
+		});
+		return p.rec.every(function(r){ return (need[r.i] || 0) <= r.s + 0.0005; });
+	}
+	function linesOf(p){ return cart.filter(function(l){ return l.id === p.id; }); }
+	function servedByMod(p){ return (p.mods || []).some(function(m){ return fitsLines(p, [{ qty: 1, mods: [m.id] }]); }); }
+
 	function renderMenu(){
 		var q = $.trim($('#m-search').val()).toLowerCase(), $g = $('#m-grid').empty(), n = 0;
 		$.each(MENU, function(_, p){
 			if( catFilter !== -1 && parseInt(p.cat, 10) !== catFilter ){ return; }
 			if( q && p.name.toLowerCase().indexOf(q) === -1 ){ return; }
-			var out = p.stocked && p.available <= 0;
+			var out = p.stocked && p.available <= 0 && !servedByMod(p), only = p.stocked && p.available <= 0 && !out;
 			$g.append($('<div class="menu-item"></div>').toggleClass('disabled', out).attr('data-id', p.id)
 				.html('<div class="mi-name">' + esc(p.name) + '</div><div class="mi-price">' + money(p.price) + '</div>' +
-					(p.stocked ? '<div class="mi-stock">' + (out ? 'Agotado' : p.available + ' disp.') + '</div>' : '')));
+					(p.stocked ? '<div class="mi-stock">' + (out ? 'Agotado' : (only ? 'Solo con modificador' : p.available + ' disp.')) + '</div>' : '')));
 			n++;
 		});
 		if( !n ){ $g.html('<p class="text-muted">Sin resultados.</p>'); }
@@ -139,11 +166,15 @@
 
 	$('#m-grid').on('click', '.menu-item', function(){
 		var p = MENU.filter(function(x){ return x.id === parseInt($(this).attr('data-id'), 10); }.bind(this))[0];
-		if( !p || (p.stocked && p.available <= 0) ){ return; }
+		if( !p || (p.stocked && p.available <= 0 && !servedByMod(p)) ){ return; }
 		var line = cart.filter(function(l){ return l.id === p.id && !l.notes && !(l.mods && l.mods.length); })[0];
-		var inCart = cart.filter(function(l){ return l.id === p.id; }).reduce(function(a, l){ return a + l.qty; }, 0);
-		if( p.stocked && inCart + 1 > p.available ){ notify('error', 'No hay más stock de ' + p.name); return; }
-		if( line ){ line.qty++; } else { cart.push({ id: p.id, name: p.name, price: p.price, qty: 1, notes: '', course: 1, stocked: p.stocked, available: p.available, mods: [], modOpts: p.mods || [] }); }
+		var added = false;
+		if( line ){ line.qty++; } else { added = true; cart.push({ id: p.id, name: p.name, price: p.price, qty: 1, notes: '', course: 1, stocked: p.stocked, available: p.available, mods: [], modOpts: p.mods || [] }); }
+		// does not fit as a plain line: keep it only when a modifier can serve it (the line is flagged until it fits)
+		if( p.stocked && !fitsLines(p, linesOf(p)) && !servedByMod(p) ){
+			if( added ){ cart.pop(); } else { line.qty--; }
+			notify('error', 'No hay más stock de ' + p.name); return;
+		}
 		renderCart();
 	});
 
@@ -159,12 +190,12 @@
 				'</span><button type="button" class="btn btn-default js-plus">+</button>' +
 				'<select class="form-control js-course" style="width:auto;display:inline-block;margin-left:8px;"><option value="1">Tiempo 1</option><option value="2">Tiempo 2</option><option value="3">Tiempo 3</option></select>' +
 				'<button type="button" class="btn btn-link text-danger js-del"><i class="fa fa-trash"></i></button></div>' +
-				modChips(l) +
+				modChips(l) + (l.stocked && cart.indexOf(cart.filter(function(x){ return x.id === l.id; })[0]) === i && !fitsLines(prod(l.id), linesOf(prod(l.id))) ? '<div class="js-stock-warn text-danger" style="font-size:12px;margin-top:4px;"><i class="fa fa-exclamation-triangle"></i> Faltan ingredientes de ' + esc(l.name) + ': elija un modificador o reduzca la cantidad</div>' : '') +
 				'<input type="text" class="form-control js-notes" placeholder="Nota (sin cebolla, término medio...)" maxlength="255" style="margin-top:6px;" value="' + esc(l.notes) + '">' +
 				'</div>');
 			$c.find('.cart-line[data-i="' + i + '"] .js-course').val(l.course);
 		});
-		$('#btn-send').prop('disabled', !cart.length);
+		$('#btn-send').prop('disabled', !cart.length || cart.some(function(l){ return l.stocked && !fitsLines(prod(l.id), linesOf(prod(l.id))); }));
 	}
 
 	function modChips(l){
@@ -181,23 +212,26 @@
 
 	$('#cart').on('click', '.js-plus', function(){
 		var l = cart[idx(this)];
-		var total = cart.filter(function(x){ return x.id === l.id; }).reduce(function(a, x){ return a + x.qty; }, 0);
-		if( l.stocked && total + 1 > l.available ){ notify('error', 'No hay más stock de ' + l.name); return; }
 		if( l.qty >= 99 ){ return; }
-		l.qty++; renderCart();
+		l.qty++;
+		if( l.stocked && !fitsLines(prod(l.id), linesOf(prod(l.id))) ){ l.qty--; notify('error', 'No hay más stock de ' + l.name); return; }
+		renderCart();
 	});
 	$('#cart').on('click', '.js-minus', function(){ var l = cart[idx(this)]; if( l.qty > 1 ){ l.qty--; renderCart(); } });
 	$('#cart').on('click', '.js-del', function(){ cart.splice(idx(this), 1); renderCart(); });
 	$('#cart').on('click', '.js-mod', function(){
-		var l = cart[idx(this)], id = parseInt($(this).attr('data-mod'), 10), p = l.mods.indexOf(id);
+		var l = cart[idx(this)], id = parseInt($(this).attr('data-mod'), 10), p = l.mods.indexOf(id), pr = prod(l.id), was = !l.stocked || fitsLines(pr, linesOf(pr));
 		if( p === -1 ){ l.mods.push(id); } else { l.mods.splice(p, 1); }
 		l.mods.sort(function(a, b){ return a - b; });
+		if( was && l.stocked && !fitsLines(pr, linesOf(pr)) ){
+			if( p === -1 ){ l.mods.splice(l.mods.indexOf(id), 1); } else { l.mods.push(id); l.mods.sort(function(a, b){ return a - b; }); }
+			notify('error', 'Sin ese modificador faltarían ingredientes de ' + l.name); return;
+		}
 		// two lines of the same dish with the same modifiers/notes merge back into one
 		for( var j = 0; j < cart.length; j++ ){
 			var o = cart[j];
 			if( o !== l && o.id === l.id && !o.notes && !l.notes && o.mods.join(',') === l.mods.join(',') && o.course === l.course ){
-				var tot = cart.filter(function(x){ return x.id === l.id; }).reduce(function(a, x){ return a + x.qty; }, 0);
-				if( !l.stocked || tot <= l.available ){ o.qty = Math.min(99, o.qty + l.qty); cart.splice(cart.indexOf(l), 1); }
+				o.qty = Math.min(99, o.qty + l.qty); cart.splice(cart.indexOf(l), 1);
 				break;
 			}
 		}
@@ -214,23 +248,30 @@
 				notify(r.printed ? 'success' : 'notice', r.message);
 				setTimeout(function(){ location.reload(); }, 1200);
 			} else {
-				if( r.availability ){ applyAvailability(r.availability); }
+				if( r.availability ){ applyAvailability(r.availability, r.stock); }
 				notify('error', r.message); $b.prop('disabled', false);
 			}
 		}, 'json').fail(function(){ notify('error', 'Respuesta inesperada del servidor; se recargará para evitar duplicados'); setTimeout(function(){ location.reload(); }, 1800); });
 	});
 
 	/* A stock rejection (another waiter took the ingredients first) carries fresh availability: update the menu and trim the cart to it. */
-	function applyAvailability(av){
-		$.each(MENU, function(_, p){ if( p.stocked && av[p.id] !== undefined ){ p.available = av[p.id]; } });
-		var left = {};
-		cart = cart.filter(function(l){
-			if( !l.stocked || av[l.id] === undefined ){ return true; }
-			if( left[l.id] === undefined ){ left[l.id] = av[l.id]; }
-			l.available = av[l.id];
-			l.qty = Math.min(l.qty, left[l.id]);
-			left[l.id] -= l.qty;
-			return l.qty > 0;
+	function applyAvailability(av, stock){
+		$.each(MENU, function(_, p){
+			if( p.stocked && av[p.id] !== undefined ){
+				p.available = av[p.id];
+				if( stock && stock[p.id] ){ p.base = stock[p.id].base; p.rec = stock[p.id].rec; }
+			}
+		});
+		// trim the plain lines of each product until what is left fits; modified lines stay (flagged) so the waiter can adjust them
+		$.each(MENU, function(_, p){
+			if( !p.stocked ){ return; }
+			var guard = 200;
+			while( guard-- > 0 && linesOf(p).length && !fitsLines(p, linesOf(p)) ){
+				var plain = linesOf(p).filter(function(l){ return !(l.mods && l.mods.length); }).pop();
+				if( !plain ){ break; }
+				plain.qty--;
+				if( plain.qty <= 0 ){ cart.splice(cart.indexOf(plain), 1); }
+			}
 		});
 		renderMenu(); renderCart();
 	}
