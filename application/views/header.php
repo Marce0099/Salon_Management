@@ -121,6 +121,7 @@
                       <?php } ?>
                       <?php if($this->controller->is_admin()){ ?>
                       <li><a href="<?php echo base_url('ingredients'); ?>">Ingredientes</a></li>
+                      <li><a href="<?php echo base_url('ingredients/usage'); ?>">Consumo de ingredientes</a></li>
                       <?php } ?>
                       <li><a href="<?php echo base_url('products/internalUse'); ?>">Uso interno</a></li>
                       <li><a href="<?php echo base_url('products/internal_use_list'); ?>">Historial de uso interno</a></li>
@@ -266,13 +267,13 @@
             <div class="modal-content">
               <div class="modal-header">
                 <button type="button" class="close" data-dismiss="modal"><span>&times;</span></button>
-                <h4 class="modal-title">Productos con stock bajo</h4>
+                <h4 class="modal-title">Stock bajo (productos e ingredientes)</h4>
               </div>
               <div class="modal-body">
                 <div style="max-height:400px;overflow-y:auto;">
                   <table class="table table-bordered table-hover table-condensed">
                     <thead>
-                      <tr><th>Producto</th><th>Stock actual</th><th>Umbral</th></tr>
+                      <tr><th>Producto / ingrediente</th><th>Stock actual</th><th>Umbral</th></tr>
                     </thead>
                     <tbody id="low-stock-results"></tbody>
                   </table>

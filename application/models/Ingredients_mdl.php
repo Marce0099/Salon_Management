@@ -184,4 +184,34 @@ class Ingredients_mdl extends CI_Model{
 
 		return $this->db->query('SELECT * FROM ingredients WHERE active = 1 AND alert_threshold > 0 AND stock <= alert_threshold ORDER BY name')->result();
 	}
+
+	public function lowStockCount(){
+
+		return (int) $this->db->query('SELECT COUNT(*) AS n FROM ingredients WHERE active = 1 AND alert_threshold > 0 AND stock <= alert_threshold')->row()->n;
+	}
+
+	/**
+	 * Usage per ingredient in [from, to] (Y-m-d) from the movement log, all in base units.
+	 * consumed = orders net of voids (theoretical, by recipe); waste; counted = signed physical-count adjustments
+	 * (negative = less on the shelf than the system said); received. Sorted by consumption, most used first.
+	 */
+	public function usage($from, $to){
+
+		$rows = $this->db->query('SELECT i.id_ingredient, i.name, i.unit, i.stock, i.cost_unit,
+				IFNULL(SUM(CASE WHEN m.type IN ("order","void") THEN -m.quantity END), 0) AS consumed,
+				IFNULL(SUM(CASE WHEN m.type = "waste" THEN -m.quantity END), 0) AS waste,
+				IFNULL(SUM(CASE WHEN m.type = "adjustment" THEN m.quantity END), 0) AS counted,
+				IFNULL(SUM(CASE WHEN m.type = "receive" THEN m.quantity END), 0) AS received
+			FROM ingredients i
+			JOIN ingredient_movements m ON m.id_ingredient = i.id_ingredient AND DATE(m.created_at) BETWEEN ? AND ?
+			GROUP BY i.id_ingredient, i.name, i.unit, i.stock, i.cost_unit
+			ORDER BY consumed DESC, i.name', array($from, $to))->result();
+
+		foreach( $rows as $r ){
+			foreach( array('stock','consumed','waste','counted','received') as $k ){ $r->$k = (float) $r->$k; }
+			$r->cost_unit = $r->cost_unit === NULL ? NULL : (float) $r->cost_unit;
+		}
+
+		return $rows;
+	}
 }

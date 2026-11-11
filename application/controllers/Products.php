@@ -7,6 +7,7 @@ class Products extends Admin_Controller{
 		parent::__construct();
 		$this->load->model('products_mdl');
 		$this->load->model('internal_use_mdl');
+		$this->load->model('ingredients_mdl');
 	}
 
 	public function index(){
@@ -700,12 +701,12 @@ class Products extends Admin_Controller{
 
 	public function lowStockCount(){
 
-		echo json_encode( array( 'count' => $this->products_mdl->getLowStockCount() ) );
+		echo json_encode( array( 'count' => $this->products_mdl->getLowStockCount() + $this->ingredients_mdl->lowStockCount() ) );
 	}
 
 	public function lowStockList(){
 
-		echo json_encode( array( 'products' => $this->products_mdl->getLowStockProducts() ) );
+		echo json_encode( array( 'products' => $this->products_mdl->getLowStockProducts(), 'ingredients' => $this->ingredients_mdl->lowStock() ) );
 	}
 
 	public function validateQuantities(){
