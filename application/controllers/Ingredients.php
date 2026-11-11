@@ -13,6 +13,7 @@ class Ingredients extends Admin_Controller{
 		}
 
 		$this->load->model('ingredients_mdl');
+		$this->load->model('modifiers_mdl');
 	}
 
 	private function json($data){
@@ -370,6 +371,8 @@ class Ingredients extends Admin_Controller{
 			'cost'        => $cost,
 			'cost_missing' => $missing,
 			'ingredients' => $this->ingredients_mdl->allActive(),
+			'mods_all'    => $this->modifiers_mdl->all(),
+			'mods_on'     => $this->modifiers_mdl->attachedIds($p->id_product),
 			'tk'          => $this->token(),
 			'rate'        => $this->db->query('SELECT sell_price FROM dollar_exchange LIMIT 1')->row(),
 		);

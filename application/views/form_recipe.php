@@ -81,3 +81,26 @@ foreach( $recipe as $r ){ $rec_json[] = array('id' => (int) $r->id_ingredient, '
 })();
 </script>
 <?php endif; ?>
+
+<?php if( empty($ingredients) ) : ?><input type="hidden" id="rc-tk" value="<?php echo $tk; ?>"><?php endif; ?>
+<hr>
+<h4>Modificadores de este platillo</h4>
+<?php if( empty($mods_all) ) : ?>
+<p class="text-muted">Aún no hay modificadores. Créelos en <a href="<?php echo base_url('modifiers'); ?>">Modificadores</a> ("Sin queso", "Término medio"...).</p>
+<?php else : ?>
+<p class="text-muted">Marque las opciones que el mesero podrá elegir al pedir este platillo.</p>
+<div id="mod-list" style="margin-bottom:10px;">
+	<?php foreach( $mods_all as $m ) : ?>
+	<div class="checkbox"><label><input type="checkbox" class="mod-check" value="<?php echo (int) $m->id_modifier; ?>" <?php echo in_array((int) $m->id_modifier, $mods_on, TRUE) ? 'checked' : ''; ?>> <?php echo htmlspecialchars($m->name); ?> <small class="text-muted">(<?php echo htmlspecialchars($m->kitchen_text); ?>)</small></label></div>
+	<?php endforeach; ?>
+</div>
+<button type="button" class="btn btn-primary" id="save-mods">Guardar modificadores</button>
+<script>
+$('#save-mods').on('click', function(){
+	var btn = $(this).prop('disabled', true), ids = $('.mod-check:checked').map(function(){ return parseInt(this.value, 10); }).get();
+	$.ajax({ url: '<?php echo base_url('modifiers/attach'); ?>', type: 'post', dataType: 'json', data: { tk: $('#rc-tk').val(), id_product: <?php echo (int) $product->id_product; ?>, ids: JSON.stringify(ids) },
+		success: function(r){ if( r.tk ){ $('#rc-tk').val(r.tk); } new PNotify({ title: 'Notificación', text: r.message, type: r.type, styling: 'bootstrap3', delay: 3500 }); btn.prop('disabled', false); },
+		error: function(){ new PNotify({ title: 'Notificación', text: 'Ha ocurrido un error guardando los datos', type: 'error', styling: 'bootstrap3' }); btn.prop('disabled', false); } });
+});
+</script>
+<?php endif; ?>

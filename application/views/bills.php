@@ -35,6 +35,7 @@ foreach( $bills as $b ){ if( $b->status === 'open' ){ $open_for_move[] = $b; } }
 				<li style="padding:5px 0; border-bottom:1px solid #f0f0f0;">
 					<?php echo (int) $i->quantity; ?> × <?php echo htmlspecialchars($i->product_name); ?>
 					<span class="pull-right"><?php echo $bills_money($i->quantity * $i->unit_price); ?></span>
+					<?php foreach( $i->mods as $mod_text ) : ?><br><small class="text-info"><i class="fa fa-asterisk"></i> <?php echo htmlspecialchars($mod_text); ?></small><?php endforeach; ?>
 					<?php if( $isOpen ) : ?>
 					<br><button type="button" class="btn btn-xs btn-default js-move" data-id="<?php echo (int) $i->id_order_item; ?>"
 						data-qty="<?php echo (int) $i->quantity; ?>" data-name="<?php echo htmlspecialchars($i->product_name); ?>" data-bill="<?php echo (int) $b->id_bill; ?>"><i class="fa fa-exchange"></i> Mover</button>

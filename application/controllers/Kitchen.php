@@ -123,6 +123,15 @@ class Kitchen extends Admin_Controller{
 				$course = 1;
 			}
 
+			// modifiers picked for this line: must belong to the dish; their ingredient removals are clamped to the recipe
+			$this->load->model('modifiers_mdl');
+			$this->load->model('ingredients_mdl');
+			$rec = $this->ingredients_mdl->recipesFor(array((int) $p->id_product));
+			list($mod_err, $mods) = $this->modifiers_mdl->resolve($p->id_product, isset($r['modifiers']) ? $r['modifiers'] : array(), isset($rec[(int) $p->id_product]) ? $rec[(int) $p->id_product] : NULL);
+			if( $mod_err ){
+				$this->fail($mod_err);
+			}
+
 			if( !$p->is_service ){
 				$asked[(int) $p->id_product] = (isset($asked[(int) $p->id_product]) ? $asked[(int) $p->id_product] : 0) + $qty;
 				$avail = $this->kitchen_mdl->available($p->id_product);
@@ -142,7 +151,7 @@ class Kitchen extends Admin_Controller{
 
 			$lines[] = array(
 				'id_product' => (int) $p->id_product, 'name' => $p->name, 'quantity' => $qty, 'price' => (float) $p->price_sell,
-				'notes' => $notes, 'course' => $course, 'prints_kitchen' => (int) $p->prints_kitchen,
+				'notes' => $notes, 'course' => $course, 'prints_kitchen' => (int) $p->prints_kitchen, 'modifiers' => $mods,
 			);
 		}
 
@@ -335,6 +344,10 @@ class Kitchen extends Admin_Controller{
 				$printer->setTextSize(2, 2);
 				$printer->text($i->quantity." x ".$this->ascii($i->product_name)."\n");
 				$printer->setTextSize(1, 1);
+
+				foreach( $i->mods as $mod_text ){
+					$printer->text("   ** ".$this->ascii($mod_text)."\n");
+				}
 
 				if( $i->notes ){
 					$printer->text("   >> ".$this->ascii($i->notes)."\n");

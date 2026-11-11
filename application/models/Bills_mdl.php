@@ -49,7 +49,9 @@ class Bills_mdl extends CI_Model{
 
 	public function items($id_bill){
 
-		return $this->db->where('id_bill', (int) $id_bill)->where('status', 'active')->order_by('id_order_item')->get('order_items')->result();
+		$this->load->model('modifiers_mdl');
+
+		return $this->modifiers_mdl->attachTexts($this->db->where('id_bill', (int) $id_bill)->where('status', 'active')->order_by('id_order_item')->get('order_items')->result());
 	}
 
 	/** Córdobas per dollar used to display prices (same rate every sale snapshots). */
@@ -254,6 +256,8 @@ class Bills_mdl extends CI_Model{
 			$clone['quantity'] = $qty;
 			$clone['id_bill']  = (int) $to->id_bill;
 			$this->db->insert('order_items', $clone);
+			$this->load->model('modifiers_mdl');
+			$this->modifiers_mdl->cloneRows($item->id_order_item, $this->db->insert_id());
 		}
 
 		return array(TRUE, 'Producto movido', (int) $to->id_bill);

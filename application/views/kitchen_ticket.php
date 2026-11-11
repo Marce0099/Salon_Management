@@ -18,6 +18,7 @@
 	<?php $course = NULL; foreach( $items as $i ) : if( !$i->prints_kitchen ) { continue; } ?>
 		<?php if( $course !== (int) $i->course ) : $course = (int) $i->course; ?><div style="font-weight:bold; margin-top:6px;">-- Tiempo <?php echo $course; ?> --</div><?php endif; ?>
 		<div style="font-size:18px; <?php echo $i->status === 'void' ? 'text-decoration:line-through;' : ''; ?>"><?php echo (int) $i->quantity; ?> x <?php echo htmlspecialchars($i->product_name); ?></div>
+		<?php foreach( $i->mods as $mod_text ) : ?><div style="padding-left:16px; font-weight:bold;">** <?php echo htmlspecialchars($mod_text); ?></div><?php endforeach; ?>
 		<?php if( $i->notes ) : ?><div style="padding-left:16px;">&gt;&gt; <?php echo htmlspecialchars($i->notes); ?></div><?php endif; ?>
 	<?php endforeach; ?>
 </div>

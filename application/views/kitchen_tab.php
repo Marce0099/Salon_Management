@@ -55,6 +55,7 @@
 						<?php echo (int) $i->quantity; ?> × <?php echo htmlspecialchars($i->product_name); ?>
 						<span class="text-muted">C$<?php echo number_format($i->quantity * $i->unit_price * $rate, 2); ?></span>
 						<?php if( $i->course > 1 ) : ?><span class="label label-info">T<?php echo (int) $i->course; ?></span><?php endif; ?>
+						<?php foreach( $i->mods as $mod_text ) : ?><br><small class="text-info"><i class="fa fa-asterisk"></i> <?php echo htmlspecialchars($mod_text); ?></small><?php endforeach; ?>
 						<?php if( $i->notes ) : ?><br><small class="text-muted"><i class="fa fa-comment-o"></i> <?php echo htmlspecialchars($i->notes); ?></small><?php endif; ?>
 						<?php if( $i->status === 'void' ) : ?><br><small class="text-danger">Anulado: <?php echo htmlspecialchars((string) $i->void_reason); ?></small>
 						<?php else : ?>
@@ -139,10 +140,10 @@
 	$('#m-grid').on('click', '.menu-item', function(){
 		var p = MENU.filter(function(x){ return x.id === parseInt($(this).attr('data-id'), 10); }.bind(this))[0];
 		if( !p || (p.stocked && p.available <= 0) ){ return; }
-		var line = cart.filter(function(l){ return l.id === p.id && !l.notes; })[0];
+		var line = cart.filter(function(l){ return l.id === p.id && !l.notes && !(l.mods && l.mods.length); })[0];
 		var inCart = cart.filter(function(l){ return l.id === p.id; }).reduce(function(a, l){ return a + l.qty; }, 0);
 		if( p.stocked && inCart + 1 > p.available ){ notify('error', 'No hay más stock de ' + p.name); return; }
-		if( line ){ line.qty++; } else { cart.push({ id: p.id, name: p.name, price: p.price, qty: 1, notes: '', course: 1, stocked: p.stocked, available: p.available }); }
+		if( line ){ line.qty++; } else { cart.push({ id: p.id, name: p.name, price: p.price, qty: 1, notes: '', course: 1, stocked: p.stocked, available: p.available, mods: [], modOpts: p.mods || [] }); }
 		renderCart();
 	});
 
@@ -158,11 +159,22 @@
 				'</span><button type="button" class="btn btn-default js-plus">+</button>' +
 				'<select class="form-control js-course" style="width:auto;display:inline-block;margin-left:8px;"><option value="1">Tiempo 1</option><option value="2">Tiempo 2</option><option value="3">Tiempo 3</option></select>' +
 				'<button type="button" class="btn btn-link text-danger js-del"><i class="fa fa-trash"></i></button></div>' +
+				modChips(l) +
 				'<input type="text" class="form-control js-notes" placeholder="Nota (sin cebolla, término medio...)" maxlength="255" style="margin-top:6px;" value="' + esc(l.notes) + '">' +
 				'</div>');
 			$c.find('.cart-line[data-i="' + i + '"] .js-course').val(l.course);
 		});
 		$('#btn-send').prop('disabled', !cart.length);
+	}
+
+	function modChips(l){
+		if( !l.modOpts || !l.modOpts.length ){ return ''; }
+		var h = '<div class="mod-chips" style="margin-top:6px;">';
+		$.each(l.modOpts, function(_, m){
+			var on = l.mods.indexOf(m.id) !== -1;
+			h += '<button type="button" class="btn btn-xs js-mod ' + (on ? 'btn-info' : 'btn-default') + '" data-mod="' + m.id + '" style="margin:0 4px 4px 0;">' + (on ? '<i class="fa fa-check"></i> ' : '') + esc(m.name) + '</button>';
+		});
+		return h + '</div>';
 	}
 
 	function idx(el){ return parseInt($(el).closest('.cart-line').attr('data-i'), 10); }
@@ -176,12 +188,27 @@
 	});
 	$('#cart').on('click', '.js-minus', function(){ var l = cart[idx(this)]; if( l.qty > 1 ){ l.qty--; renderCart(); } });
 	$('#cart').on('click', '.js-del', function(){ cart.splice(idx(this), 1); renderCart(); });
+	$('#cart').on('click', '.js-mod', function(){
+		var l = cart[idx(this)], id = parseInt($(this).attr('data-mod'), 10), p = l.mods.indexOf(id);
+		if( p === -1 ){ l.mods.push(id); } else { l.mods.splice(p, 1); }
+		l.mods.sort(function(a, b){ return a - b; });
+		// two lines of the same dish with the same modifiers/notes merge back into one
+		for( var j = 0; j < cart.length; j++ ){
+			var o = cart[j];
+			if( o !== l && o.id === l.id && !o.notes && !l.notes && o.mods.join(',') === l.mods.join(',') && o.course === l.course ){
+				var tot = cart.filter(function(x){ return x.id === l.id; }).reduce(function(a, x){ return a + x.qty; }, 0);
+				if( !l.stocked || tot <= l.available ){ o.qty = Math.min(99, o.qty + l.qty); cart.splice(cart.indexOf(l), 1); }
+				break;
+			}
+		}
+		renderCart();
+	});
 	$('#cart').on('input', '.js-notes', function(){ cart[idx(this)].notes = $(this).val(); });
 	$('#cart').on('change', '.js-course', function(){ cart[idx(this)].course = parseInt($(this).val(), 10); });
 
 	$('#btn-send').on('click', function(){
 		var $b = $(this).prop('disabled', true);
-		var items = cart.map(function(l){ return { id_product: l.id, quantity: l.qty, notes: l.notes, course: l.course }; });
+		var items = cart.map(function(l){ return { id_product: l.id, quantity: l.qty, notes: l.notes, course: l.course, modifiers: l.mods || [] }; });
 		$.post(BASE + 'send', { tk: TK, id_tab: ID_TAB, id_bill: $('#cart-bill').val() || 0, items: JSON.stringify(items) }, function(r){
 			if( r.type === 'success' ){
 				notify(r.printed ? 'success' : 'notice', r.message);
