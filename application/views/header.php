@@ -121,6 +121,8 @@
                       <?php } ?>
                       <?php if($this->controller->is_admin()){ ?>
                       <li><a href="<?php echo base_url('ingredients'); ?>">Ingredientes</a></li>
+                      <li><a href="<?php echo base_url('ingredients/purchase'); ?>">Compra de ingredientes</a></li>
+                      <li><a href="<?php echo base_url('ingredients/count'); ?>">Conteo de ingredientes</a></li>
                       <li><a href="<?php echo base_url('ingredients/usage'); ?>">Consumo de ingredientes</a></li>
                       <li><a href="<?php echo base_url('modifiers'); ?>">Modificadores</a></li>
                       <?php } ?>

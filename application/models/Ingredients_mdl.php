@@ -112,6 +112,222 @@ class Ingredients_mdl extends CI_Model{
 		return $delta;
 	}
 
+	// ---------- presentations (packs) ----------
+
+	/** Presentations of one ingredient, largest first. */
+	public function getPacks($id_ingredient){
+
+		return $this->db->where('id_ingredient', (int) $id_ingredient)->order_by('size', 'DESC')->get('ingredient_packs')->result();
+	}
+
+	/** All presentations of the active ingredients, grouped: array(id_ingredient => array(pack rows)). */
+	public function packsByIngredient(){
+
+		$out = array();
+		$rows = $this->db->query('SELECT p.* FROM ingredient_packs p JOIN ingredients i ON i.id_ingredient = p.id_ingredient WHERE i.active = 1 ORDER BY p.size DESC')->result();
+		foreach( $rows as $r ){ $out[(int) $r->id_ingredient][] = $r; }
+
+		return $out;
+	}
+
+	/**
+	 * Replaces the presentations of an ingredient: rows with a known id are updated in place (ids stay stable), new ones inserted,
+	 * the rest deleted (nothing references pack ids: purchase lines keep the pack name as text). NO transaction of its own.
+	 * $packs = array(array('id_pack' => int|0, 'name' => string, 'size' => float)).
+	 */
+	public function savePacks($id_ingredient, $packs){
+
+		$id_ingredient = (int) $id_ingredient;
+		$current = array();
+		foreach( $this->getPacks($id_ingredient) as $p ){ $current[(int) $p->id_pack] = $p; }
+
+		$keep = array();
+		foreach( $packs as $p ){
+			$id = (int) $p['id_pack'];
+			if( $id && isset($current[$id]) ){
+				$keep[$id] = TRUE;
+			}
+		}
+
+		foreach( array_keys($current) as $id ){
+			if( !isset($keep[$id]) ){ $this->db->where('id_pack', $id)->delete('ingredient_packs'); }
+		}
+
+		// two passes: renames first to a temporary unique name so swapping names between two packs cannot trip the unique key
+		foreach( $packs as $p ){
+			$id = (int) $p['id_pack'];
+			if( $id && isset($keep[$id]) ){
+				$this->db->where('id_pack', $id)->update('ingredient_packs', array('name' => '~'.$id.'~'));
+			}
+		}
+
+		foreach( $packs as $p ){
+			$id = (int) $p['id_pack'];
+			if( $id && isset($keep[$id]) ){
+				$this->db->where('id_pack', $id)->update('ingredient_packs', array('name' => $p['name'], 'size' => $p['size']));
+			}
+			else{
+				$this->db->insert('ingredient_packs', array('id_ingredient' => $id_ingredient, 'name' => $p['name'], 'size' => $p['size']));
+			}
+		}
+	}
+
+	// ---------- centralized purchase / count ----------
+
+	/** Runs $fn inside a transaction, retrying deadlocks/lock timeouts up to 3 times. $fn returns array(ok, message, ...). */
+	private function runTx($fn){
+
+		for( $try = 0; $try < 3; $try++ ){
+
+			try{
+				$this->db->trans_begin();
+				$r = $fn();
+
+				if( $r[0] && $this->db->trans_status() !== FALSE ){ $this->db->trans_commit(); return $r; }
+
+				$this->db->trans_rollback();
+				return $r[0] ? array(FALSE, 'No se pudo guardar, intente de nuevo') : $r;
+			}
+			catch( Exception $e ){
+
+				log_message('error', 'Ingredient bulk transaction failed (try '.($try + 1).'): '.$e->getMessage());
+				try{ $this->db->trans_rollback(); }catch( Exception $e2 ){ /* already rolled back by the server */ }
+				usleep(mt_rand(20000, 90000));
+			}
+		}
+
+		return array(FALSE, 'Hay mucha actividad en este momento, intente de nuevo');
+	}
+
+	/**
+	 * Saves a purchase receipt: every line adds stock and a 'receive' movement, the cost per base unit becomes the weighted average
+	 * of the existing stock and the purchase, all in ONE transaction (rows locked in ascending id, like the kitchen).
+	 * $lines = array(array(id_ingredient, pack_name|NULL, pack_qty, base_qty, line_cost|NULL)); $header = array(store, note, purchased_at).
+	 * Returns array(ok, message, id_purchase).
+	 */
+	public function receivePurchase($lines, $header, $id_admin){
+
+		$self = $this;
+
+		return $this->runTx(function() use ($self, $lines, $header, $id_admin){
+
+			$ids = array();
+			foreach( $lines as $l ){ $ids[(int) $l['id_ingredient']] = TRUE; }
+			$ids = array_keys($ids);
+			sort($ids);
+
+			$rows = $self->db->query('SELECT id_ingredient, name, stock, cost_unit, batch_yield, active FROM ingredients
+				WHERE id_ingredient IN ('.implode(',', array_map('intval', $ids)).') ORDER BY id_ingredient FOR UPDATE')->result();
+
+			$state = array();
+			foreach( $rows as $r ){ $state[(int) $r->id_ingredient] = $r; }
+
+			$total = 0;
+			foreach( $lines as $l ){
+				$s = isset($state[(int) $l['id_ingredient']]) ? $state[(int) $l['id_ingredient']] : NULL;
+				if( !$s || !$s->active ){ return array(FALSE, 'Un ingrediente de la compra ya no está disponible'); }
+				if( $s->batch_yield !== NULL ){ return array(FALSE, $s->name.' se prepara en la cocina: use "Preparar lote"'); }
+				if( $l['line_cost'] !== NULL ){ $total += $l['line_cost']; }
+			}
+
+			$self->db->insert('ingredient_purchases', array(
+				'store'        => $header['store'],
+				'note'         => $header['note'],
+				'purchased_at' => $header['purchased_at'],
+				'total_cost'   => round($total, 2),
+				'id_admin'     => $id_admin ? (int) $id_admin : NULL,
+			));
+			$id_purchase = (int) $self->db->insert_id();
+
+			foreach( $lines as $l ){
+
+				$id   = (int) $l['id_ingredient'];
+				$s    = $state[$id];
+				$base = (float) $l['base_qty'];
+				$cost = $l['line_cost'];
+				$new_cost = $s->cost_unit;
+
+				if( $cost !== NULL && $cost > 0 && $base > 0 ){
+					$unit_now = $cost / $base;
+					$new_cost = ($s->cost_unit === NULL || (float) $s->stock <= 0)
+						? $unit_now
+						: ((float) $s->stock * (float) $s->cost_unit + $cost) / ((float) $s->stock + $base);
+					$new_cost = round($new_cost, 6);
+				}
+
+				$self->db->query('UPDATE ingredients SET stock = stock + ?, cost_unit = ? WHERE id_ingredient = ?', array($base, $new_cost, $id));
+				$self->log($id, 'receive', $base, 'Compra #'.$id_purchase, $id_admin);
+
+				$s->stock = (float) $s->stock + $base; // in-memory state so a repeated ingredient averages correctly
+				$s->cost_unit = $new_cost;
+
+				$self->db->insert('ingredient_purchase_lines', array(
+					'id_purchase'   => $id_purchase,
+					'id_ingredient' => $id,
+					'pack_name'     => $l['pack_name'],
+					'pack_qty'      => $l['pack_qty'],
+					'base_qty'      => $base,
+					'line_cost'     => $cost,
+				));
+			}
+
+			return array(TRUE, 'Compra registrada', $id_purchase);
+		});
+	}
+
+	/**
+	 * Physical count of many ingredients at once. $counts = array(id_ingredient => counted quantity in base units).
+	 * Only rows whose count differs from the (locked) stock are written, each as an 'adjustment' movement with the delta.
+	 * Returns array(ok, message, changed, rows) where rows = array(array(name, unit, before, after, delta)).
+	 */
+	public function countMany($counts, $reason, $id_admin){
+
+		$self = $this;
+
+		return $this->runTx(function() use ($self, $counts, $reason, $id_admin){
+
+			$ids = array_map('intval', array_keys($counts));
+			sort($ids);
+
+			$rows = $self->db->query('SELECT id_ingredient, name, unit, stock, active FROM ingredients
+				WHERE id_ingredient IN ('.implode(',', $ids).') ORDER BY id_ingredient FOR UPDATE')->result();
+
+			$changed = array();
+			foreach( $rows as $r ){
+
+				if( !$r->active ){ continue; }
+
+				$counted = round((float) $counts[(int) $r->id_ingredient], 3);
+				$delta   = round($counted - (float) $r->stock, 3);
+				if( $delta == 0 ){ continue; }
+
+				$self->db->where('id_ingredient', (int) $r->id_ingredient)->update('ingredients', array('stock' => $counted));
+				$self->log($r->id_ingredient, 'adjustment', $delta, $reason, $id_admin);
+				$changed[] = array('name' => $r->name, 'unit' => $r->unit, 'before' => (float) $r->stock, 'after' => $counted, 'delta' => $delta);
+			}
+
+			return array(TRUE, 'Conteo guardado', count($changed), $changed);
+		});
+	}
+
+	/** Latest saved purchases with their line count. */
+	public function purchases($limit = 100){
+
+		return $this->db->query('SELECT p.*, a.username, (SELECT COUNT(*) FROM ingredient_purchase_lines l WHERE l.id_purchase = p.id_purchase) AS n_lines
+			FROM ingredient_purchases p LEFT JOIN admins a ON a.id_admin = p.id_admin ORDER BY p.id_purchase DESC LIMIT '.(int) $limit)->result();
+	}
+
+	public function purchase($id){
+
+		return $this->db->query('SELECT p.*, a.username FROM ingredient_purchases p LEFT JOIN admins a ON a.id_admin = p.id_admin WHERE p.id_purchase = ?', array((int) $id))->row();
+	}
+
+	public function purchaseLines($id){
+
+		return $this->db->query('SELECT l.*, i.name, i.unit FROM ingredient_purchase_lines l JOIN ingredients i ON i.id_ingredient = l.id_ingredient
+			WHERE l.id_purchase = ? ORDER BY l.id_line', array((int) $id))->result();
+	}
+
 	public function movements($id_ingredient, $limit = 100){
 
 		return $this->db->query('SELECT m.*, a.username FROM ingredient_movements m LEFT JOIN admins a ON a.id_admin = m.id_admin

@@ -79,6 +79,7 @@ class Ingredients extends Admin_Controller{
 			'tk'            => $this->token(),
 			'units'         => Ingredients_mdl::$units,
 			'components'    => $this->ingredients_mdl->allComponents(),
+			'packs'         => $this->ingredients_mdl->packsByIngredient(),
 		), array());
 
 		$this->renderPanel('ingredients');
@@ -136,6 +137,7 @@ class Ingredients extends Admin_Controller{
 			}
 			$view['ingredient'] = $ing;
 			$view['components'] = $this->ingredients_mdl->components($id);
+			$view['packs'] = $this->ingredients_mdl->getPacks($id);
 		}
 
 		$this->content_data = $view;
@@ -165,16 +167,25 @@ class Ingredients extends Admin_Controller{
 			$cost = (float) str_replace(',', '.', trim((string) $this->input->post('cost_unit')));
 		}
 
-		$pack_name = trim((string) $this->input->post('pack_name'));
-		$pack_size = NULL;
-		if( trim((string) $this->input->post('pack_size')) !== '' || $pack_name !== '' ){
-			$pack_size = $this->num($this->input->post('pack_size'));
-			if( $pack_size === NULL || $pack_name === '' || mb_strlen($pack_name, 'UTF-8') > 60 || preg_match('/[<>]/', $pack_name) ){
-				$this->fail('Presentación inválida: indique nombre y tamaño en unidad base');
+		// Presentations (several per ingredient): JSON list of {id_pack, name, size}, size in base units.
+		$packs = array();
+		$raw_packs = json_decode((string) $this->input->post('packs'), TRUE);
+		if( is_array($raw_packs) ){
+			if( count($raw_packs) > 20 ){ $this->fail('Demasiadas presentaciones'); }
+			$seen = array();
+			foreach( $raw_packs as $rp ){
+				$pname = trim(preg_replace('/\s+/', ' ', (string) ( isset($rp['name']) ? $rp['name'] : '' )));
+				$psize_raw = trim((string) ( isset($rp['size']) ? $rp['size'] : '' ));
+				if( $pname === '' && $psize_raw === '' ){ continue; }
+				$psize = $this->num($psize_raw);
+				if( $psize === NULL || $pname === '' || mb_strlen($pname, 'UTF-8') > 60 || preg_match('/[<>]/', $pname) || preg_match('/[\x{10000}-\x{10FFFF}]/u', $pname) ){
+					$this->fail('Presentación inválida: indique nombre y tamaño en unidad base');
+				}
+				$key = mb_strtolower($pname, 'UTF-8');
+				if( isset($seen[$key]) ){ $this->fail('La presentación "'.$pname.'" está repetida'); }
+				$seen[$key] = TRUE;
+				$packs[] = array('id_pack' => (int) ( isset($rp['id_pack']) ? $rp['id_pack'] : 0 ), 'name' => $pname, 'size' => $psize);
 			}
-		}
-		else{
-			$pack_name = NULL;
 		}
 
 		if( $this->ingredients_mdl->nameTaken($name, $id) ){ $this->fail('Ya existe un ingrediente con ese nombre'); }
@@ -210,7 +221,7 @@ class Ingredients extends Admin_Controller{
 			}
 		}
 
-		$data = array('name' => $name, 'unit' => $unit, 'alert_threshold' => $alert, 'cost_unit' => $cost, 'pack_name' => $pack_name, 'pack_size' => $pack_size);
+		$data = array('name' => $name, 'unit' => $unit, 'alert_threshold' => $alert, 'cost_unit' => $cost);
 
 		if( $id ){
 			$ing = $this->ingredients_mdl->get($id);
@@ -218,6 +229,7 @@ class Ingredients extends Admin_Controller{
 			$this->db->trans_begin();
 			$this->db->where('id_ingredient', $id)->update('ingredients', $data);
 			$this->ingredients_mdl->applyPrepared($id, $yield, $comps);
+			$this->ingredients_mdl->savePacks($id, $packs);
 			if( $this->db->trans_status() === FALSE ){
 				$this->db->trans_rollback();
 				$this->fail('No se pudo guardar el ingrediente');
@@ -238,6 +250,7 @@ class Ingredients extends Admin_Controller{
 			$this->ingredients_mdl->log($new, 'adjustment', $stock, 'Stock inicial', $this->id_admin);
 		}
 		if( $prepared ){ $this->ingredients_mdl->applyPrepared($new, $yield, $comps); }
+		$this->ingredients_mdl->savePacks($new, $packs);
 		if( $this->db->trans_status() === FALSE ){
 			$this->db->trans_rollback();
 			$this->fail('No se pudo guardar el ingrediente');
@@ -277,37 +290,183 @@ class Ingredients extends Admin_Controller{
 		redirect('ingredients');
 	}
 
-	/** Receiving: quantity in base units or in packs (if the ingredient has a pack), optional total cost. */
-	public function receive(){
+	/** Centralized purchase screen: one card per ingredient bought (quantity by presentation + what it cost). */
+	public function purchase(){
+
+		$packs = $this->ingredients_mdl->packsByIngredient();
+		$list = array();
+		foreach( $this->ingredients_mdl->allActive() as $i ){
+			if( $i->batch_yield !== NULL ){ continue; }
+			$pl = array();
+			if( isset($packs[(int) $i->id_ingredient]) ){ foreach( $packs[(int) $i->id_ingredient] as $p ){ $pl[] = array('id' => (int) $p->id_pack, 'name' => $p->name, 'size' => (float) $p->size); } }
+			$list[] = array('id' => (int) $i->id_ingredient, 'name' => $i->name, 'unit' => $i->unit, 'stock' => (float) $i->stock, 'cost' => $i->cost_unit !== NULL ? (float) $i->cost_unit : NULL, 'packs' => $pl);
+		}
+
+		$this->footer_data = load_data($this->session);
+		$this->content_data = array('ingredients' => $list, 'units' => Ingredients_mdl::$units, 'tk' => $this->token());
+		$this->renderPanel('form_ingredient_purchase');
+	}
+
+	/** Resolves "qty of presentation X" into base units for an ingredient; returns array(base_qty, pack_name|NULL) or NULL when invalid. */
+	private function resolveQty($id_ingredient, $id_pack, $qty){
+
+		$id_pack = (int) $id_pack;
+		if( !$id_pack ){ return array($qty, NULL, $qty); }
+
+		$pack = $this->db->where('id_pack', $id_pack)->where('id_ingredient', (int) $id_ingredient)->get('ingredient_packs')->row();
+		if( !$pack ){ return NULL; }
+
+		return array(round($qty * (float) $pack->size, 3), $pack->name, $qty);
+	}
+
+	/** Saves a purchase (POST): lines = JSON [{id_ingredient, id_pack, qty, cost}]. Everything or nothing. */
+	public function purchase_save(){
 
 		$this->requirePost();
 
-		$ing = $this->ingredients_mdl->get($this->input->post('id_ingredient'));
-		if( !$ing || !$ing->active ){ $this->fail('Ingrediente inválido'); }
+		$raw = json_decode((string) $this->input->post('lines'), TRUE);
+		if( !is_array($raw) || count($raw) < 1 ){ $this->fail('Agregue al menos un ingrediente a la compra'); }
+		if( count($raw) > 150 ){ $this->fail('Demasiadas líneas en una sola compra'); }
 
-		if( $ing->batch_yield !== NULL ){ $this->fail('Este ingrediente se prepara en la cocina: use "Preparar lote"'); }
+		$date = (string) $this->input->post('date');
+		if( !preg_match('/^\d{4}-\d{2}-\d{2}$/', $date) || strtotime($date) === FALSE ){ $date = date('Y-m-d'); }
+		if( $date > date('Y-m-d') ){ $this->fail('La fecha de la compra no puede ser futura'); }
 
-		$qty = $this->num($this->input->post('quantity'));
-		if( $qty === NULL ){ $this->fail('Cantidad inválida'); }
+		$store = trim((string) $this->input->post('store'));
+		$note  = trim((string) $this->input->post('note'));
+		if( mb_strlen($store, 'UTF-8') > 100 || mb_strlen($note, 'UTF-8') > 255 ){ $this->fail('El comercio o la nota son demasiado largos'); }
+		if( preg_match('/[<>]/', $store.$note) ){ $this->fail('El comercio o la nota contienen caracteres no permitidos'); }
 
-		$mode = (string) $this->input->post('mode');
-		if( $mode === 'pack' ){
-			if( !$ing->pack_size ){ $this->fail('Este ingrediente no tiene presentación definida'); }
-			$qty = round($qty * (float) $ing->pack_size, 3);
+		$lines = array();
+		foreach( $raw as $r ){
+
+			$ing = $this->ingredients_mdl->get(isset($r['id_ingredient']) ? $r['id_ingredient'] : 0);
+			if( !$ing || !$ing->active ){ $this->fail('Hay un ingrediente inválido en la compra'); }
+			if( $ing->batch_yield !== NULL ){ $this->fail($ing->name.' se prepara en la cocina: use "Preparar lote"'); }
+
+			$qty = $this->num(isset($r['qty']) ? $r['qty'] : '');
+			if( $qty === NULL ){ $this->fail('Cantidad inválida para '.$ing->name); }
+
+			$res = $this->resolveQty($ing->id_ingredient, isset($r['id_pack']) ? $r['id_pack'] : 0, $qty);
+			if( $res === NULL ){ $this->fail('Presentación inválida para '.$ing->name); }
+			if( $res[0] <= 0 || $res[0] > 99999999 ){ $this->fail('Cantidad inválida para '.$ing->name); }
+
+			$cost = NULL;
+			if( isset($r['cost']) && trim((string) $r['cost']) !== '' ){
+				$cost = $this->num($r['cost'], TRUE);
+				if( $cost === NULL ){ $this->fail('El costo de '.$ing->name.' es inválido'); }
+				$cost = round($cost, 2);
+			}
+
+			$lines[] = array('id_ingredient' => (int) $ing->id_ingredient, 'pack_name' => $res[1], 'pack_qty' => $res[2], 'base_qty' => $res[0], 'line_cost' => $cost);
 		}
 
-		$total = NULL;
-		if( trim((string) $this->input->post('total_cost')) !== '' ){
-			$t = str_replace(',', '.', trim((string) $this->input->post('total_cost')));
-			if( !is_numeric($t) || (float) $t < 0 || (float) $t > 99999999 ){ $this->fail('El costo total es inválido'); }
-			$total = (float) $t;
+		$r = $this->ingredients_mdl->receivePurchase($lines, array('store' => $store !== '' ? $store : NULL, 'note' => $note !== '' ? $note : NULL, 'purchased_at' => $date), $this->id_admin);
+		if( !$r[0] ){ $this->fail($r[1]); }
+
+		$this->ok('Compra #'.$r[2].' registrada ('.count($lines).' ingredientes)', array('id_purchase' => $r[2]));
+	}
+
+	/** Creates a bare ingredient from the purchase screen (name + unit + optional presentation) and returns it for the line list. */
+	public function quick_create(){
+
+		$this->requirePost();
+
+		$name = trim(preg_replace('/\s+/', ' ', (string) $this->input->post('name')));
+		$unit = (string) $this->input->post('unit');
+		if( $name === '' || mb_strlen($name, 'UTF-8') > 100 || preg_match('/[<>]/', $name) || preg_match('/[\x{10000}-\x{10FFFF}]/u', $name) ){ $this->fail('Nombre inválido (máx. 100 caracteres)'); }
+		if( !isset(Ingredients_mdl::$units[$unit]) ){ $this->fail('Unidad inválida'); }
+		if( $this->ingredients_mdl->nameTaken($name, 0) ){ $this->fail('Ya existe un ingrediente con ese nombre'); }
+
+		$pack = NULL;
+		$pname = trim((string) $this->input->post('pack_name'));
+		if( $pname !== '' || trim((string) $this->input->post('pack_size')) !== '' ){
+			$psize = $this->num($this->input->post('pack_size'));
+			if( $psize === NULL || $pname === '' || mb_strlen($pname, 'UTF-8') > 60 || preg_match('/[<>]/', $pname) || preg_match('/[\x{10000}-\x{10FFFF}]/u', $pname) ){ $this->fail('Presentación inválida: indique nombre y tamaño en unidad base'); }
+			$pack = array('id_pack' => 0, 'name' => $pname, 'size' => $psize);
 		}
 
-		if( !$this->ingredients_mdl->receive($ing, $qty, $total, $this->input->post('reason'), $this->id_admin) ){
-			$this->fail('No se pudo registrar la entrada');
+		$this->db->trans_begin();
+		$this->db->insert('ingredients', array('name' => $name, 'unit' => $unit));
+		$id = (int) $this->db->insert_id();
+		if( $pack ){ $this->ingredients_mdl->savePacks($id, array($pack)); }
+		if( $this->db->trans_status() === FALSE ){
+			$this->db->trans_rollback();
+			$this->fail('No se pudo crear el ingrediente');
+		}
+		$this->db->trans_commit();
+
+		$packs = array();
+		foreach( $this->ingredients_mdl->getPacks($id) as $p ){ $packs[] = array('id' => (int) $p->id_pack, 'name' => $p->name, 'size' => (float) $p->size); }
+
+		$this->ok('Ingrediente creado', array('ingredient' => array('id' => $id, 'name' => $name, 'unit' => $unit, 'stock' => 0, 'cost' => NULL, 'packs' => $packs)));
+	}
+
+	public function purchases(){
+
+		$this->footer_data = load_data($this->session);
+		$this->content_data = array('purchases' => $this->ingredients_mdl->purchases());
+		$this->renderPanel('ingredient_purchases');
+	}
+
+	public function purchase_detail($id = 0){
+
+		$p = $this->ingredients_mdl->purchase($id);
+		if( !$p ){
+			$this->session->set_userdata('view_data', array('status' => array('class' => 'error', 'message' => 'Compra inválida')));
+			redirect('ingredients/purchases');
 		}
 
-		$this->ok('Entrada registrada: +'.rtrim(rtrim(number_format($qty, 3, '.', ''), '0'), '.').' '.$ing->unit.' de '.$ing->name);
+		$this->footer_data = load_data($this->session);
+		$this->content_data = array('purchase' => $p, 'lines' => $this->ingredients_mdl->purchaseLines($id));
+		$this->renderPanel('ingredient_purchase_detail');
+	}
+
+	/** Quick physical count screen: every active ingredient, fill only what you counted. */
+	public function count(){
+
+		$packs = $this->ingredients_mdl->packsByIngredient();
+		$list = array();
+		foreach( $this->ingredients_mdl->allActive() as $i ){
+			$pl = array();
+			if( isset($packs[(int) $i->id_ingredient]) ){ foreach( $packs[(int) $i->id_ingredient] as $p ){ $pl[] = array('id' => (int) $p->id_pack, 'name' => $p->name, 'size' => (float) $p->size); } }
+			$list[] = array('id' => (int) $i->id_ingredient, 'name' => $i->name, 'unit' => $i->unit, 'stock' => (float) $i->stock, 'prepared' => $i->batch_yield !== NULL, 'packs' => $pl);
+		}
+
+		$this->footer_data = load_data($this->session);
+		$this->content_data = array('ingredients' => $list, 'tk' => $this->token());
+		$this->renderPanel('form_ingredient_count');
+	}
+
+	/** Saves a quick count (POST): counts = JSON [{id_ingredient, id_pack, qty}]; only differences are written. */
+	public function count_save(){
+
+		$this->requirePost();
+
+		$raw = json_decode((string) $this->input->post('counts'), TRUE);
+		if( !is_array($raw) || count($raw) < 1 ){ $this->fail('No hay cantidades contadas'); }
+		if( count($raw) > 500 ){ $this->fail('Demasiadas líneas en un solo conteo'); }
+
+		$counts = array();
+		foreach( $raw as $r ){
+
+			$ing = $this->ingredients_mdl->get(isset($r['id_ingredient']) ? $r['id_ingredient'] : 0);
+			if( !$ing || !$ing->active ){ $this->fail('Hay un ingrediente inválido en el conteo'); }
+			if( isset($counts[(int) $ing->id_ingredient]) ){ $this->fail($ing->name.' está repetido en el conteo'); }
+
+			$qty = $this->num(isset($r['qty']) ? $r['qty'] : '', TRUE);
+			if( $qty === NULL ){ $this->fail('Cantidad inválida para '.$ing->name); }
+
+			$res = $this->resolveQty($ing->id_ingredient, isset($r['id_pack']) ? $r['id_pack'] : 0, $qty);
+			if( $res === NULL ){ $this->fail('Presentación inválida para '.$ing->name); }
+
+			$counts[(int) $ing->id_ingredient] = $res[0];
+		}
+
+		$r = $this->ingredients_mdl->countMany($counts, 'Conteo físico '.date('d/m/Y'), $this->id_admin);
+		if( !$r[0] ){ $this->fail($r[1]); }
+
+		$this->ok($r[2] > 0 ? 'Conteo guardado: '.$r[2].' ingrediente(s) ajustado(s)' : 'Conteo guardado: sin diferencias', array('changed' => $r[3]));
 	}
 
 	/** Waste (removes stock, reason required) or physical count (sets stock). */
