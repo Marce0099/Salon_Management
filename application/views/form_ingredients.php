@@ -13,7 +13,7 @@ $e = function($f) use ($ingredient){ return isset($ingredient->$f) && $ingredien
 ?>
 <h4 class="section-title"><?php echo $is_edit ? 'Editar ingrediente' : 'Nuevo ingrediente'; ?></h4>
 
-<div class="col-md-5">
+<div class="col-md-5" style="min-width:0;">
 	<form id="form" autocomplete="off" onsubmit="return false;" spellcheck="false">
 		<div class="form-group"><label>Nombre</label><input type="text" name="name" id="name" maxlength="100" class="form-control" value="<?php echo $is_edit ? $e('name') : ''; ?>"></div>
 		<div class="form-group">
@@ -41,8 +41,8 @@ $e = function($f) use ($ingredient){ return isset($ingredient->$f) && $ingredien
 			<div id="prep-box" style="display:none;">
 				<p class="text-muted" style="font-size:12px;">Los platillos descuentan la existencia de este ingrediente. Al "Preparar lote" se descuentan los componentes y se suma el rendimiento. Los componentes deben ser ingredientes simples.</p>
 				<div class="form-group"><label>Rendimiento de un lote (en unidad base)</label><input type="text" inputmode="decimal" name="batch_yield" id="batch_yield" class="form-control" value="<?php echo $is_prepared ? $num($ingredient->batch_yield) : ''; ?>"></div>
-				<div class="table-responsive"><table class="table table-condensed" id="comp-table" style="min-width:440px;">
-					<thead><tr><th>Componente</th><th style="width:130px;">Cantidad por lote</th><th style="width:50px;">Unid.</th><th class="text-right" style="width:90px;">Costo</th><th style="width:40px;"></th></tr></thead>
+				<div class="table-responsive" style="overflow-x:auto; width:100%; border:0;"><table class="table table-condensed" id="comp-table" style="min-width:380px; margin-bottom:5px;">
+					<thead><tr><th>Componente</th><th style="width:100px;">Cant. por lote</th><th style="width:45px;">Unid.</th><th class="text-right" style="width:75px;">Costo</th><th style="width:40px;"></th></tr></thead>
 					<tbody></tbody>
 					<tfoot>
 						<tr><td colspan="3" class="text-right"><strong>Costo por lote</strong></td><td class="text-right"><strong id="batch-cost">$ 0.00</strong></td><td></td></tr>
@@ -59,6 +59,7 @@ $e = function($f) use ($ingredient){ return isset($ingredient->$f) && $ingredien
 		<a href="<?php echo base_url('ingredients'); ?>" class="btn btn-default">Cancelar</a>
 	</form>
 </div>
+<div class="clearfix"></div>
 
 <script>
 	var RAW = <?php echo json_encode($raw_json); ?>, COMP = <?php echo json_encode($comp_json); ?>;
