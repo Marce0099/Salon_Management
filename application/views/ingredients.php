@@ -1,5 +1,10 @@
 <?php if( !function_exists('ing_n') ){ function ing_n($v){ return rtrim(rtrim(number_format((float) $v, 3, '.', ','), '0'), '.'); } } ?>
 <h3 class="section-title">Ingredientes <a href="<?php echo base_url('ingredients/usage'); ?>" class="btn btn-default btn-sm pull-right"><i class="fa fa-bar-chart"></i> Consumo</a></h3>
+<p>
+	<a href="<?php echo base_url('ingredients/purchase'); ?>" class="btn btn-success"><i class="fa fa-shopping-cart"></i> Registrar compra</a>
+	<a href="<?php echo base_url('ingredients/count'); ?>" class="btn btn-warning"><i class="fa fa-check-square-o"></i> Conteo rápido</a>
+	<a href="<?php echo base_url('ingredients/purchases'); ?>" class="btn btn-default"><i class="fa fa-history"></i> Compras</a>
+</p>
 
 <?php if( !empty($low) ) : ?>
 <div class="alert alert-warning">
@@ -33,16 +38,19 @@
 	</thead>
 	<tbody>
 		<?php foreach( $ingredients as $i ) : $is_low = $i->alert_threshold > 0 && $i->stock <= $i->alert_threshold; ?>
-		<tr class="ing-row" data-id="<?php echo $i->id_ingredient; ?>" data-name="<?php echo htmlspecialchars($i->name); ?>" data-unit="<?php echo $i->unit; ?>" data-pack="<?php echo htmlspecialchars((string) $i->pack_name); ?>" data-packsize="<?php echo $i->pack_size !== NULL ? ing_n($i->pack_size) : ''; ?>" data-yield="<?php echo $i->batch_yield !== NULL ? rtrim(rtrim(number_format((float) $i->batch_yield, 3, '.', ''), '0'), '.') : ''; ?>" data-comps="<?php echo htmlspecialchars(json_encode(isset($components[(int) $i->id_ingredient]) ? $components[(int) $i->id_ingredient] : array())); ?>">
+		<tr class="ing-row" data-id="<?php echo $i->id_ingredient; ?>" data-name="<?php echo htmlspecialchars($i->name); ?>" data-unit="<?php echo $i->unit; ?>" data-yield="<?php echo $i->batch_yield !== NULL ? rtrim(rtrim(number_format((float) $i->batch_yield, 3, '.', ''), '0'), '.') : ''; ?>" data-comps="<?php echo htmlspecialchars(json_encode(isset($components[(int) $i->id_ingredient]) ? $components[(int) $i->id_ingredient] : array())); ?>">
 			<td><?php echo htmlspecialchars($i->name); ?><?php if( $i->batch_yield !== NULL ) : ?> <span class="label label-primary">Preparado</span><?php endif; ?></td>
 			<td class="text-right"><span class="<?php echo $is_low ? 'text-danger' : ''; ?>"><strong><?php echo ing_n($i->stock).' '.$i->unit; ?></strong></span><?php if( $is_low ) : ?> <span class="label label-danger">Bajo</span><?php endif; ?></td>
 			<td class="text-right"><?php echo $i->alert_threshold > 0 ? ing_n($i->alert_threshold).' '.$i->unit : '—'; ?></td>
 			<td class="text-right"><?php echo $i->eff_cost !== NULL ? '$ '.rtrim(rtrim(number_format((float) $i->eff_cost, 6, '.', ''), '0'), '.') : '—'; ?></td>
-			<td><?php echo $i->pack_name ? htmlspecialchars($i->pack_name).' = '.ing_n($i->pack_size).' '.$i->unit : '—'; ?></td>
+			<td><?php
+				$pl = array();
+				if( isset($packs[(int) $i->id_ingredient]) ){ foreach( $packs[(int) $i->id_ingredient] as $p ){ $pl[] = htmlspecialchars($p->name).' = '.ing_n($p->size).' '.$i->unit; } }
+				echo $pl ? implode('<br>', $pl) : '—'; ?></td>
 			<td>
 				<?php if( $i->active ) : ?>
 				<?php if( $i->batch_yield !== NULL ) : ?><button type="button" class="btn btn-primary btn-xs btn-prepare">Preparar lote</button>
-				<?php else : ?><button type="button" class="btn btn-success btn-xs btn-receive">Recibir</button><?php endif; ?>
+				<?php endif; ?>
 				<button type="button" class="btn btn-warning btn-xs btn-adjust">Merma / conteo</button>
 				<a href="<?php echo base_url('ingredients/movements/'.$i->id_ingredient); ?>" class="btn btn-default btn-xs">Historial</a>
 				<a href="<?php echo base_url('ingredients/edit/'.$i->id_ingredient); ?>" class="btn btn-default btn-xs">Editar</a>
@@ -58,20 +66,6 @@
 </div>
 <?php endif; ?>
 
-<!-- Receive modal -->
-<div class="modal fade" id="modal-receive" tabindex="-1"><div class="modal-dialog"><div class="modal-content">
-	<div class="modal-header"><button type="button" class="close" data-dismiss="modal">&times;</button><h4 class="modal-title">Recibir: <span class="ing-name"></span></h4></div>
-	<div class="modal-body">
-		<div class="form-group" id="rc-mode-wrap">
-			<label>Unidad de entrada</label>
-			<select id="rc-mode" class="form-control"><option value="base">Unidad base</option><option value="pack"></option></select>
-		</div>
-		<div class="form-group"><label>Cantidad (<span id="rc-unit"></span>)</label><input type="text" inputmode="decimal" id="rc-qty" class="form-control"></div>
-		<div class="form-group"><label>Costo total pagado ($, opcional)</label><input type="text" inputmode="decimal" id="rc-cost" class="form-control"></div>
-		<div class="form-group"><label>Nota (opcional)</label><input type="text" id="rc-reason" maxlength="255" class="form-control"></div>
-	</div>
-	<div class="modal-footer"><button type="button" class="btn btn-default" data-dismiss="modal">Cancelar</button><button type="button" class="btn btn-success" id="rc-save">Guardar entrada</button></div>
-</div></div></div>
 
 <!-- Adjust modal -->
 <div class="modal fade" id="modal-adjust" tabindex="-1"><div class="modal-dialog"><div class="modal-content">
@@ -116,22 +110,8 @@
 			error: function(){ notify('error', 'Ha ocurrido un error guardando los datos'); btn.prop('disabled', false); }
 		});
 	}
-	function rowData(tr){ return { id: tr.data('id'), name: tr.data('name'), unit: tr.data('unit'), pack: tr.data('pack'), packsize: tr.data('packsize') }; }
+	function rowData(tr){ return { id: tr.data('id'), name: tr.data('name'), unit: tr.data('unit')}; }
 
-	$('.btn-receive').on('click', function(){
-		cur = rowData($(this).closest('tr'));
-		$('#modal-receive .ing-name').text(cur.name); $('#rc-unit').text(cur.unit);
-		$('#rc-qty, #rc-cost, #rc-reason').val('');
-		var sel = $('#rc-mode'); sel.val('base');
-		if( cur.pack ){ sel.find('option[value=pack]').text(cur.pack + ' (= ' + cur.packsize + ' ' + cur.unit + ')'); $('#rc-mode-wrap').show(); }
-		else { $('#rc-mode-wrap').hide(); }
-		$('#rc-save').prop('disabled', false);
-		$('#modal-receive').modal('show');
-	});
-	$('#rc-mode').on('change', function(){ $('#rc-unit').text($(this).val() === 'pack' ? cur.pack : cur.unit); });
-	$('#rc-save').on('click', function(){
-		send('<?php echo base_url('ingredients/receive'); ?>', { mode: $('#rc-mode').val(), quantity: $('#rc-qty').val(), total_cost: $('#rc-cost').val(), reason: $('#rc-reason').val() }, $(this));
-	});
 
 	var prData = null;
 	function fmt(x){ return (Math.round(x * 1000) / 1000).toString(); }

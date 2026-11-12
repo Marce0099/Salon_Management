@@ -7,6 +7,8 @@ $comp_json = array();
 foreach( $components as $c ){ $comp_json[] = array('id' => (int) $c->id_component, 'qty' => rtrim(rtrim(number_format((float) $c->quantity, 3, '.', ''), '0'), '.')); }
 $raw_costs = array();
 foreach( $raw_choices as $r ){ $raw_costs[(int) $r->id_ingredient] = $r->cost_unit !== NULL ? (float) $r->cost_unit : NULL; }
+$packs_json = array();
+if( isset($packs) ){ foreach( $packs as $p ){ $packs_json[] = array('id' => (int) $p->id_pack, 'name' => $p->name, 'size' => rtrim(rtrim(number_format((float) $p->size, 3, '.', ''), '0'), '.')); } }
 $raw_json = array();
 foreach( $raw_choices as $r ){ $raw_json[] = array('id' => (int) $r->id_ingredient, 'name' => $r->name, 'unit' => $r->unit); }
 $e = function($f) use ($ingredient){ return isset($ingredient->$f) && $ingredient->$f !== NULL ? htmlspecialchars((string) $ingredient->$f) : ''; };
@@ -31,9 +33,11 @@ $e = function($f) use ($ingredient){ return isset($ingredient->$f) && $ingredien
 		<div class="form-group"><label>Alerta de existencia baja (opcional)</label><input type="text" inputmode="decimal" name="alert_threshold" class="form-control" value="<?php echo $is_edit && $ingredient->alert_threshold > 0 ? $num($ingredient->alert_threshold) : ''; ?>"></div>
 		<div class="form-group"><label>Costo por unidad base ($, opcional)</label><input type="text" inputmode="decimal" name="cost_unit" class="form-control" value="<?php echo $is_edit ? $num($ingredient->cost_unit) : ''; ?>"><small class="text-muted">Se actualiza solo al recibir con costo total.</small></div>
 		<fieldset style="border:1px solid #ddd; padding:10px; margin-bottom:15px;">
-			<legend style="font-size:14px; width:auto; border:0; margin:0;">Presentación de compra (opcional)</legend>
-			<div class="form-group"><label>Nombre (ej. Saco 25 lb)</label><input type="text" name="pack_name" maxlength="60" class="form-control" value="<?php echo $is_edit ? $e('pack_name') : ''; ?>"></div>
-			<div class="form-group"><label>Contiene (en unidad base)</label><input type="text" inputmode="decimal" name="pack_size" class="form-control" value="<?php echo $is_edit ? $num($ingredient->pack_size) : ''; ?>"></div>
+			<legend style="font-size:14px; width:auto; border:0; margin:0;">Presentaciones de compra (opcional)</legend>
+			<p class="text-muted" style="font-size:12px;">Cada forma en que lo compra: ej. "Saco 25 lb" = 11340, "Bolsa 1 lb" = 454 (tamaño en unidad base). Se usan al registrar compras.</p>
+			<div id="pack-list"></div>
+			<button type="button" class="btn btn-default btn-sm" id="add-pack"><i class="fa fa-plus"></i> Agregar presentación</button>
+			<input type="hidden" name="packs" id="packs" value="[]">
 		</fieldset>
 		<fieldset style="border:1px solid #ddd; padding:10px; margin-bottom:15px;">
 			<legend style="font-size:14px; width:auto; border:0; margin:0;">Preparación en cocina (salsas, masas, marinados)</legend>
@@ -89,6 +93,19 @@ $e = function($f) use ($ingredient){ return isset($ingredient->$f) && $ingredien
 		$('#unit-cost').text(y > 0 && total > 0 ? '$ ' + (total / y).toFixed(6).replace(/0+$/, '') : '—');
 		$('#comp-warn').toggle(missing);
 	}
+	var PACKS = <?php echo json_encode($packs_json); ?>;
+	function addPack(id, name, size){
+		$('#pack-list').append('<div class="row pack-row" style="margin-bottom:6px;" data-id="' + (id || 0) + '"><div class="col-xs-6"><input type="text" class="form-control p-name" maxlength="60" placeholder="Nombre (ej. Saco 25 lb)" value="' + esc(name || '').replace(/"/g, '&quot;') + '"></div><div class="col-xs-4"><input type="text" inputmode="decimal" class="form-control p-size" placeholder="Contiene" value="' + esc(size || '').replace(/"/g, '&quot;') + '"></div><div class="col-xs-2"><button type="button" class="btn btn-danger btn-sm p-del" aria-label="Quitar">&times;</button></div></div>');
+	}
+	function syncPacks(){
+		var list = [];
+		$('#pack-list .pack-row').each(function(){ var r = $(this); list.push({ id_pack: r.data('id'), name: r.find('.p-name').val(), size: r.find('.p-size').val() }); });
+		$('#packs').val(JSON.stringify(list));
+	}
+	$('#add-pack').on('click', function(){ addPack(0, '', ''); $('#pack-list .p-name').last().focus(); });
+	$('#pack-list').on('input', 'input', syncPacks).on('click', '.p-del', function(){ $(this).closest('.pack-row').remove(); syncPacks(); });
+	PACKS.forEach(function(p){ addPack(p.id, p.name, p.size); });
+	syncPacks();
 	$('#prepared').on('change', function(){ $('#prep-box').toggle(this.checked); }).trigger('change');
 	$('#add-comp').on('click', function(){ addComp('', ''); });
 	$('#comp-table').on('change input', '.c-ing, .c-qty', recalcComp).on('click', '.c-del', function(){ $(this).closest('tr').remove(); recalcComp(); });
