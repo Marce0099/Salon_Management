@@ -70,6 +70,39 @@ class Products_mdl extends CI_Model{
 		return (bool)$this->db->query( $sql, $params )->row();
 	}
 
+	// Resolves a scanned code to a product (+ pack when it is a pack barcode). Returns NULL when unknown.
+	public function scanCode( $code ){
+
+		$code = trim((string)$code);
+
+		if( $code === '' ){
+			return NULL;
+		}
+
+		$sql = 'select id_product, barcode, name, price_cost, price_sell, is_service from products where active = 1 and trim(upper(barcode)) = trim(upper(?))';
+		$p = $this->db->query( $sql, array( $code ) )->row();
+
+		if( $p ){
+			return array( 'product' => $p, 'id_pack' => NULL );
+		}
+
+		$pk = $this->db->query(
+			'select id_pack, id_product from product_packs where active = 1 and trim(upper(barcode)) = trim(upper(?))',
+			array( $code )
+		)->row();
+
+		if( !$pk ){
+			return NULL;
+		}
+
+		$p = $this->db->query(
+			'select id_product, barcode, name, price_cost, price_sell, is_service from products where active = 1 and id_product = ?',
+			array( (int)$pk->id_product )
+		)->row();
+
+		return $p ? array( 'product' => $p, 'id_pack' => (int)$pk->id_pack ) : NULL;
+	}
+
 	public function getPacks( $id_product ){
 
 		return $this->db->query(

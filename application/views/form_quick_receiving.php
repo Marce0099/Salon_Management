@@ -33,7 +33,7 @@
 	</div>
 
 	<div class="form-group">
-		<input type="search" id="qr-search" class="form-control input-lg" placeholder="Buscar producto por nombre o código..." style="height:48px;">
+		<input type="search" id="qr-search" class="form-control input-lg" placeholder="Buscar por nombre, o escanee el código (producto o presentación) y Enter..." style="height:48px;">
 		<div id="qr-results" class="list-group" style="max-height:260px;overflow-y:auto;margin-top:4px;"></div>
 	</div>
 
@@ -100,7 +100,7 @@
 		var p = $(this).data('p');
 		if( !p ){ return; }
 
-		var $line = $('#qr-lines .qr-card[data-id="' + p.id_product + '"]');
+		var $line = $('#qr-lines .qr-card[data-id="' + parseInt(p.id_product, 10) + '"]').first();
 
 		if( $line.length ){
 			$line.find('.qr-qty').focus().select();
@@ -113,10 +113,10 @@
 		$('#qr-search').val('');
 	});
 
-	function addLine(p){
+	function addLine(p, prePack, preQty){
 
 		var $c = $(
-			'<div class="qr-card" data-id="' + parseInt(p.id_product, 10) + '" data-prev-cost="' + esc(p.price_cost) + '">' +
+			'<div class="qr-card" data-id="' + parseInt(p.id_product, 10) + '" data-pack="' + (prePack || '') + '" data-prev-cost="' + esc(p.price_cost) + '">' +
 				'<span class="qr-remove"><i class="fa fa-times"></i></span>' +
 				'<div class="qr-name">' + esc(p.name) + '</div>' +
 				'<div class="row">' +
@@ -144,12 +144,53 @@
 				});
 
 				$c.find('.qr-pack-wrap').show();
+
+				if( prePack ){ $sel.val(String(prePack)).trigger('change'); }
 			}
 		});
+
+		if( preQty ){ $c.find('.qr-qty').val(preQty); }
 
 		$c.find('.qr-qty').focus().select();
 		recalc();
 	}
+
+	// Scanner: a code + Enter adds the product (pack barcode = that pack preselected); scanning again adds +1.
+	function scan(code){
+
+		$.post('<?php echo base_url('products/scan'); ?>', { code : code }, function(raw){
+
+			var d = typeof raw === 'string' ? $.parseJSON(raw) : raw;
+
+			if( !d.found ){ notify('Código no encontrado: ' + code, 'error'); return; }
+
+			var pack = d.id_pack ? String(d.id_pack) : '';
+			var $line = $('#qr-lines .qr-card[data-id="' + parseInt(d.product.id_product, 10) + '"][data-pack="' + pack + '"]');
+
+			if( $line.length ){
+				var $q = $line.find('.qr-qty');
+				$q.val((parseInt($q.val(), 10) || 0) + 1);
+				recalc();
+			}
+			else{
+				addLine(d.product, pack, 1);
+			}
+
+			$('#qr-results').empty();
+			$('#qr-search').val('').focus();
+		}).fail(function(){ notify('Error al buscar el código', 'error'); });
+	}
+
+	$('#qr-search').on('keydown', function(e){
+
+		if( e.which !== 13 ){ return; }
+
+		e.preventDefault();
+
+		var code = $.trim($(this).val());
+
+		if( code ){ clearTimeout(timer); scan(code); }
+	});
 
 	function units($c){ return parseInt($c.find('.qr-pack option:selected').attr('data-units'), 10) || 1; }
 
@@ -205,6 +246,7 @@
 
 		var $c = $(this).closest('.qr-card');
 		var opt = $(this).find('option:selected');
+		$c.attr('data-pack', $(this).val() || '');
 		var u = parseInt(opt.attr('data-units'), 10) || 1;
 		var pc = parseFloat(opt.attr('data-cost'));
 
