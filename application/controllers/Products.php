@@ -612,6 +612,18 @@ class Products extends Admin_Controller{
 		echo json_encode( array( 'packs' => $this->products_mdl->getPacks( (int)$id_product ) ) );
 	}
 
+	public function scan(){
+
+		if( !$this->is_admin() ){
+			echo json_encode( array( 'found' => false ) );
+			return;
+		}
+
+		$r = $this->products_mdl->scanCode( $this->input->post('code') );
+
+		echo json_encode( $r ? array( 'found' => true, 'product' => $r['product'], 'id_pack' => $r['id_pack'] ) : array( 'found' => false ) );
+	}
+
 	public function getByBarCode(){
 
 		$barcode = $this->input->post('barcode');
