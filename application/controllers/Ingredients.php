@@ -338,6 +338,7 @@ class Ingredients extends Admin_Controller{
 		if( preg_match('/[<>]/', $store.$note) ){ $this->fail('El comercio o la nota contienen caracteres no permitidos'); }
 
 		$lines = array();
+		$seen  = array();
 		foreach( $raw as $r ){
 
 			$ing = $this->ingredients_mdl->get(isset($r['id_ingredient']) ? $r['id_ingredient'] : 0);
@@ -350,6 +351,10 @@ class Ingredients extends Admin_Controller{
 			$res = $this->resolveQty($ing->id_ingredient, isset($r['id_pack']) ? $r['id_pack'] : 0, $qty);
 			if( $res === NULL ){ $this->fail('Presentación inválida para '.$ing->name); }
 			if( $res[0] <= 0 || $res[0] > 99999999 ){ $this->fail('Cantidad inválida para '.$ing->name); }
+
+			$key = (int) $ing->id_ingredient.'|'.(int) (isset($r['id_pack']) ? $r['id_pack'] : 0);
+			if( isset($seen[$key]) ){ $this->fail('Presentación repetida para '.$ing->name); }
+			$seen[$key] = TRUE;
 
 			$cost = NULL;
 			if( isset($r['cost']) && trim((string) $r['cost']) !== '' ){

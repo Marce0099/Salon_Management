@@ -65,6 +65,8 @@
 	function notify(type, text){ new PNotify({ title: 'Notificación', text: text, type: type, styling: 'bootstrap3', delay: 3500 }); }
 	function byId(id){ for( var i = 0; i < ING.length; i++ ){ if( ING[i].id == id ){ return ING[i]; } } return null; }
 	function lineOf(id){ return $('#ip-lines .ip-card[data-id="' + id + '"]'); }
+	function optionIds(i){ var r = ['0']; i.packs.forEach(function(p){ r.push(String(p.id)); }); return r; }
+	function usedPacks(id, except){ var r = []; lineOf(id).each(function(){ if( !except || this !== except[0] ){ r.push(String($(this).find('.ip-pack').val())); } }); return r; }
 
 	function search(){
 		var q = $.trim($('#ip-search').val()).toLowerCase(), box = $('#ip-results').empty();
@@ -75,14 +77,19 @@
 			if( nm === q ){ exact = true; }
 			if( nm.indexOf(q) === -1 || n >= 12 ){ return; }
 			n++;
-			box.append('<a href="#" class="list-group-item ip-pick" data-id="' + i.id + '"><strong>' + esc(i.name) + '</strong> <small class="text-muted">· ' + fmt(i.stock) + ' ' + esc(i.unit) + ' en existencia' + (lineOf(i.id).length ? ' · ya agregado' : '') + '</small></a>');
+			box.append('<a href="#" class="list-group-item ip-pick" data-id="' + i.id + '"><strong>' + esc(i.name) + '</strong> <small class="text-muted">· ' + fmt(i.stock) + ' ' + esc(i.unit) + ' en existencia' + (lineOf(i.id).length ? ' · ya agregado ×' + lineOf(i.id).length + (usedPacks(i.id).length >= optionIds(i).length ? ' (sin presentaciones libres)' : '') : '') + '</small></a>');
 		});
 		if( !exact ){ box.append('<a href="#" class="list-group-item ip-create" style="color:#26b99a;"><i class="fa fa-plus"></i> Crear ingrediente nuevo «' + esc($('#ip-search').val().trim()) + '»</a>'); }
 	}
 
 	function addLine(i){
-		var ex = lineOf(i.id);
-		if( ex.length ){ ex.addClass('flash'); setTimeout(function(){ ex.removeClass('flash'); }, 900); ex.find('.ip-qty').focus(); return; }
+		var used = usedPacks(i.id), free = null;
+		optionIds(i).forEach(function(o){ if( free === null && used.indexOf(o) === -1 ){ free = o; } });
+		if( free === null ){
+			var ex = lineOf(i.id).last(); ex.addClass('flash'); setTimeout(function(){ ex.removeClass('flash'); }, 900);
+			notify('error', 'Ya agregó todas las presentaciones de «' + i.name + '»');
+			return;
+		}
 		var opts = '<option value="0">' + esc(UNITS[i.unit] || i.unit) + ' (unidad base)</option>';
 		i.packs.forEach(function(p){ opts += '<option value="' + p.id + '" data-size="' + p.size + '">' + esc(p.name) + ' (' + fmt(p.size) + ' ' + esc(i.unit) + ')</option>'; });
 		var card = $('<div class="ip-card" data-id="' + i.id + '"><span class="ip-remove" title="Quitar">&times;</span>' +
@@ -92,6 +99,7 @@
 			'<div class="col-xs-7 form-group" style="margin-bottom:0;"><label>Total pagado $ (opcional)</label><input type="text" inputmode="decimal" class="form-control ip-cost" placeholder="0.00"></div></div>' +
 			'<div class="ip-info"></div></div>');
 		card.data('ing', i);
+			card.find('.ip-pack').val(free).attr('data-prev', free);
 		$('#ip-lines').prepend(card);
 		$('#ip-empty').hide();
 		recalc();
@@ -104,10 +112,10 @@
 	}
 
 	function recalc(){
-		var total = 0, n = 0;
+		var total = 0, n = 0, seen = {};
 		$('#ip-lines .ip-card').each(function(){
 			var card = $(this), i = card.data('ing'), base = baseQty(card), cost = num(card.find('.ip-cost').val()), info = '';
-			n++; total += cost;
+			if( !seen[i.id] ){ seen[i.id] = 1; n++; } total += cost;
 			if( base > 0 ){
 				info = '= ' + fmt(base) + ' ' + esc(i.unit);
 				if( cost > 0 ){
@@ -144,19 +152,30 @@
 		});
 	});
 
+	$('#ip-lines').on('change', '.ip-pack', function(){
+		var sel = $(this), card = sel.closest('.ip-card'), i = card.data('ing');
+		if( usedPacks(i.id, card).indexOf(String(sel.val())) !== -1 ){
+			sel.val(sel.attr('data-prev'));
+			notify('error', 'Esa presentación de «' + i.name + '» ya está en la compra');
+		} else { sel.attr('data-prev', sel.val()); }
+	});
 	$('#ip-lines').on('input change', '.ip-qty, .ip-cost, .ip-pack', recalc).on('click', '.ip-remove', function(){ $(this).closest('.ip-card').remove(); recalc(); });
 
 	$('#ip-save').on('click', function(){
-		var lines = [], rows = '', bad = null, total = 0;
+		var lines = [], rows = '', bad = null, dup = null, seenKeys = {}, total = 0;
 		$('#ip-lines .ip-card').each(function(){
 			var card = $(this), i = card.data('ing'), q = num(card.find('.ip-qty').val());
 			if( q <= 0 ){ bad = bad || card; return; }
+			var key = i.id + '|' + card.find('.ip-pack').val();
+			if( seenKeys[key] ){ dup = dup || card; return; }
+			seenKeys[key] = 1;
 			var cost = card.find('.ip-cost').val();
 			lines.push({ id_ingredient: i.id, id_pack: card.find('.ip-pack').val(), qty: card.find('.ip-qty').val(), cost: cost });
 			total += num(cost);
 			rows += '<tr><td>' + esc(i.name) + '</td><td class="text-right">' + esc(card.find('.ip-qty').val()) + ' ' + esc(card.find('.ip-pack option:selected').text().replace(/ \(.*$/, '')) + '</td><td class="text-right">' + (num(cost) > 0 ? '$' + num(cost).toFixed(2) : '—') + '</td></tr>';
 		});
 		if( bad ){ bad.addClass('flash').find('.ip-qty').focus(); notify('error', 'Indique la cantidad de cada ingrediente (o quite la línea)'); return; }
+		if( dup ){ dup.addClass('flash'); notify('error', 'Hay una presentación repetida para el mismo ingrediente'); return; }
 		if( !lines.length ){ notify('error', 'Agregue al menos un ingrediente a la compra'); return; }
 
 		bootbox.confirm({
