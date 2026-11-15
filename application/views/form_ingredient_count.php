@@ -6,6 +6,15 @@
 	.ct-row .ct-name { font-weight:bold; }
 	.ct-row .ct-sys { font-size:12px; color:#777; }
 	.ct-row .form-control { height:42px; font-size:16px; }
+	.ct-line { display:flex; flex-wrap:wrap; align-items:center; gap:6px; margin-top:6px; }
+	.ct-line .l-qty { flex:1 1 90px; min-width:80px; }
+	.ct-line .l-pack { flex:2 1 130px; min-width:110px; }
+	.ct-line .l-pctbox { flex:1 1 90px; min-width:90px; display:flex; flex-wrap:nowrap; white-space:nowrap; align-items:center; gap:4px; }
+	.ct-line .l-pctbox .l-pct { width:100%; }
+	.ct-line .l-eq { flex:2 1 120px; font-size:12px; color:#555; }
+	.ct-line.bad .form-control { border-color:#d9534f; }
+	.ct-actions { margin-top:6px; }
+	.ct-actions .btn { margin-right:4px; margin-top:4px; }
 	.ct-row .ct-diff { font-size:12px; min-height:16px; margin-top:2px; }
 	#ct-bar { position:sticky; bottom:0; background:#fff; border-top:1px solid #ddd; padding:10px 0; margin-top:10px; z-index:5; }
 	#ip-form .form-control, #ct-form .form-control { width:100%; display:block; }
@@ -18,7 +27,7 @@
 		<div class="col-xs-12 col-sm-8 form-group"><input type="search" id="ct-search" class="form-control input-lg" placeholder="Buscar ingrediente..." style="height:48px;"></div>
 		<div class="col-xs-12 col-sm-4 form-group" style="padding-top:10px;"><label><input type="checkbox" id="ct-only"> Mostrar solo los contados</label></div>
 	</div>
-	<p class="text-muted" style="font-size:12px;">Escriba lo que hay realmente. Los que deje en blanco no se tocan. Se puede contar en una presentación (ej. sacos) si el ingrediente la tiene.</p>
+	<p class="text-muted" style="font-size:12px;">Escriba lo que hay realmente. Los que deje en blanco no se tocan. Cada ingrediente admite varias líneas, cada una en su presentación (ej. sacos) y con un % de lleno para los abiertos: 4 sacos al 100% + 1 saco al 50% + 1 saco al 75%. La app suma todo en la unidad base.</p>
 	<div id="ct-list"></div>
 	<p id="ct-none" class="text-muted text-center" style="display:none;">Sin resultados.</p>
 	<div id="ct-bar" class="clearfix">
@@ -35,29 +44,72 @@
 	function fmt(n){ return (Math.round(n * 1000) / 1000).toLocaleString('en-US', { maximumFractionDigits: 3 }); }
 	function notify(type, text){ new PNotify({ title: 'Notificación', text: text, type: type, styling: 'bootstrap3', delay: 4000 }); }
 
-	ING.forEach(function(i){
+	function lineHtml(i){
 		var opts = '<option value="0" data-size="1">' + esc(i.unit) + '</option>';
 		i.packs.forEach(function(p){ opts += '<option value="' + p.id + '" data-size="' + p.size + '">' + esc(p.name) + '</option>'; });
-		var row = $('<div class="ct-row" data-id="' + i.id + '" data-name="' + esc(i.name).replace(/"/g, '&quot;').toLowerCase() + '"><div class="row">' +
-			'<div class="col-xs-12 col-sm-5"><div class="ct-name">' + esc(i.name) + (i.prepared ? ' <span class="label label-primary">Preparado</span>' : '') + '</div><div class="ct-sys">Sistema: ' + fmt(i.stock) + ' ' + esc(i.unit) + '</div></div>' +
-			'<div class="col-xs-6 col-sm-3" style="margin-top:4px;"><input type="text" inputmode="decimal" class="form-control ct-qty" placeholder="Contado"></div>' +
-			'<div class="col-xs-6 col-sm-4" style="margin-top:4px;"><select class="form-control ct-pack"' + (i.packs.length ? '' : ' disabled') + '>' + opts + '</select></div>' +
-			'</div><div class="ct-diff"></div></div>');
+		return $('<div class="ct-line">' +
+			'<input type="text" inputmode="decimal" class="form-control l-qty" placeholder="Cantidad">' +
+			'<select class="form-control l-pack"' + (i.packs.length ? '' : ' disabled') + '>' + opts + '</select>' +
+			'<span class="l-pctbox" style="display:none;"><input type="text" inputmode="decimal" class="form-control l-pct" value="100" title="% de lleno"><b>%</b></span>' +
+			'<span class="l-eq"></span>' +
+			'<button type="button" class="btn btn-default l-del" title="Quitar línea"><i class="fa fa-times"></i></button>' +
+			'</div>');
+	}
+
+	function addLine(row, preset){
+		var i = row.data('ing'), line = lineHtml(i);
+		if( preset && i.packs.length ){ line.find('.l-pack').val(String(i.packs[0].id)); line.find('.l-pctbox').show(); line.find('.l-pct').val(preset.pct); line.find('.l-qty').val(preset.qty); }
+		row.find('.ct-lines').append(line);
+		return line;
+	}
+
+	ING.forEach(function(i){
+		var row = $('<div class="ct-row" data-id="' + i.id + '" data-name="' + esc(i.name).replace(/"/g, '&quot;').toLowerCase() + '">' +
+			'<div class="ct-name">' + esc(i.name) + (i.prepared ? ' <span class="label label-primary">Preparado</span>' : '') + '</div><div class="ct-sys">Sistema: ' + fmt(i.stock) + ' ' + esc(i.unit) + '</div>' +
+			'<div class="ct-lines"></div>' +
+			'<div class="ct-actions"><button type="button" class="btn btn-default btn-sm ct-add"><i class="fa fa-plus"></i> Agregar línea</button>' +
+			(i.packs.length ? '<button type="button" class="btn btn-default btn-sm ct-open"><i class="fa fa-plus"></i> ' + esc(i.packs[0].name) + ' abierto (50%)</button>' : '') + '</div>' +
+			'<div class="ct-total" style="font-size:12px; margin-top:4px;"></div><div class="ct-diff"></div></div>');
 		row.data('ing', i);
 		$('#ct-list').append(row);
+		addLine(row);
 	});
 
+	/** Reads one line: null = blank, {bad:true} = invalid, else {base, text}. */
+	function readLine(line, i){
+		var qs = $.trim(line.find('.l-qty').val()), opt = line.find('.l-pack option:selected'), idp = line.find('.l-pack').val(), size = parseFloat(opt.data('size')) || 1;
+		var isPack = idp !== '0', ps = $.trim(line.find('.l-pct').val());
+		if( qs === '' ){ return null; }
+		var q = num(qs), pct = (!isPack || ps === '') ? 100 : num(ps);
+		if( isNaN(q) || q < 0 || isNaN(pct) || pct < 0 || pct > 100 ){ return { bad: true }; }
+		var base = Math.round(q * size * pct / 100 * 1000) / 1000;
+		return { base: base, id_pack: idp, qty: qs, pct: isPack ? String(pct) : '100',
+			text: fmt(q) + '×' + opt.text() + (isPack && pct !== 100 ? ' al ' + fmt(pct) + '%' : '') };
+	}
+
+	/** Row result: null = not counted; else {total, bad, parts, text}. */
 	function counted(row){
-		var q = num(row.find('.ct-qty').val());
-		if( isNaN(q) || $.trim(row.find('.ct-qty').val()) === '' ){ return null; }
-		return q * (parseFloat(row.find('.ct-pack option:selected').data('size')) || 1);
+		var i = row.data('ing'), total = 0, any = false, bad = false, parts = [], texts = [];
+		row.find('.ct-line').each(function(){
+			var line = $(this), r = readLine(line, i), eq = '';
+			line.removeClass('bad');
+			if( r === null ){ line.find('.l-eq').text(''); return; }
+			any = true;
+			if( r.bad ){ bad = true; line.addClass('bad'); line.find('.l-eq').html('<span class="text-danger">Valor inválido (cantidad ≥ 0, % entre 0 y 100)</span>'); return; }
+			total += r.base; parts.push({ id_pack: r.id_pack, qty: r.qty, pct: r.pct }); texts.push(r.text);
+			line.find('.l-eq').text('= ' + fmt(r.base) + ' ' + i.unit);
+		});
+		if( !any ){ return null; }
+		return { total: Math.round(total * 1000) / 1000, bad: bad, parts: parts, text: texts.join(' + ') };
 	}
 
 	function refresh(){
 		var n = 0, diffs = 0, q = $.trim($('#ct-search').val()).toLowerCase(), only = $('#ct-only').is(':checked'), shown = 0;
 		$('#ct-list .ct-row').each(function(){
-			var row = $(this), i = row.data('ing'), c = counted(row), info = '', has = c !== null;
-			if( has ){
+			var row = $(this), i = row.data('ing'), cr = counted(row), c = (cr && !cr.bad) ? cr.total : null, info = '', has = cr !== null;
+			row.find('.ct-total').text(cr && !cr.bad && cr.parts.length > 1 ? 'Total contado: ' + fmt(cr.total) + ' ' + i.unit : '');
+			if( has && cr.bad ){ n++; info = '<span class="text-danger">Corrija las líneas marcadas</span>'; row.removeClass('changed'); }
+			else if( has ){
 				n++;
 				var d = Math.round((c - i.stock) * 1000) / 1000;
 				if( d === 0 ){ info = '<span class="text-success"><i class="fa fa-check"></i> Coincide</span>'; }
@@ -72,19 +124,30 @@
 		$('#ct-none').toggle(shown === 0);
 	}
 	$('#ct-search, #ct-only').on('input change', refresh);
-	$('#ct-list').on('input change', '.ct-qty, .ct-pack', refresh);
+	$('#ct-list').on('input change', '.l-qty, .l-pack, .l-pct', function(){
+		if( $(this).is('.l-pack') ){ $(this).closest('.ct-line').find('.l-pctbox').toggle($(this).val() !== '0'); }
+		refresh();
+	});
+	$('#ct-list').on('click', '.ct-add', function(){ addLine($(this).closest('.ct-row')).find('.l-qty').focus(); refresh(); });
+	$('#ct-list').on('click', '.ct-open', function(){ addLine($(this).closest('.ct-row'), { qty: '1', pct: '50' }).find('.l-pct').focus().select(); refresh(); });
+	$('#ct-list').on('click', '.l-del', function(){
+		var row = $(this).closest('.ct-row'), lines = row.find('.ct-line');
+		if( lines.length > 1 ){ $(this).closest('.ct-line').remove(); } else { lines.find('.l-qty').val(''); }
+		refresh();
+	});
 
 	$('#ct-save').on('click', function(){
 		var counts = [], rows = '', bad = null;
 		$('#ct-list .ct-row').each(function(){
-			var row = $(this), i = row.data('ing'), c = counted(row);
-			if( $.trim(row.find('.ct-qty').val()) === '' ){ return; }
-			if( c === null || c < 0 ){ bad = bad || row; return; }
-			counts.push({ id_ingredient: i.id, id_pack: row.find('.ct-pack').val(), qty: row.find('.ct-qty').val() });
+			var row = $(this), i = row.data('ing'), cr = counted(row);
+			if( cr === null ){ return; }
+			if( cr.bad ){ bad = bad || row; return; }
+			var c = cr.total;
+			counts.push({ id_ingredient: i.id, parts: cr.parts });
 			var d = Math.round((c - i.stock) * 1000) / 1000;
-			if( d !== 0 ){ rows += '<tr><td>' + esc(i.name) + '</td><td class="text-right">' + fmt(i.stock) + '</td><td class="text-right">' + fmt(c) + ' ' + esc(i.unit) + '</td><td class="text-right ' + (d < 0 ? 'text-danger' : 'text-warning') + '">' + (d > 0 ? '+' : '') + fmt(d) + '</td></tr>'; }
+			if( d !== 0 ){ rows += '<tr><td>' + esc(i.name) + '</td><td class="text-right">' + fmt(i.stock) + '</td><td class="text-right">' + fmt(c) + ' ' + esc(i.unit) + '<div style="font-size:11px;color:#777;">' + esc(cr.text) + '</div></td><td class="text-right ' + (d < 0 ? 'text-danger' : 'text-warning') + '">' + (d > 0 ? '+' : '') + fmt(d) + '</td></tr>'; }
 		});
-		if( bad ){ bad.find('.ct-qty').focus(); notify('error', 'Hay una cantidad inválida: use números mayores o iguales a 0'); return; }
+		if( bad ){ bad.find('.ct-line.bad .l-qty').first().focus(); notify('error', 'Hay una cantidad o % inválido: cantidad ≥ 0 y % entre 0 y 100'); return; }
 		if( !counts.length ){ notify('error', 'Escriba al menos una cantidad contada'); return; }
 
 		bootbox.confirm({
