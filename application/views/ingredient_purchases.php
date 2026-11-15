@@ -13,7 +13,7 @@
 			<td><?php echo date('d/m/Y', strtotime($p->purchased_at)); ?></td>
 			<td><?php echo htmlspecialchars((string) $p->store); ?></td>
 			<td class="text-right"><?php echo (int) $p->n_lines; ?></td>
-			<td class="text-right">$ <?php echo number_format((float) $p->total_cost, 2); ?></td>
+			<td class="text-right">C$ <?php echo number_format((float) $p->total_cost_cor, 2); ?> <small class="text-muted">($ <?php echo number_format((float) $p->total_cost, 2); ?>)</small></td>
 			<td><?php echo htmlspecialchars((string) $p->username); ?></td>
 			<td><a href="<?php echo base_url('ingredients/purchase_detail/'.$p->id_purchase); ?>" class="btn btn-default btn-xs">Ver</a></td>
 		</tr>

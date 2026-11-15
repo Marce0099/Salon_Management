@@ -223,18 +223,21 @@ class Ingredients_mdl extends CI_Model{
 			foreach( $rows as $r ){ $state[(int) $r->id_ingredient] = $r; }
 
 			$total = 0;
+			$total_cor = 0;
 			foreach( $lines as $l ){
 				$s = isset($state[(int) $l['id_ingredient']]) ? $state[(int) $l['id_ingredient']] : NULL;
 				if( !$s || !$s->active ){ return array(FALSE, 'Un ingrediente de la compra ya no está disponible'); }
 				if( $s->batch_yield !== NULL ){ return array(FALSE, $s->name.' se prepara en la cocina: use "Preparar lote"'); }
-				if( $l['line_cost'] !== NULL ){ $total += $l['line_cost']; }
+				if( $l['line_cost'] !== NULL ){ $total += $l['line_cost']; $total_cor += $l['line_cost_cor']; }
 			}
 
 			$self->db->insert('ingredient_purchases', array(
 				'store'        => $header['store'],
 				'note'         => $header['note'],
 				'purchased_at' => $header['purchased_at'],
-				'total_cost'   => round($total, 2),
+				'total_cost'   => round($total, 4),
+				'dollar_ex_sell' => $header['dollar_ex_sell'],
+				'total_cost_cor' => round($total_cor, 2),
 				'id_admin'     => $id_admin ? (int) $id_admin : NULL,
 			));
 			$id_purchase = (int) $self->db->insert_id();
@@ -268,6 +271,7 @@ class Ingredients_mdl extends CI_Model{
 					'pack_qty'      => $l['pack_qty'],
 					'base_qty'      => $base,
 					'line_cost'     => $cost,
+					'line_cost_cor' => $l['line_cost_cor'],
 				));
 			}
 
