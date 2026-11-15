@@ -89,13 +89,16 @@
 
 	/** Row result: null = not counted; else {total, bad, parts, text}. */
 	function counted(row){
-		var i = row.data('ing'), total = 0, any = false, bad = false, parts = [], texts = [];
+		var i = row.data('ing'), total = 0, any = false, bad = false, parts = [], texts = [], seen = {};
 		row.find('.ct-line').each(function(){
 			var line = $(this), r = readLine(line, i), eq = '';
 			line.removeClass('bad');
 			if( r === null ){ line.find('.l-eq').text(''); return; }
 			any = true;
 			if( r.bad ){ bad = true; line.addClass('bad'); line.find('.l-eq').html('<span class="text-danger">Valor inválido (cantidad ≥ 0, % entre 0 y 100)</span>'); return; }
+			var key = r.id_pack + '|' + r.pct;
+			if( seen[key] ){ bad = true; line.addClass('bad'); line.find('.l-eq').html('<span class="text-danger">Línea repetida (misma presentación y %): actualice la cantidad de la línea existente</span>'); return; }
+			seen[key] = true;
 			total += r.base; parts.push({ id_pack: r.id_pack, qty: r.qty, pct: r.pct }); texts.push(r.text);
 			line.find('.l-eq').text('= ' + fmt(r.base) + ' ' + i.unit);
 		});
@@ -146,7 +149,7 @@
 			var d = Math.round((c - i.stock) * 1000) / 1000;
 			if( d !== 0 ){ rows += '<tr><td>' + esc(i.name) + '</td><td class="text-right">' + fmt(i.stock) + '</td><td class="text-right">' + fmt(c) + ' ' + esc(i.unit) + '<div style="font-size:11px;color:#777;">' + esc(cr.text) + '</div></td><td class="text-right ' + (d < 0 ? 'text-danger' : 'text-warning') + '">' + (d > 0 ? '+' : '') + fmt(d) + '</td></tr>'; }
 		});
-		if( bad ){ bad.find('.ct-line.bad .l-qty').first().focus(); notify('error', 'Hay una cantidad o % inválido: cantidad ≥ 0 y % entre 0 y 100'); return; }
+		if( bad ){ bad.find('.ct-line.bad .l-qty').first().focus(); notify('error', 'Hay líneas inválidas o repetidas: cantidad ≥ 0, % entre 0 y 100, y sin repetir presentación + %'); return; }
 		if( !counts.length ){ notify('error', 'Escriba al menos una cantidad contada'); return; }
 
 		bootbox.confirm({
