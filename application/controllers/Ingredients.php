@@ -438,7 +438,7 @@ class Ingredients extends Admin_Controller{
 		$this->renderPanel('form_ingredient_count');
 	}
 
-	/** Saves a quick count (POST): counts = JSON [{id_ingredient, id_pack, qty}]; only differences are written. */
+	/** Saves a quick count (POST): counts = JSON [{id_ingredient, parts:[{id_pack, qty, pct}]}] (legacy {id_ingredient, id_pack, qty} still accepted); parts are summed in base units; only differences are written. */
 	public function count_save(){
 
 		$this->requirePost();
@@ -454,13 +454,33 @@ class Ingredients extends Admin_Controller{
 			if( !$ing || !$ing->active ){ $this->fail('Hay un ingrediente inválido en el conteo'); }
 			if( isset($counts[(int) $ing->id_ingredient]) ){ $this->fail($ing->name.' está repetido en el conteo'); }
 
-			$qty = $this->num(isset($r['qty']) ? $r['qty'] : '', TRUE);
-			if( $qty === NULL ){ $this->fail('Cantidad inválida para '.$ing->name); }
+			// Several lines per ingredient (quantity x presentation x % full); legacy payload = one line.
+			$parts = (isset($r['parts']) && is_array($r['parts'])) ? $r['parts'] : array(array('id_pack' => isset($r['id_pack']) ? $r['id_pack'] : 0, 'qty' => isset($r['qty']) ? $r['qty'] : ''));
+			if( count($parts) < 1 || count($parts) > 30 ){ $this->fail('Cantidad de líneas inválida para '.$ing->name); }
 
-			$res = $this->resolveQty($ing->id_ingredient, isset($r['id_pack']) ? $r['id_pack'] : 0, $qty);
-			if( $res === NULL ){ $this->fail('Presentación inválida para '.$ing->name); }
+			$total = 0.0;
+			foreach( $parts as $part ){
 
-			$counts[(int) $ing->id_ingredient] = $res[0];
+				if( !is_array($part) ){ $this->fail('Línea inválida para '.$ing->name); }
+
+				$qty = $this->num(isset($part['qty']) ? $part['qty'] : '', TRUE);
+				if( $qty === NULL ){ $this->fail('Cantidad inválida para '.$ing->name); }
+
+				$id_pack = isset($part['id_pack']) ? $part['id_pack'] : 0;
+				$pct = 100.0;
+				if( (int) $id_pack && isset($part['pct']) && trim((string) $part['pct']) !== '' ){
+
+					$pct = $this->num($part['pct'], TRUE);
+					if( $pct === NULL || $pct > 100 ){ $this->fail('Porcentaje inválido para '.$ing->name.' (0 a 100)'); }
+				}
+
+				$res = $this->resolveQty($ing->id_ingredient, $id_pack, $qty);
+				if( $res === NULL ){ $this->fail('Presentación inválida para '.$ing->name); }
+
+				$total += $res[0] * $pct / 100;
+			}
+
+			$counts[(int) $ing->id_ingredient] = round($total, 3);
 		}
 
 		$r = $this->ingredients_mdl->countMany($counts, 'Conteo físico '.date('d/m/Y'), $this->id_admin);
