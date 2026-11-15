@@ -458,7 +458,7 @@ class Ingredients extends Admin_Controller{
 			$parts = (isset($r['parts']) && is_array($r['parts'])) ? $r['parts'] : array(array('id_pack' => isset($r['id_pack']) ? $r['id_pack'] : 0, 'qty' => isset($r['qty']) ? $r['qty'] : ''));
 			if( count($parts) < 1 || count($parts) > 30 ){ $this->fail('Cantidad de líneas inválida para '.$ing->name); }
 
-			$total = 0.0;
+			$total = 0.0; $seen = array();
 			foreach( $parts as $part ){
 
 				if( !is_array($part) ){ $this->fail('Línea inválida para '.$ing->name); }
@@ -476,6 +476,10 @@ class Ingredients extends Admin_Controller{
 
 				$res = $this->resolveQty($ing->id_ingredient, $id_pack, $qty);
 				if( $res === NULL ){ $this->fail('Presentación inválida para '.$ing->name); }
+
+				$key = (int) $id_pack.'|'.(float) $pct;
+				if( isset($seen[$key]) ){ $this->fail('Hay líneas repetidas en '.$ing->name.' (misma presentación y %): actualice la cantidad de la línea existente'); }
+				$seen[$key] = TRUE;
 
 				$total += $res[0] * $pct / 100;
 			}
