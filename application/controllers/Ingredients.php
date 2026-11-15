@@ -303,7 +303,8 @@ class Ingredients extends Admin_Controller{
 		}
 
 		$this->footer_data = load_data($this->session);
-		$this->content_data = array('ingredients' => $list, 'units' => Ingredients_mdl::$units, 'tk' => $this->token());
+		$this->content_data = array('ingredients' => $list, 'units' => Ingredients_mdl::$units, 'tk' => $this->token(),
+			'rate' => (float) $this->db->query('SELECT sell_price FROM dollar_exchange LIMIT 1')->row('sell_price'));
 		$this->renderPanel('form_ingredient_purchase');
 	}
 
@@ -337,6 +338,9 @@ class Ingredients extends Admin_Controller{
 		if( mb_strlen($store, 'UTF-8') > 100 || mb_strlen($note, 'UTF-8') > 255 ){ $this->fail('El comercio o la nota son demasiado largos'); }
 		if( preg_match('/[<>]/', $store.$note) ){ $this->fail('El comercio o la nota contienen caracteres no permitidos'); }
 
+		$rate = (float) $this->db->query('SELECT sell_price FROM dollar_exchange LIMIT 1')->row('sell_price');
+		if( $rate <= 0 ){ $this->fail('Configure el tipo de cambio antes de registrar compras'); }
+
 		$lines = array();
 		$seen  = array();
 		foreach( $raw as $r ){
@@ -361,12 +365,15 @@ class Ingredients extends Admin_Controller{
 				$cost = $this->num($r['cost'], TRUE);
 				if( $cost === NULL ){ $this->fail('El costo de '.$ing->name.' es inválido'); }
 				$cost = round($cost, 2);
+				if( $cost > 99999999 ){ $this->fail('El costo de '.$ing->name.' es inválido'); }
 			}
 
-			$lines[] = array('id_ingredient' => (int) $ing->id_ingredient, 'pack_name' => $res[1], 'pack_qty' => $res[2], 'base_qty' => $res[0], 'line_cost' => $cost);
+			// The price is typed in cordobas; dollars (the stored unit) = C$ / sell rate, same rate the whole app uses for C$ conversions.
+			$lines[] = array('id_ingredient' => (int) $ing->id_ingredient, 'pack_name' => $res[1], 'pack_qty' => $res[2], 'base_qty' => $res[0],
+				'line_cost_cor' => $cost, 'line_cost' => $cost !== NULL ? round($cost / $rate, 4) : NULL);
 		}
 
-		$r = $this->ingredients_mdl->receivePurchase($lines, array('store' => $store !== '' ? $store : NULL, 'note' => $note !== '' ? $note : NULL, 'purchased_at' => $date), $this->id_admin);
+		$r = $this->ingredients_mdl->receivePurchase($lines, array('store' => $store !== '' ? $store : NULL, 'note' => $note !== '' ? $note : NULL, 'purchased_at' => $date, 'dollar_ex_sell' => $rate), $this->id_admin);
 		if( !$r[0] ){ $this->fail($r[1]); }
 
 		$this->ok('Compra #'.$r[2].' registrada ('.count($lines).' ingredientes)', array('id_purchase' => $r[2]));

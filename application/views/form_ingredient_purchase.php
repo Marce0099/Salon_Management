@@ -58,6 +58,9 @@
 (function(){
 	var ING = <?php echo json_encode($ingredients); ?>;
 	var UNITS = <?php echo json_encode($units); ?>;
+	var RATE = <?php echo json_encode((float) $rate); ?>; // C$ per US$ (dollar_exchange.sell_price)
+	function cor(n){ return 'C$ ' + n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+	function usd(n){ return '$' + n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
 	function esc(t){ return $('<div>').text(t == null ? '' : t).html(); }
 	function attr(t){ return esc(t).replace(/"/g, '&quot;'); }
 	function num(v){ var n = parseFloat(String(v).replace(',', '.')); return isNaN(n) ? 0 : n; }
@@ -93,10 +96,10 @@
 		var opts = '<option value="0">' + esc(UNITS[i.unit] || i.unit) + ' (unidad base)</option>';
 		i.packs.forEach(function(p){ opts += '<option value="' + p.id + '" data-size="' + p.size + '">' + esc(p.name) + ' (' + fmt(p.size) + ' ' + esc(i.unit) + ')</option>'; });
 		var card = $('<div class="ip-card" data-id="' + i.id + '"><span class="ip-remove" title="Quitar">&times;</span>' +
-			'<div class="ip-name">' + esc(i.name) + '</div><div class="ip-stock">Existencia: ' + fmt(i.stock) + ' ' + esc(i.unit) + (i.cost !== null ? ' · costo actual $' + i.cost.toFixed(4) + '/' + esc(i.unit) : '') + '</div>' +
+			'<div class="ip-name">' + esc(i.name) + '</div><div class="ip-stock">Existencia: ' + fmt(i.stock) + ' ' + esc(i.unit) + (i.cost !== null ? ' · costo actual C$ ' + (i.cost * RATE).toFixed(4) + '/' + esc(i.unit) : '') + '</div>' +
 			'<div class="row" style="margin-top:6px;"><div class="col-xs-12 form-group" style="margin-bottom:6px;"><label>Presentación</label><select class="form-control ip-pack">' + opts + '</select></div>' +
 			'<div class="col-xs-5 form-group" style="margin-bottom:0;"><label>Cantidad</label><input type="text" inputmode="decimal" class="form-control ip-qty" placeholder="0"></div>' +
-			'<div class="col-xs-7 form-group" style="margin-bottom:0;"><label>Total pagado $ (opcional)</label><input type="text" inputmode="decimal" class="form-control ip-cost" placeholder="0.00"></div></div>' +
+			'<div class="col-xs-7 form-group" style="margin-bottom:0;"><label>Total pagado C$ (opcional)</label><input type="text" inputmode="decimal" class="form-control ip-cost" placeholder="0.00"></div></div>' +
 			'<div class="ip-info"></div></div>');
 		card.data('ing', i);
 			card.find('.ip-pack').val(free).attr('data-prev', free);
@@ -114,19 +117,19 @@
 	function recalc(){
 		var total = 0, n = 0, seen = {};
 		$('#ip-lines .ip-card').each(function(){
-			var card = $(this), i = card.data('ing'), base = baseQty(card), cost = num(card.find('.ip-cost').val()), info = '';
-			if( !seen[i.id] ){ seen[i.id] = 1; n++; } total += cost;
+			var card = $(this), i = card.data('ing'), base = baseQty(card), costCor = num(card.find('.ip-cost').val()), cost = costCor / RATE, info = '';
+			if( !seen[i.id] ){ seen[i.id] = 1; n++; } total += costCor;
 			if( base > 0 ){
 				info = '= ' + fmt(base) + ' ' + esc(i.unit);
 				if( cost > 0 ){
 					var u = cost / base;
-					info += ' · $' + u.toFixed(4) + '/' + esc(i.unit);
+					info += ' · C$ ' + (u * RATE).toFixed(4) + '/' + esc(i.unit) + ' ($' + u.toFixed(4) + ')';
 					if( i.cost && Math.abs(u - i.cost) / i.cost > 0.3 ){ info += ' <span class="text-warning"><i class="fa fa-exclamation-triangle"></i> ' + (u > i.cost ? 'sube' : 'baja') + ' ' + Math.round(Math.abs(u - i.cost) / i.cost * 100) + '% vs. costo actual</span>'; }
 				}
 			}
 			card.find('.ip-info').html(info);
 		});
-		$('#ip-total').text(n + ' ingrediente' + (n === 1 ? '' : 's') + ' · $' + total.toFixed(2));
+		$('#ip-total').text(n + ' ingrediente' + (n === 1 ? '' : 's') + ' · ' + cor(total) + ' · ' + usd(total / RATE));
 		$('#ip-empty').toggle(n === 0);
 	}
 
@@ -172,7 +175,7 @@
 			var cost = card.find('.ip-cost').val();
 			lines.push({ id_ingredient: i.id, id_pack: card.find('.ip-pack').val(), qty: card.find('.ip-qty').val(), cost: cost });
 			total += num(cost);
-			rows += '<tr><td>' + esc(i.name) + '</td><td class="text-right">' + esc(card.find('.ip-qty').val()) + ' ' + esc(card.find('.ip-pack option:selected').text().replace(/ \(.*$/, '')) + '</td><td class="text-right">' + (num(cost) > 0 ? '$' + num(cost).toFixed(2) : '—') + '</td></tr>';
+			rows += '<tr><td>' + esc(i.name) + '</td><td class="text-right">' + esc(card.find('.ip-qty').val()) + ' ' + esc(card.find('.ip-pack option:selected').text().replace(/ \(.*$/, '')) + '</td><td class="text-right">' + (num(cost) > 0 ? cor(num(cost)) : '—') + '</td></tr>';
 		});
 		if( bad ){ bad.addClass('flash').find('.ip-qty').focus(); notify('error', 'Indique la cantidad de cada ingrediente (o quite la línea)'); return; }
 		if( dup ){ dup.addClass('flash'); notify('error', 'Hay una presentación repetida para el mismo ingrediente'); return; }
@@ -180,7 +183,7 @@
 
 		bootbox.confirm({
 			title: 'Confirmar compra', size: 'large',
-			message: '<table class="table table-condensed"><thead><tr><th>Ingrediente</th><th class="text-right">Cantidad</th><th class="text-right">Pagado</th></tr></thead><tbody>' + rows + '</tbody><tfoot><tr><th colspan="2" class="text-right">Total</th><th class="text-right">$' + total.toFixed(2) + '</th></tr></tfoot></table>',
+			message: '<table class="table table-condensed"><thead><tr><th>Ingrediente</th><th class="text-right">Cantidad</th><th class="text-right">Pagado</th></tr></thead><tbody>' + rows + '</tbody><tfoot><tr><th colspan="2" class="text-right">Total</th><th class="text-right">' + cor(total) + '<br><small>' + usd(total / RATE) + ' (TC ' + RATE.toFixed(2) + ')</small></th></tr></tfoot></table>',
 			buttons: { confirm: { label: 'Guardar compra', className: 'btn-success' }, cancel: { label: 'Revisar', className: 'btn-default' } },
 			callback: function(ok){
 				if( !ok ){ return; }
