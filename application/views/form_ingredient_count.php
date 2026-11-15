@@ -68,7 +68,7 @@
 			'<div class="ct-name">' + esc(i.name) + (i.prepared ? ' <span class="label label-primary">Preparado</span>' : '') + '</div><div class="ct-sys">Sistema: ' + fmt(i.stock) + ' ' + esc(i.unit) + '</div>' +
 			'<div class="ct-lines"></div>' +
 			'<div class="ct-actions"><button type="button" class="btn btn-default btn-sm ct-add"><i class="fa fa-plus"></i> Agregar línea</button>' +
-			(i.packs.length ? '<button type="button" class="btn btn-default btn-sm ct-open"><i class="fa fa-plus"></i> ' + esc(i.packs[0].name) + ' abierto (50%)</button>' : '') + '</div>' +
+			'</div>' +
 			'<div class="ct-total" style="font-size:12px; margin-top:4px;"></div><div class="ct-diff"></div></div>');
 		row.data('ing', i);
 		$('#ct-list').append(row);
@@ -129,7 +129,6 @@
 		refresh();
 	});
 	$('#ct-list').on('click', '.ct-add', function(){ addLine($(this).closest('.ct-row')).find('.l-qty').focus(); refresh(); });
-	$('#ct-list').on('click', '.ct-open', function(){ addLine($(this).closest('.ct-row'), { qty: '1', pct: '50' }).find('.l-pct').focus().select(); refresh(); });
 	$('#ct-list').on('click', '.l-del', function(){
 		var row = $(this).closest('.ct-row'), lines = row.find('.ct-line');
 		if( lines.length > 1 ){ $(this).closest('.ct-line').remove(); } else { lines.find('.l-qty').val(''); }
