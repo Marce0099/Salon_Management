@@ -303,7 +303,7 @@ class Ingredients extends Admin_Controller{
 		}
 
 		$this->footer_data = load_data($this->session);
-		$this->content_data = array('ingredients' => $list, 'units' => Ingredients_mdl::$units, 'tk' => $this->token(),
+		$this->content_data = array('ingredients' => $list, 'units' => Ingredients_mdl::$units, 'tk' => $this->token(), 'providers' => $this->db->get_where('providers', array('active' => 1))->result(),
 			'rate' => (float) $this->db->query('SELECT sell_price FROM dollar_exchange LIMIT 1')->row('sell_price'));
 		$this->renderPanel('form_ingredient_purchase');
 	}
@@ -333,10 +333,16 @@ class Ingredients extends Admin_Controller{
 		if( !preg_match('/^\d{4}-\d{2}-\d{2}$/', $date) || strtotime($date) === FALSE ){ $date = date('Y-m-d'); }
 		if( $date > date('Y-m-d') ){ $this->fail('La fecha de la compra no puede ser futura'); }
 
-		$store = trim((string) $this->input->post('store'));
+		$raw_provider = trim((string) $this->input->post('id_provider'));
+		$id_provider  = NULL;
+		if( $raw_provider !== '' ){
+			if( !ctype_digit($raw_provider) || (int) $raw_provider < 1 || !$this->db->get_where('providers', array('id_provider' => (int) $raw_provider, 'active' => 1))->row() ){ $this->fail('Proveedor inválido'); }
+			$id_provider = (int) $raw_provider;
+		}
+
 		$note  = trim((string) $this->input->post('note'));
-		if( mb_strlen($store, 'UTF-8') > 100 || mb_strlen($note, 'UTF-8') > 255 ){ $this->fail('El comercio o la nota son demasiado largos'); }
-		if( preg_match('/[<>]/', $store.$note) ){ $this->fail('El comercio o la nota contienen caracteres no permitidos'); }
+		if( mb_strlen($note, 'UTF-8') > 255 ){ $this->fail('La nota es demasiado larga'); }
+		if( preg_match('/[<>]/', $note) ){ $this->fail('La nota contiene caracteres no permitidos'); }
 
 		$rate = (float) $this->db->query('SELECT sell_price FROM dollar_exchange LIMIT 1')->row('sell_price');
 		if( $rate <= 0 ){ $this->fail('Configure el tipo de cambio antes de registrar compras'); }
@@ -373,7 +379,7 @@ class Ingredients extends Admin_Controller{
 				'line_cost_cor' => $cost, 'line_cost' => $cost !== NULL ? round($cost / $rate, 4) : NULL);
 		}
 
-		$r = $this->ingredients_mdl->receivePurchase($lines, array('store' => $store !== '' ? $store : NULL, 'note' => $note !== '' ? $note : NULL, 'purchased_at' => $date, 'dollar_ex_sell' => $rate), $this->id_admin);
+		$r = $this->ingredients_mdl->receivePurchase($lines, array('id_provider' => $id_provider, 'note' => $note !== '' ? $note : NULL, 'purchased_at' => $date, 'dollar_ex_sell' => $rate), $this->id_admin);
 		if( !$r[0] ){ $this->fail($r[1]); }
 
 		$this->ok('Compra #'.$r[2].' registrada ('.count($lines).' ingredientes)', array('id_purchase' => $r[2]));
@@ -412,6 +418,22 @@ class Ingredients extends Admin_Controller{
 		foreach( $this->ingredients_mdl->getPacks($id) as $p ){ $packs[] = array('id' => (int) $p->id_pack, 'name' => $p->name, 'size' => (float) $p->size); }
 
 		$this->ok('Ingrediente creado', array('ingredient' => array('id' => $id, 'name' => $name, 'unit' => $unit, 'stock' => 0, 'cost' => NULL, 'packs' => $packs)));
+	}
+
+	/** Creates a bare provider (name only) from the purchase screen's provider modal; the rest is edited in /providers. */
+	public function quick_provider(){
+
+		$this->requirePost();
+
+		$name = trim(preg_replace('/\s+/', ' ', (string) $this->input->post('name')));
+		if( $name === '' || mb_strlen($name, 'UTF-8') > 150 || preg_match('/[<>]/', $name) || preg_match('/[\x{10000}-\x{10FFFF}]/u', $name) ){ $this->fail('Nombre inválido (máx. 150 caracteres)'); }
+		if( $this->db->query('SELECT 1 FROM providers WHERE active = 1 AND provider = ? LIMIT 1', array($name))->row() ){ $this->fail('Ya existe un proveedor con ese nombre'); }
+
+		$this->db->insert('providers', array('provider' => $name));
+		$id = (int) $this->db->insert_id();
+		if( !$id ){ $this->fail('No se pudo crear el proveedor'); }
+
+		$this->ok('Proveedor creado', array('provider' => array('id' => $id, 'name' => $name)));
 	}
 
 	public function purchases(){
