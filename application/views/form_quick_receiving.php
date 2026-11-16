@@ -19,12 +19,7 @@
 		</div>
 		<div class="col-sm-4 form-group">
 			<label>Proveedor</label>
-			<select id="qr-provider" class="form-control">
-				<option value="">---</option>
-				<?php foreach( $providers as $p ) : ?>
-				<option value="<?php echo (int)$p->id_provider; ?>"><?php echo htmlspecialchars($p->provider); ?></option>
-				<?php endforeach; ?>
-			</select>
+			<?php $this->load->view('_provider_picker', array('pp_hidden_id'=>'qr-provider','pp_default_first'=>FALSE,'providers'=>$providers)); ?>
 		</div>
 		<div class="col-sm-4 form-group">
 			<label>Fecha</label>
@@ -307,7 +302,7 @@
 			rows += '<tr><td>' + esc($c.find('.qr-name').text()) + '</td><td class="text-right">' + q + label + '<br><small class="text-muted">' + (q * units($c)) + ' unid.</small></td></tr>';
 		});
 
-		var provider = $('#qr-provider').val() ? esc($('#qr-provider option:selected').text()) : '<em>Sin proveedor</em>';
+		var provider = $('#qr-provider').val() ? esc($('#qr-provider_name').val()) : '<em>Sin proveedor</em>';
 		var summary = '<p><strong>' + esc($('#qr-invoice-no').val()) + '</strong> · ' + provider + '</p>' +
 			'<table class="table table-condensed"><tbody>' + rows + '</tbody></table>' +
 			'<h4>' + esc($('#qr-total').text()) + '</h4>' +

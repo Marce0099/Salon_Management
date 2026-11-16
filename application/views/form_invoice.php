@@ -25,11 +25,7 @@
 		<div class="col-md-4">
 			<div class="form-group">
 				<label for="">Proveedor</label>
-				<select name="id_provider" id="id_provider" class="form-control">
-					<?php foreach($providers as $p) : ?>
-					<option value="<?php echo $p->id_provider; ?>"><?php echo $p->provider; ?></option>
-					<?php endforeach; ?>
-				</select>
+				<?php $this->load->view('_provider_picker', array('pp_hidden_id'=>'id_provider','pp_hidden_name'=>'id_provider','pp_default_first'=>TRUE,'providers'=>$providers)); ?>
 			</div>
 		</div>
 		<div class="col-md-4">
@@ -432,7 +428,7 @@
 						if( data.type == 'success' ){
 
 							$('#invoice_no').val('');
-							$('#id_provider option').eq(0).attr('selected',true);
+							providerPickerReset('id_provider');
 							$('#date_time').val('<?php echo date('d/m/Y'); ?>');
 
 							$('#form .row-product').remove();
