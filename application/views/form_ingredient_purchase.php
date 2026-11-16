@@ -19,7 +19,7 @@
 <form id="ip-form" autocomplete="off" onsubmit="return false;">
 	<input type="hidden" id="ip-tk" value="<?php echo $tk; ?>">
 	<div class="row">
-		<div class="col-xs-12 col-sm-4 form-group"><label>Comercio / proveedor</label><input type="text" id="ip-store" class="form-control" maxlength="100" placeholder="ej. Pali, Mercado"></div>
+		<div class="col-xs-12 col-sm-4 form-group"><label>Proveedor</label><?php $this->load->view('_provider_picker', array('pp_hidden_id' => 'ip-store', 'pp_default_first' => FALSE, 'pp_create_url' => base_url('ingredients/quick_provider'), 'pp_tk_selector' => '#ip-tk', 'providers' => $providers)); ?></div>
 		<div class="col-xs-12 col-sm-3 form-group"><label>Fecha</label><input type="date" id="ip-date" class="form-control" value="<?php echo date('Y-m-d'); ?>" max="<?php echo date('Y-m-d'); ?>"></div>
 		<div class="col-xs-12 col-sm-5 form-group"><label>Nota (opcional)</label><input type="text" id="ip-note" class="form-control" maxlength="255"></div>
 	</div>
@@ -189,7 +189,7 @@
 				if( !ok ){ return; }
 				var btn = $('#ip-save').prop('disabled', true);
 				$.ajax({ url: '<?php echo base_url('ingredients/purchase_save'); ?>', type: 'post', dataType: 'json',
-					data: { tk: $('#ip-tk').val(), lines: JSON.stringify(lines), store: $('#ip-store').val(), note: $('#ip-note').val(), date: $('#ip-date').val() },
+					data: { tk: $('#ip-tk').val(), lines: JSON.stringify(lines), id_provider: $('#ip-store').val(), note: $('#ip-note').val(), date: $('#ip-date').val() },
 					success: function(r){
 						if( r.tk ){ $('#ip-tk').val(r.tk); }
 						notify(r.type, r.message);

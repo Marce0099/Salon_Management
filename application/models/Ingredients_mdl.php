@@ -202,7 +202,7 @@ class Ingredients_mdl extends CI_Model{
 	/**
 	 * Saves a purchase receipt: every line adds stock and a 'receive' movement, the cost per base unit becomes the weighted average
 	 * of the existing stock and the purchase, all in ONE transaction (rows locked in ascending id, like the kitchen).
-	 * $lines = array(array(id_ingredient, pack_name|NULL, pack_qty, base_qty, line_cost|NULL)); $header = array(store, note, purchased_at).
+	 * $lines = array(array(id_ingredient, pack_name|NULL, pack_qty, base_qty, line_cost|NULL)); $header = array(id_provider|NULL, note, purchased_at).
 	 * Returns array(ok, message, id_purchase).
 	 */
 	public function receivePurchase($lines, $header, $id_admin){
@@ -232,7 +232,7 @@ class Ingredients_mdl extends CI_Model{
 			}
 
 			$self->db->insert('ingredient_purchases', array(
-				'store'        => $header['store'],
+				'id_provider'  => $header['id_provider'],
 				'note'         => $header['note'],
 				'purchased_at' => $header['purchased_at'],
 				'total_cost'   => round($total, 4),
@@ -317,13 +317,13 @@ class Ingredients_mdl extends CI_Model{
 	/** Latest saved purchases with their line count. */
 	public function purchases($limit = 100){
 
-		return $this->db->query('SELECT p.*, a.username, (SELECT COUNT(*) FROM ingredient_purchase_lines l WHERE l.id_purchase = p.id_purchase) AS n_lines
-			FROM ingredient_purchases p LEFT JOIN admins a ON a.id_admin = p.id_admin ORDER BY p.id_purchase DESC LIMIT '.(int) $limit)->result();
+		return $this->db->query('SELECT p.*, pr.provider AS store, a.username, (SELECT COUNT(*) FROM ingredient_purchase_lines l WHERE l.id_purchase = p.id_purchase) AS n_lines
+			FROM ingredient_purchases p LEFT JOIN admins a ON a.id_admin = p.id_admin LEFT JOIN providers pr ON pr.id_provider = p.id_provider ORDER BY p.id_purchase DESC LIMIT '.(int) $limit)->result();
 	}
 
 	public function purchase($id){
 
-		return $this->db->query('SELECT p.*, a.username FROM ingredient_purchases p LEFT JOIN admins a ON a.id_admin = p.id_admin WHERE p.id_purchase = ?', array((int) $id))->row();
+		return $this->db->query('SELECT p.*, pr.provider AS store, a.username FROM ingredient_purchases p LEFT JOIN admins a ON a.id_admin = p.id_admin LEFT JOIN providers pr ON pr.id_provider = p.id_provider WHERE p.id_purchase = ?', array((int) $id))->row();
 	}
 
 	public function purchaseLines($id){

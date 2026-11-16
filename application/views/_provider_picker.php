@@ -4,10 +4,14 @@
  * Params: $pp_hidden_id (id of the hidden input holding the provider id),
  *         $pp_hidden_name (optional name attribute of that hidden input),
  *         $pp_default_first (bool, preselect the first provider),
+ *         $pp_create_url (optional: endpoint that creates a provider from a name; shows "+ Nuevo proveedor" in the modal),
+ *         $pp_tk_selector (selector of the page's form token input, sent as tk to $pp_create_url and refreshed from the reply),
  *         $providers (active providers, objects with id_provider/provider).
  */
 $pp_hidden_name = isset($pp_hidden_name) ? $pp_hidden_name : '';
 $pp_default_first = !empty($pp_default_first);
+$pp_create_url = isset($pp_create_url) ? $pp_create_url : '';
+$pp_tk_selector = isset($pp_tk_selector) ? $pp_tk_selector : '';
 $pp_def_id = ($pp_default_first && !empty($providers)) ? (int)$providers[0]->id_provider : '';
 $pp_def_name = ($pp_default_first && !empty($providers)) ? $providers[0]->provider : '';
 ?>
@@ -27,6 +31,18 @@ $pp_def_name = ($pp_default_first && !empty($providers)) ? $providers[0]->provid
 		</div>
 		<div class="modal-body">
 			<input type="text" id="provider-picker-search" class="form-control" placeholder="Buscar por nombre" autocomplete="off" style="margin-bottom:10px;">
+			<?php if($pp_create_url) : ?>
+			<div id="provider-picker-new" style="display:none;margin-bottom:10px;">
+				<div class="input-group">
+					<input type="text" id="provider-picker-new-name" class="form-control" maxlength="150" placeholder="Nombre del nuevo proveedor" autocomplete="off">
+					<span class="input-group-btn">
+						<button type="button" class="btn btn-success" id="provider-picker-new-save">Guardar</button>
+						<button type="button" class="btn btn-default" id="provider-picker-new-cancel">Cancelar</button>
+					</span>
+				</div>
+				<small class="text-danger" id="provider-picker-new-error"></small>
+			</div>
+			<?php endif; ?>
 			<div style="max-height:350px;overflow-y:auto;">
 				<table class="table table-bordered table-hover table-condensed">
 					<thead><tr><th>Proveedor</th></tr></thead>
@@ -40,6 +56,7 @@ $pp_def_name = ($pp_default_first && !empty($providers)) ? $providers[0]->provid
 			</div>
 		</div>
 		<div class="modal-footer">
+			<?php if($pp_create_url) : ?><button type="button" class="btn btn-info pull-left" id="provider-picker-new-btn">+ Nuevo proveedor</button><?php endif; ?>
 			<button type="button" class="btn btn-default" data-dismiss="modal">Cancelar</button>
 			<button type="button" class="btn btn-primary" id="provider-picker-ok" disabled>OK</button>
 		</div>
@@ -90,6 +107,33 @@ $(function(){
 	});
 	$rows.on('dblclick', 'tr', apply);
 	$ok.on('click', apply);
+
+	<?php if($pp_create_url) : ?>
+	var createUrl = <?php echo json_encode($pp_create_url); ?>, tkSel = <?php echo json_encode($pp_tk_selector); ?>,
+	    $newBox = $('#provider-picker-new'), $newName = $('#provider-picker-new-name'), $newErr = $('#provider-picker-new-error'), $newSave = $('#provider-picker-new-save');
+	function newClose(){ $newBox.hide(); $newName.val(''); $newErr.text(''); $('#provider-picker-new-btn').show(); }
+	$('#provider-picker-new-btn').on('click', function(){ $(this).hide(); $newBox.show(); $newName.focus(); });
+	$('#provider-picker-new-cancel').on('click', newClose);
+	$modal.on('hidden.bs.modal', newClose);
+	$newName.on('keydown', function(e){ if(e.which === 13){ e.preventDefault(); $newSave.click(); } });
+	$newSave.on('click', function(){
+		var name = $.trim($newName.val());
+		if(name === ''){ $newErr.text('Escriba el nombre del proveedor'); return; }
+		$newSave.prop('disabled', true); $newErr.text('');
+		$.ajax({ url: createUrl, type: 'post', dataType: 'json', data: { tk: tkSel ? $(tkSel).val() : '', name: name },
+			success: function(res){
+				if(res.tk && tkSel){ $(tkSel).val(res.tk); }
+				$newSave.prop('disabled', false);
+				if(res.type !== 'success'){ $newErr.text(res.message); return; }
+				var $tr = $('<tr>').attr('data-id', res.provider.id).append($('<td>').text(res.provider.name)).appendTo($rows);
+				$rows.find('tr').removeClass('picker-selected');
+				sel = $tr.addClass('picker-selected');
+				apply();
+			},
+			error: function(){ $newSave.prop('disabled', false); $newErr.text('Ha ocurrido un error creando el proveedor'); }
+		});
+	});
+	<?php endif; ?>
 
 	window.providerPickerReset = function(hiddenId){
 		var $h = $('#'+hiddenId), $n = $('#'+hiddenId+'_name');
