@@ -79,7 +79,8 @@
 					(array)$this->input->post('quantities'),
 					(array)$this->input->post('prices_cost'),
 					(array)$this->input->post('prices_sell'),
-						(array)$this->input->post('id_packs')
+						(array)$this->input->post('id_packs'),
+					(bool)$this->input->post('quick')
 				);
 
 				if( $this->invoices_mdl->invoiceNumberExists( $invoice['invoice_no'], NULL, $invoice['id_provider'] ) ){
@@ -154,9 +155,10 @@
 		}
 
 		// Validates the posted line arrays; returns clean lines or answers with an error and exits.
-		private function validatedLines( $ids, $quantities, $costs, $sells, $packs = array() ){
+		private function validatedLines( $ids, $quantities, $costs, $sells, $packs = array(), $unique = FALSE ){
 
 			$lines = array();
+			$seen = array();
 
 			for( $i = 0; $i < count($ids); $i++ ){
 
@@ -207,6 +209,15 @@
 					if( (int)$qty * $units > 1000000 ){
 						$this->registerError('La cantidad total es demasiado grande');
 					}
+				}
+
+				// quick receiving: one line per product + presentation (base unit = empty pack)
+				if( $unique ){
+					$key = (int)$id.'|'.$raw_pack;
+					if( isset($seen[$key]) ){
+						$this->registerError('Presentación repetida para un mismo producto');
+					}
+					$seen[$key] = TRUE;
 				}
 
 				$lines[] = array(
