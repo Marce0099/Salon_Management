@@ -1,4 +1,4 @@
-<h4 class="section-title">Recepción rápida de mercadería</h4>
+<h4 class="section-title">Registrar compra</h4>
 
 <style>
 	.qr-card { border:1px solid #ddd; border-radius:6px; padding:10px; margin-bottom:10px; background:#fff; position:relative; }
@@ -8,6 +8,7 @@
 	.qr-card label { font-size:12px; margin-bottom:2px; color:#666; }
 	#qr-results .list-group-item { padding:12px; cursor:pointer; }
 	#qr-total { font-size:18px; font-weight:bold; }
+	@media (min-width: 992px) { #qr-lines { column-count:2; column-gap:12px; } .qr-card { break-inside:avoid; } }
 </style>
 
 <form id="qr-form" autocomplete="off" onsubmit="return false;">
@@ -23,7 +24,7 @@
 		</div>
 		<div class="col-sm-4 form-group">
 			<label>Fecha</label>
-			<input type="text" id="qr-date" class="form-control" readonly value="<?php echo date('d/m/Y'); ?>">
+			<input type="text" id="qr-date" class="form-control" value="<?php echo date('d/m/Y'); ?>">
 		</div>
 	</div>
 
@@ -66,8 +67,9 @@
 				// scanner input: if nothing matched by name, try the barcode
 				if( !list.length ){
 					$.post('<?php echo base_url('products/searchProducts'); ?>', { name : '', barcode : q, type : 'products' }, function(d2){
-						render($.parseJSON(d2).products || []);
-					});
+						var j = typeof d2 === 'string' ? $.parseJSON(d2) : d2;
+						render((j && j.products) || []);
+					}).fail(function(){ notify('Error al buscar el producto', 'error'); });
 					return;
 				}
 
@@ -264,6 +266,25 @@
 
 	$(document).on('input', '.qr-qty, .qr-cost, .qr-sell', recalc);
 
+	// Cost change keeps the same markup: the sell price moves by the same amount, unless the user typed the price by hand.
+	$(document).on('focusin', '.qr-cost', function(){ $(this).attr('data-prev', num($(this).val())); });
+
+	$(document).on('input', '.qr-sell', function(){ $(this).attr('data-manual', '1'); });
+
+	$(document).on('change', '.qr-cost', function(){
+
+		var $c = $(this).closest('.qr-card');
+		var $sell = $c.find('.qr-sell');
+		var prev = parseFloat($(this).attr('data-prev'));
+		var now = num($(this).val());
+
+		if( $sell.attr('data-manual') || isNaN(prev) || prev <= 0 || now <= 0 ){ return; }
+
+		var next = num($sell.val()) + (now - prev);
+
+		if( next > 0 ){ $sell.val(next.toFixed(2)); recalc(); }
+	});
+
 	$(document).on('change', '.qr-pack', function(){
 
 		var $c = $(this).closest('.qr-card');
@@ -362,7 +383,7 @@
 		var $btn = $('#qr-save').prop('disabled', true);
 
 		$.ajax({
-			url : '<?php echo base_url('invoices/register'); ?>',
+			url : '<?php echo base_url('invoices/save'); ?>',
 			type : 'post',
 			dataType : 'json',
 			data : post,
@@ -375,7 +396,8 @@
 				if( data.type == 'success' ){
 					$('#qr-lines').empty();
 					recalc();
-					$('#qr-invoice-no').val('REC-' + new Date().toISOString().replace(/[-:T]/g, '').slice(0, 14));
+					var d = new Date(), z = function(n){ return ('0' + n).slice(-2); };
+						$('#qr-invoice-no').val('REC-' + d.getFullYear() + z(d.getMonth() + 1) + z(d.getDate()) + '-' + z(d.getHours()) + z(d.getMinutes()) + z(d.getSeconds()));
 				}
 
 				$btn.prop('disabled', false);
@@ -383,6 +405,23 @@
 			error : function(){ notify('Ha ocurrido un error guardando la recepción', 'error'); $btn.prop('disabled', false); }
 		});
 	}
+
+	$(function(){
+
+		if( $.fn.daterangepicker ){
+
+			$('#qr-date').daterangepicker({
+				locale : {
+					format : 'DD/MM/YYYY',
+					daysOfWeek : ['Do','Lu','Ma','Mi','Ju','Vi','Sa'],
+					monthNames : ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
+				},
+				maxDate : '<?php echo date('d/m/Y'); ?>',
+				singleDatePicker : true,
+				showDropdowns : true
+			});
+		}
+	});
 
 })();
 </script>

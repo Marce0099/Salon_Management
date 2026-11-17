@@ -70,7 +70,7 @@ class Products_mdl extends CI_Model{
 		return (bool)$this->db->query( $sql, $params )->row();
 	}
 
-	// Resolves a scanned code to a product (+ pack when it is a pack barcode). Returns NULL when unknown.
+	// Resolves a scanned code to a stocked product (+ pack when it is a pack barcode); services are never receivable. Returns NULL when unknown.
 	public function scanCode( $code ){
 
 		$code = trim((string)$code);
@@ -79,7 +79,7 @@ class Products_mdl extends CI_Model{
 			return NULL;
 		}
 
-		$sql = 'select id_product, barcode, name, price_cost, price_sell, is_service from products where active = 1 and trim(upper(barcode)) = trim(upper(?))';
+		$sql = 'select id_product, barcode, name, price_cost, price_sell, is_service from products where active = 1 and is_service = 0 and trim(upper(barcode)) = trim(upper(?))';
 		$p = $this->db->query( $sql, array( $code ) )->row();
 
 		if( $p ){
@@ -96,7 +96,7 @@ class Products_mdl extends CI_Model{
 		}
 
 		$p = $this->db->query(
-			'select id_product, barcode, name, price_cost, price_sell, is_service from products where active = 1 and id_product = ?',
+			'select id_product, barcode, name, price_cost, price_sell, is_service from products where active = 1 and is_service = 0 and id_product = ?',
 			array( (int)$pk->id_product )
 		)->row();
 

@@ -37,6 +37,12 @@ class Returns_mdl extends CI_Model{
     	$id_invoice = (int)$id_invoice;
     	$wanted = array();
 
+    	// all returns against one invoice are serialized on its row, so two concurrent returns cannot both
+    	// pass the "pending to return" check below; products are then locked in ascending id (kitchen/receiving order)
+    	if( !$this->db->query('SELECT id_invoice FROM invoices WHERE id_invoice = ? FOR UPDATE', array($id_invoice))->row() ){
+    		throw new Exception('La factura seleccionada no existe');
+    	}
+
     	// one entry per product: repeated rows are merged, never checked one by one
     	foreach( (array)$id_products as $i => $raw_id ){
 
@@ -59,6 +65,12 @@ class Returns_mdl extends CI_Model{
     	}
 
     	$data = array();
+
+    	ksort($wanted);
+
+    	$this->db->query(
+    		'SELECT id_product FROM products WHERE id_product IN ('.implode(',', array_map('intval', array_keys($wanted))).') ORDER BY id_product FOR UPDATE'
+    	);
 
     	foreach( $wanted as $id_product => $qty ){
 
@@ -85,7 +97,7 @@ class Returns_mdl extends CI_Model{
     		$already = (int)$this->db->query(
     			'SELECT COALESCE(SUM(RP.quantity), 0) AS qty FROM returns_products RP
     			 INNER JOIN returns R ON RP.id_return = R.id_return
-    			 WHERE R.id_invoice = ? AND RP.id_product = ? AND R.id_return != ?',
+    			 WHERE R.id_invoice = ? AND RP.id_product = ? AND R.id_return != ? LOCK IN SHARE MODE',
     			array( $id_invoice, $id_product, (int)$id_return )
     		)->row('qty');
 
@@ -124,10 +136,30 @@ class Returns_mdl extends CI_Model{
 
     public function getInvoicesByProvider( $id_provider ){
 
-    	$sql = 'SELECT id_invoice, invoice_no, date_time FROM invoices
-    	        WHERE id_provider = '.(int)$id_provider.' ORDER BY id_invoice DESC';
+    	// '' / NULL = every invoice, 'none' = receipts without provider, otherwise that provider's invoices
+    	$sql = 'SELECT I.id_invoice, I.invoice_no, I.date_time, I.id_provider, P.provider
+    	        FROM invoices I LEFT OUTER JOIN providers P ON I.id_provider = P.id_provider';
+    	$binds = array();
 
-    	return $this->db->query($sql)->result();
+    	if( $id_provider === 'none' ){
+    		$sql .= ' WHERE I.id_provider IS NULL';
+    	}
+    	elseif( $id_provider !== NULL && $id_provider !== '' ){
+    		$sql .= ' WHERE I.id_provider = ?';
+    		$binds[] = (int)$id_provider;
+    	}
+
+    	return $this->db->query($sql.' ORDER BY I.id_invoice DESC LIMIT 500', $binds)->result();
+    }
+
+    // Invoice header (+ provider name) used to preselect an invoice in the returns form. NULL when it does not exist.
+    public function getInvoiceForReturn( $id_invoice ){
+
+    	return $this->db->query(
+    		'SELECT I.id_invoice, I.invoice_no, I.id_provider, P.provider FROM invoices I
+    		 LEFT OUTER JOIN providers P ON I.id_provider = P.id_provider WHERE I.id_invoice = ?',
+    		array((int)$id_invoice)
+    	)->row();
     }
 
     public function getProductsByInvoice( $id_invoice ){
@@ -135,9 +167,9 @@ class Returns_mdl extends CI_Model{
     	$sql = 'SELECT P.id_product, P.name, P.barcode, P.stock, IP.price_cost, IP.price_sell
     	        FROM invoice_products IP
     	        INNER JOIN products P ON IP.id_product = P.id_product
-    	        WHERE IP.id_invoice = '.(int)$id_invoice.' AND P.active = 1';
+    	        WHERE IP.id_invoice = ? AND P.active = 1';
 
-    	return $this->db->query($sql)->result();
+    	return $this->db->query($sql, array((int)$id_invoice))->result();
     }
 
     public function getReturnsDetails( $id_return ){
