@@ -95,18 +95,45 @@
 		var p = $(this).data('p');
 		if( !p ){ return; }
 
-		var $line = $('#qr-lines .qr-card[data-id="' + parseInt(p.id_product, 10) + '"]').first();
-
-		if( $line.length ){
-			$line.find('.qr-qty').focus().select();
-		}
-		else{
-			addLine(p);
-		}
+		addNext(p);
 
 		$('#qr-results').empty();
 		$('#qr-search').val('');
 	});
+
+	var packCache = {};
+
+	// packs of a product (cached): cb(packs[]) in server order
+	function getPacks(id, cb){
+
+		if( packCache[id] ){ cb(packCache[id]); return; }
+
+		$.getJSON('<?php echo base_url('products/packs'); ?>/' + id, function(data){
+			packCache[id] = (data && data.packs) ? data.packs : [];
+			cb(packCache[id]);
+		}).fail(function(){ notify('Error al cargar las presentaciones', 'error'); });
+	}
+
+	// Adds the product with the first presentation not yet listed (base unit, then each pack in order).
+	function addNext(p){
+
+		var id = parseInt(p.id_product, 10);
+
+		getPacks(id, function(packs){
+
+			var order = [''];
+			$.each(packs, function(i, pk){ order.push(String(pk.id_pack)); });
+
+			var used = {};
+			$('#qr-lines .qr-card[data-id="' + id + '"]').each(function(){ used[String($(this).attr('data-pack') || '')] = true; });
+
+			for( var i = 0; i < order.length; i++ ){
+				if( !used[order[i]] ){ addLine(p, order[i]); return; }
+			}
+
+			notify('Todas las presentaciones de "' + p.name + '" ya están en la lista', 'error');
+		});
+	}
 
 	function addLine(p, prePack, preQty){
 
@@ -127,13 +154,13 @@
 
 		$('#qr-lines').prepend($c);
 
-		$.getJSON('<?php echo base_url('products/packs'); ?>/' + parseInt(p.id_product, 10), function(data){
+		getPacks(parseInt(p.id_product, 10), function(packs){
 
-			if( data.packs && data.packs.length ){
+			if( packs.length ){
 
 				var $sel = $c.find('.qr-pack');
 
-				$.each(data.packs, function(i, pk){
+				$.each(packs, function(i, pk){
 					$('<option>').val(pk.id_pack).attr('data-units', pk.units).attr('data-cost', pk.price_cost === null ? '' : pk.price_cost)
 						.text(pk.name + ' (x' + pk.units + ')').appendTo($sel);
 				});
@@ -241,7 +268,19 @@
 
 		var $c = $(this).closest('.qr-card');
 		var opt = $(this).find('option:selected');
-		$c.attr('data-pack', $(this).val() || '');
+		var np = String($(this).val() || '');
+
+		var dup = $('#qr-lines .qr-card[data-id="' + parseInt($c.attr('data-id'), 10) + '"]').not($c).filter(function(){
+			return String($(this).attr('data-pack') || '') === np;
+		}).length;
+
+		if( dup ){
+			$(this).val(String($c.attr('data-pack') || ''));
+			notify('Esa presentación ya está en la lista para este producto', 'error');
+			return;
+		}
+
+		$c.attr('data-pack', np);
 		var u = parseInt(opt.attr('data-units'), 10) || 1;
 		var pc = parseFloat(opt.attr('data-cost'));
 
@@ -286,6 +325,8 @@
 			post.push({ name : 'prices_sell[]', value : String($c.find('.qr-sell').val()).replace(',', '.') });
 			post.push({ name : 'id_packs[]', value : $c.find('.qr-pack').val() || '' });
 		});
+
+		post.push({ name : 'quick', value : '1' });
 
 		if( bad ){ notify('La cantidad debe ser un entero mayor a cero', 'error'); return; }
 
