@@ -5,11 +5,12 @@
 	<div class="row">
 		<div class="col-md-4">
 			<div class="form-group">
-				<label for="id_provider">Proveedor <span class="text-danger">*</span></label>
-				<select name="id_provider" id="id_provider" class="form-control" required="true">
-					<option value="">--- Seleccione proveedor ---</option>
+				<label for="id_provider">Proveedor (filtro de facturas)</label>
+				<select name="id_provider" id="id_provider" class="form-control">
+					<option value="">Todos los proveedores</option>
+					<option value="none">Sin proveedor</option>
 					<?php foreach( $providers as $p ) : ?>
-					<option value="<?php echo $p->id_provider; ?>"><?php echo $p->provider; ?></option>
+					<option value="<?php echo $p->id_provider; ?>"><?php echo htmlspecialchars($p->provider); ?></option>
 					<?php endforeach; ?>
 				</select>
 			</div>
@@ -94,7 +95,7 @@
 				<div style="max-height:300px;overflow-y:auto;">
 					<table class="table table-bordered table-hover table-condensed">
 						<thead>
-							<tr><th>No. Factura</th><th>Fecha</th></tr>
+							<tr><th>No. Factura</th><th>Proveedor</th><th>Fecha</th></tr>
 						</thead>
 						<tbody id="inv-picker-results"></tbody>
 					</table>
@@ -154,10 +155,6 @@
 
 	$('#id_provider').on('change', function(){
 
-		if( $(this).val() ){
-			$(this).find('option[value=""]').prop('disabled', true);
-		}
-
 		$('#invoice_no_display').val('');
 		$('#id_invoice').val('');
 		$('#products-list').empty();
@@ -171,17 +168,7 @@
 
 		var id_provider = $('#id_provider').val();
 
-		if( !id_provider ){
-			new PNotify({
-				title: 'Notificación',
-				text: 'Debe seleccionar un proveedor primero',
-				type: 'warning', styling: 'bootstrap3', delay: 3000
-			});
-			$(this).blur();
-			return;
-		}
-
-		_invSelected      = null;
+		_invSelected     = null;
 		_invPickerSuccess = false;
 		$('#inv-picker-ok').prop('disabled', true);
 		$('#inv-picker-search').val('');
@@ -207,7 +194,7 @@
 
 	function invPickerLoad( id_provider ){
 
-		$('#inv-picker-results').html('<tr><td colspan="2" class="text-center text-muted">Cargando...</td></tr>');
+		$('#inv-picker-results').html('<tr><td colspan="3" class="text-center text-muted">Cargando...</td></tr>');
 
 		$.ajax({
 			url: '<?php echo base_url('returns/getInvoicesByProvider'); ?>',
@@ -218,7 +205,7 @@
 				invPickerRender($('#inv-picker-search').val());
 			},
 			error: function(){
-				$('#inv-picker-results').html('<tr><td colspan="2" class="text-center text-danger">Error al cargar facturas</td></tr>');
+				$('#inv-picker-results').html('<tr><td colspan="3" class="text-center text-danger">Error al cargar facturas</td></tr>');
 			}
 		});
 	}
@@ -232,19 +219,23 @@
 		var list = _allInvoices;
 		if( search ){
 			var s = search.toLowerCase();
-			list = $.grep(list, function(inv){ return inv.invoice_no.toLowerCase().indexOf(s) >= 0; });
+			list = $.grep(list, function(inv){
+				return String(inv.invoice_no || '').toLowerCase().indexOf(s) >= 0
+				    || String(inv.provider || '').toLowerCase().indexOf(s) >= 0;
+			});
 		}
 
 		if( list.length ){
 			$.each(list, function(_, inv){
 				$('<tr>').data('invoice', inv)
 					.append($('<td>').text(inv.invoice_no))
-					.append($('<td>').text(inv.date_time.split(' ')[0]))
+					.append($('<td>').text(inv.provider || '—'))
+					.append($('<td>').text(String(inv.date_time || '').split(' ')[0]))
 					.appendTo($tbody);
 			});
 		}
 		else{
-			$('<tr><td colspan="2" class="text-center text-muted">Sin resultados</td></tr>').appendTo($tbody);
+			$('<tr><td colspan="3" class="text-center text-muted">Sin resultados</td></tr>').appendTo($tbody);
 		}
 	}
 
@@ -305,7 +296,7 @@
 		if( !id_invoice ){
 			new PNotify({
 				title: 'Notificación',
-				text: 'Debe seleccionar un proveedor y una factura antes de agregar productos',
+				text: 'Debe seleccionar una factura antes de agregar productos',
 				type: 'warning', styling: 'bootstrap3', delay: 3500
 			});
 			$(this).blur();
@@ -434,6 +425,16 @@
 	$(document).on('click', '.delete-item', function(){
 		$(this).parents('tr').remove();
 	});
+
+	// ── Preselected invoice (returns/register?invoice={id}) ───────────────────
+
+	<?php if( !empty($prefill) ) : ?>
+	$(function(){
+		$('#id_provider').val(<?php echo $prefill->id_provider === NULL ? "'none'" : (int)$prefill->id_provider; ?>);
+		$('#invoice_no_display').val(<?php echo json_encode((string)$prefill->invoice_no); ?>);
+		$('#id_invoice').val(<?php echo (int)$prefill->id_invoice; ?>);
+	});
+	<?php endif; ?>
 
 	// ── Date picker ───────────────────────────────────────────────────────────
 

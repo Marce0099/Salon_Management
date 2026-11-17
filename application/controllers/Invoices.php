@@ -35,105 +35,94 @@
 			$this->renderPanel('invoices');
 		}
 
+		// Legacy URL: the desktop screen was retired, /invoices/quick is the only receiving screen.
+		// A stray POST (cached page) is still served by save().
 		public function register(){
 
 			if( formPosted() ){
 
-				// every POST must carry the session form token (CSRF)
-				if( !formSubmited() ){
-
-					$this->registerError('Sesión inválida, recargue la página e intente de nuevo');
-				}
-
-				$invoice_no = trim((string)$this->input->post('invoice_no'));
-				$raw_provider = trim((string)$this->input->post('id_provider'));
-
-				if( $invoice_no === '' || strlen($invoice_no) > 50 ){
-
-					$this->registerError('Número de factura inválido');
-				}
-
-				$id_provider = NULL;
-				if( $raw_provider !== '' ){
-
-					if( !ctype_digit($raw_provider) || (int)$raw_provider < 1 || !$this->db->get_where('providers',array('id_provider'=>(int)$raw_provider,'active'=>1))->row() ){
-
-						$this->registerError('Proveedor inválido');
-					}
-					$id_provider = (int)$raw_provider;
-				}
-
-				$date = DateTime::createFromFormat('d/m/Y', trim((string)$this->input->post('date_time')));
-				$date_errors = DateTime::getLastErrors();
-				if( !$date || ($date_errors && ($date_errors['warning_count'] || $date_errors['error_count'])) ){
-
-					$this->registerError('Fecha inválida');
-				}
-
-				$invoice['invoice_no'] = $invoice_no;
-				$invoice['id_provider'] = $id_provider;
-				$invoice['date_time'] = $date->format('Y-m-d').' '.date('H:i:s');
-
-				$lines = $this->validatedLines(
-					(array)$this->input->post('id_products'),
-					(array)$this->input->post('quantities'),
-					(array)$this->input->post('prices_cost'),
-					(array)$this->input->post('prices_sell'),
-						(array)$this->input->post('id_packs'),
-					(bool)$this->input->post('quick')
-				);
-
-				if( $this->invoices_mdl->invoiceNumberExists( $invoice['invoice_no'], NULL, $invoice['id_provider'] ) ){
-
-					$this->registerError('El numero de factura ingresado ya existe');
-				}
-
-				$this->db->trans_begin();
-
-				try{
-
-					$id_invoice = $this->invoices_mdl->saveInvoice($invoice);
-
-					foreach( $lines as $line ){
-
-						$invoice_details = array(
-							'id_invoice' => $id_invoice,
-							'id_product' => $line['id_product'],
-							'quantity' => $line['quantity'],
-							'price_cost' => $line['price_cost'],
-							'price_sell' => $line['price_sell']
-						);
-
-						$this->invoices_mdl->saveInvoiceDetails( $invoice_details );
-
-						$this->invoices_mdl->updateStockPrice( $line['id_product'], $line['quantity'], $line['price_sell'], $line['price_cost'], $line['is_service'] );
-					}
-
-					if( $this->db->trans_status() === FALSE ){
-						throw new Exception('No se ha podido registrar la factura');
-					}
-
-					$this->db->trans_commit();
-
-					$new_tk = generateToken();
-					$this->session->set_userdata('tk', $new_tk);
-
-					echo json_encode(array( 'type' => 'success', 'message' => 'Factura ingresada e inventario actualizado', 'tk' => $new_tk ));
-				}
-				catch( Exception $e ){
-
-					$this->db->trans_rollback();
-
-					echo json_encode(array( 'type' => 'error', 'message' => 'No se ha podido registrar la factura' ));
-				}
+				$this->save();
+				return;
 			}
-			else{
 
-				$this->form();
-			}
+			redirect('invoices/quick');
 		}
 
-		// Mobile quick receiving: same POST target as register(), different screen.
+		// Saves one receipt (header + lines + stock/price update) in ONE transaction. Always answers JSON.
+		public function save(){
+
+			if( !formPosted() ){
+
+				redirect('invoices/quick');
+			}
+
+			if( !$this->is_admin() ){
+
+				$this->registerError('No tiene permiso para registrar compras');
+			}
+
+			// every POST must carry the session form token (CSRF)
+			if( !formSubmited() ){
+
+				$this->registerError('Sesión inválida, recargue la página e intente de nuevo');
+			}
+
+			$invoice_no = trim((string)$this->input->post('invoice_no'));
+			$raw_provider = trim((string)$this->input->post('id_provider'));
+
+			if( $invoice_no === '' || strlen($invoice_no) > 50 ){
+
+				$this->registerError('Número de factura inválido');
+			}
+
+			$id_provider = NULL;
+			if( $raw_provider !== '' ){
+
+				if( !ctype_digit($raw_provider) || (int)$raw_provider < 1 || !$this->db->get_where('providers',array('id_provider'=>(int)$raw_provider,'active'=>1))->row() ){
+
+					$this->registerError('Proveedor inválido');
+				}
+				$id_provider = (int)$raw_provider;
+			}
+
+			$date = DateTime::createFromFormat('d/m/Y', trim((string)$this->input->post('date_time')));
+			$date_errors = DateTime::getLastErrors();
+			if( !$date || ($date_errors && ($date_errors['warning_count'] || $date_errors['error_count'])) ){
+
+				$this->registerError('Fecha inválida');
+			}
+			if( $date->format('Y-m-d') > date('Y-m-d') ){
+
+				$this->registerError('La fecha no puede ser futura');
+			}
+
+			$invoice['invoice_no'] = $invoice_no;
+			$invoice['id_provider'] = $id_provider;
+			$invoice['date_time'] = $date->format('Y-m-d').' '.date('H:i:s');
+
+			$lines = $this->validatedLines(
+				(array)$this->input->post('id_products'),
+				(array)$this->input->post('quantities'),
+				(array)$this->input->post('prices_cost'),
+				(array)$this->input->post('prices_sell'),
+				(array)$this->input->post('id_packs'),
+				(bool)$this->input->post('quick')
+			);
+
+			$result = $this->invoices_mdl->receive($invoice, $lines);
+
+			if( !$result[0] ){
+
+				$this->registerError($result[1]);
+			}
+
+			$new_tk = generateToken();
+			$this->session->set_userdata('tk', $new_tk);
+
+			echo json_encode(array( 'type' => 'success', 'message' => 'Factura ingresada e inventario actualizado', 'tk' => $new_tk, 'id_invoice' => $result[2] ));
+		}
+
+		// Receiving screen (phone and desktop). Saves through save().
 		public function quick(){
 
 			if( !$this->is_admin() ){
@@ -234,27 +223,6 @@
 			}
 
 			return $lines;
-		}
-
-		private function form( $view_data = array() ){
-
-			$view_data['providers'] = $this->db->get_where('providers',["active" => 1])->result();
-			$view_data['tk'] = generateToken();
-			$this->session->set_userdata('tk', $view_data['tk']);
-			$this->content_data = $view_data;
-			$this->renderPanel('form_invoice');
-		}
-
-		public function getInvoiceByNumber(){
-
-			$invoice_no = $this->input->post('invoice_no');
-
-			if( $invoice_no ){
-
-				$data['invoice'] = $this->invoices_mdl->invoiceNumberExists( $invoice_no );
-
-				echo json_encode($data);
-			}
 		}
 
 		public function details( $id_invoice = 0 ){

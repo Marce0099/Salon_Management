@@ -1,5 +1,9 @@
 <h3 class="section-title">Detalles de factura</h3>
 
+<?php if( $this->controller->is_admin() ) : ?>
+<a href="<?php echo base_url('returns/register?invoice='.(int)$invoice->id_invoice); ?>" class="btn btn-warning pull-right"><i class="fa fa-undo"></i> Devolver</a>
+<?php endif; ?>
+
 <table class="table-sale-detail table">
 	<thead>
 		<tr>

@@ -4,6 +4,13 @@ class Returns extends Admin_Controller{
 
 	public function __construct(){
 		parent::__construct();
+
+		// purchasing is admin-only (the menu already hides it; this blocks direct URLs and AJAX calls)
+		if( !$this->is_admin() ){
+			echo "No se encontro resultado para esta pagina";
+			exit;
+		}
+
 		$this->load->model('returns_mdl');
 	}
 
@@ -47,7 +54,6 @@ class Returns extends Admin_Controller{
 
         if( formPosted() ){
 
-            $this->form_validation->set_rules('id_provider',         '', 'required|is_natural_no_zero');
             $this->form_validation->set_rules('id_invoice',          '', 'required|is_natural_no_zero');
             $this->form_validation->set_rules('date_time',           '', 'required');
             $this->form_validation->set_rules('id_products[]',       '', 'required');
@@ -63,16 +69,24 @@ class Returns extends Admin_Controller{
 
             if( $this->form_validation->run() ){
 
-                $data        = $this->input->post();
-                $id_provider = (int)$data['id_provider'];
-                $id_invoice  = (int)$data['id_invoice'];
+                $data       = $this->input->post();
+                $id_invoice = (int)$data['id_invoice'];
 
-                $invoice = $this->db->get_where('invoices', array(
-                    'id_invoice'  => $id_invoice,
-                    'id_provider' => $id_provider,
-                ))->row();
+                // the invoice is the source of truth: the provider (possibly none) is taken from it
+                $invoice = $this->db->get_where('invoices', array( 'id_invoice' => $id_invoice ))->row();
 
                 if( !$invoice ){
+                    $view_data['status'] = array( 'class' => 'error', 'message' => 'La factura seleccionada no existe' );
+                    $this->form($view_data);
+                    return;
+                }
+
+                $id_provider = $invoice->id_provider === NULL ? NULL : (int)$invoice->id_provider;
+                $posted      = trim((string)$this->input->post('id_provider'));
+
+                // the provider select is only a filter; when a specific one was chosen it must match the invoice
+                if( ( ctype_digit($posted) && (int)$posted > 0 && (int)$posted !== (int)$id_provider )
+                    || ( $posted === 'none' && $id_provider !== NULL ) ){
                     $view_data['status'] = array( 'class' => 'error', 'message' => 'La factura seleccionada no pertenece al proveedor indicado' );
                     $this->form($view_data);
                     return;
@@ -90,31 +104,49 @@ class Returns extends Admin_Controller{
 
                 $date = $dt->format('Y-m-d');
 
-                $this->db->trans_begin();
+                // deadlocks / lock timeouts (PDOException) are retried; business refusals (plain Exception) are shown as they are
+                $error = NULL;
 
-                try{
+                for( $try = 0; $try < 3; $try++ ){
 
-                    $id_return = $this->returns_mdl->save($id_provider, $date, $id_invoice);
-                    $this->returns_mdl->saveProductsReturn(
-                        $id_return, $data['id_products'], $data['quantities_returns'], $id_invoice
-                    );
+                    $this->db->trans_begin();
 
-                    if( $this->db->trans_status() === FALSE ){
-                        throw new Exception('No se ha podido registrar la devolución');
+                    try{
+
+                        $id_return = $this->returns_mdl->save($id_provider, $date, $id_invoice);
+                        $this->returns_mdl->saveProductsReturn(
+                            $id_return, $data['id_products'], $data['quantities_returns'], $id_invoice
+                        );
+
+                        if( $this->db->trans_status() === FALSE ){
+                            throw new Exception('No se ha podido registrar la devolución');
+                        }
+
+                        $this->db->trans_commit();
+
+                        $view_data['status'] = array( 'class' => 'success', 'message' => 'Devolución de productos registrada e inventario actualizado' );
+                        $this->session->set_userdata('view_data', $view_data);
+                        redirect('returns');
                     }
+                    catch( Exception $e ){
 
-                    $this->db->trans_commit();
+                        try{ $this->db->trans_rollback(); }catch( Exception $e2 ){ /* already rolled back by the server */ }
 
-                    $view_data['status'] = array( 'class' => 'success', 'message' => 'Devolución de productos registrada e inventario actualizado' );
-                    $this->session->set_userdata('view_data', $view_data);
-                    redirect('returns');
+                        if( $e instanceof PDOException ){
+
+                            log_message('error', 'Return failed (try '.($try + 1).'): '.$e->getMessage());
+                            $error = 'Hay mucha actividad en este momento, intente de nuevo';
+                            usleep(mt_rand(20000, 90000));
+                            continue;
+                        }
+
+                        $error = $e->getMessage();
+                        break;
+                    }
                 }
-                catch( Exception $e ){
 
-                    $this->db->trans_rollback();
-                    $view_data['status'] = array( 'class' => 'error', 'message' => $e->getMessage() );
-                    $this->form($view_data);
-                }
+                $view_data['status'] = array( 'class' => 'error', 'message' => $error );
+                $this->form($view_data);
             }
             else{
 
@@ -134,16 +166,29 @@ class Returns extends Admin_Controller{
         $this->content_data['tk'] = generateToken();
         $this->session->set_userdata('tk', $this->content_data['tk']);
         $this->content_data['providers'] = $this->db->get_where('providers', array( 'active' => 1 ))->result();
+
+        // shortcut from the invoice details page: returns/register?invoice={id}
+        $this->content_data['prefill'] = NULL;
+        $pre = $this->input->get('invoice');
+
+        if( $pre !== NULL && ctype_digit((string)$pre) && (int)$pre > 0 ){
+            $this->content_data['prefill'] = $this->returns_mdl->getInvoiceForReturn((int)$pre);
+        }
+
         $this->renderPanel('form_returns');
     }
 
     public function getInvoicesByProvider(){
 
-        $id_provider = $this->input->post('id_provider');
+        // '' = all providers, 'none' = receipts without provider, digits = that provider
+        $id_provider = trim((string)$this->input->post('id_provider'));
 
-        if( $id_provider ){
-            echo json_encode(array( 'invoices' => $this->returns_mdl->getInvoicesByProvider($id_provider) ));
+        if( $id_provider !== '' && $id_provider !== 'none' && ( !ctype_digit($id_provider) || (int)$id_provider < 1 ) ){
+            echo json_encode(array( 'invoices' => array() ));
+            return;
         }
+
+        echo json_encode(array( 'invoices' => $this->returns_mdl->getInvoicesByProvider($id_provider) ));
     }
 
     public function getProductsByInvoice(){
