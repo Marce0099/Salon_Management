@@ -8,6 +8,7 @@ foreach( $rows as $r ){ $rows_json[] = array('id' => (int) $r->id_ingredient, 'q
 ?>
 <h4 class="section-title"><?php echo $is_edit ? 'Editar modificador' : 'Nuevo modificador'; ?></h4>
 
+<div class="row">
 <div class="col-md-6">
 	<form id="form" autocomplete="off" onsubmit="return false;" spellcheck="false">
 		<div class="form-group"><label>Nombre (lo ve el mesero)</label><input type="text" name="name" maxlength="60" class="form-control" placeholder="Sin queso" value="<?php echo $is_edit ? htmlspecialchars($modifier->name) : ''; ?>"></div>
@@ -29,6 +30,7 @@ foreach( $rows as $r ){ $rows_json[] = array('id' => (int) $r->id_ingredient, 'q
 			<a href="<?php echo base_url('modifiers'); ?>" class="btn btn-default">Cancelar</a>
 		</div>
 	</form>
+</div>
 </div>
 
 <script>
