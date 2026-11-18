@@ -8,13 +8,14 @@
 <?php else : ?>
 <div class="table-responsive">
 <table class="table table-striped jambo_table">
-	<thead><tr><th>Nombre</th><th>Texto en comanda</th><th>Quita del inventario</th><th>Acciones</th></tr></thead>
+	<thead><tr><th>Nombre</th><th>Texto en comanda</th><th>Grupo</th><th>Quita del inventario</th><th>Acciones</th></tr></thead>
 	<tbody>
 	<?php foreach( $modifiers as $m ) : ?>
 		<tr>
 			<td><?php echo htmlspecialchars($m->name); ?></td>
 			<td><?php echo htmlspecialchars($m->kitchen_text); ?></td>
-			<td><?php echo isset($summaries[(int) $m->id_modifier]) ? htmlspecialchars(implode(', ', $summaries[(int) $m->id_modifier])) : '<span class="text-muted">Solo texto</span>'; ?></td>
+			<td><?php echo $m->exclusive_group === NULL ? '<span class="text-muted">—</span>' : htmlspecialchars($m->exclusive_group); ?></td>
+				<td><?php echo isset($summaries[(int) $m->id_modifier]) ? htmlspecialchars(implode(', ', $summaries[(int) $m->id_modifier])) : '<span class="text-muted">Solo texto</span>'; ?></td>
 			<td>
 				<?php if( $m->active ) : ?>
 				<a href="<?php echo base_url('modifiers/edit/'.$m->id_modifier); ?>" class="btn btn-default btn-xs">Editar</a>

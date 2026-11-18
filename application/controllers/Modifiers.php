@@ -77,7 +77,7 @@ class Modifiers extends Admin_Controller{
 
 	private function form($id){
 
-		$view = array('tk' => $this->token(), 'ingredients' => $this->ingredients_mdl->allActive(), 'rows' => array());
+		$view = array('tk' => $this->token(), 'ingredients' => $this->ingredients_mdl->allActive(), 'rows' => array(), 'groups' => $this->modifiers_mdl->groups());
 
 		if( $id ){
 			$m = $this->modifiers_mdl->get($id);
@@ -129,7 +129,10 @@ class Modifiers extends Admin_Controller{
 			$rows[(int) $ing->id_ingredient] = round((float) $q, 3);
 		}
 
-		$new = $this->modifiers_mdl->save($id, $name, $text, $rows);
+		$group = trim((string) $this->input->post('exclusive_group')) === '' ? NULL : $this->cleanText($this->input->post('exclusive_group'), 40);
+		if( trim((string) $this->input->post('exclusive_group')) !== '' && $group === NULL ){ $this->fail('El grupo es inválido (máx. 40 caracteres, sin símbolos < >)'); }
+
+		$new = $this->modifiers_mdl->save($id, $name, $text, $rows, $group);
 		if( !$new ){ $this->fail('No se pudo guardar el modificador'); }
 
 		$this->ok($id ? 'Modificador actualizado' : 'Modificador creado', array('redirect' => base_url('modifiers')));
