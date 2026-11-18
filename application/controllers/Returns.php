@@ -56,7 +56,7 @@ class Returns extends Admin_Controller{
 
             $this->form_validation->set_rules('id_invoice',          '', 'required|is_natural_no_zero');
             $this->form_validation->set_rules('date_time',           '', 'required');
-            $this->form_validation->set_rules('id_products[]',       '', 'required');
+            $this->form_validation->set_rules('id_lines[]',          '', 'required');
             $this->form_validation->set_rules('quantities_returns[]','', 'required');
 
             if( !formSubmited() ){
@@ -115,7 +115,7 @@ class Returns extends Admin_Controller{
 
                         $id_return = $this->returns_mdl->save($id_provider, $date, $id_invoice);
                         $this->returns_mdl->saveProductsReturn(
-                            $id_return, $data['id_products'], $data['quantities_returns'], $id_invoice
+                            $id_return, $data['id_lines'], isset($data['modes']) ? $data['modes'] : array(), $data['quantities_returns'], $id_invoice
                         );
 
                         if( $this->db->trans_status() === FALSE ){
@@ -196,7 +196,8 @@ class Returns extends Admin_Controller{
         $id_invoice = $this->input->post('id_invoice');
 
         if( $id_invoice ){
-            echo json_encode(array( 'products' => $this->returns_mdl->getProductsByInvoice($id_invoice) ));
+            // one entry per invoice line (box line / loose line) with the units still returnable
+            echo json_encode(array( 'products' => $this->returns_mdl->invoiceLines((int)$id_invoice) ));
         }
     }
 

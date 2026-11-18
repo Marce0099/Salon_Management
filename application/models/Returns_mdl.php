@@ -32,47 +32,81 @@ class Returns_mdl extends CI_Model{
 
     // Everything below runs inside Returns::register()'s transaction; any Exception
     // makes the caller roll back (stock updates included).
-    public function saveProductsReturn( $id_return, $id_products, $quantities, $id_invoice ){
+    // Lines are INVOICE LINES (invoice_products rows): $id_lines[i] + $modes[i] ('unit' | 'pack') + $quantities[i].
+    // Stock and limits are always in base units: a 'pack' quantity is boxes x the line's pack_units.
+    public function saveProductsReturn( $id_return, $id_lines, $modes, $quantities, $id_invoice ){
 
     	$id_invoice = (int)$id_invoice;
-    	$wanted = array();
 
     	// all returns against one invoice are serialized on its row, so two concurrent returns cannot both
-    	// pass the "pending to return" check below; products are then locked in ascending id (kitchen/receiving order)
+    	// pass the "pending to return" checks below; products are then locked in ascending id (kitchen/receiving order)
     	if( !$this->db->query('SELECT id_invoice FROM invoices WHERE id_invoice = ? FOR UPDATE', array($id_invoice))->row() ){
     		throw new Exception('La factura seleccionada no existe');
     	}
 
-    	// one entry per product: repeated rows are merged, never checked one by one
-    	foreach( (array)$id_products as $i => $raw_id ){
+    	$lines = array(); // id_invoice_product => row of this invoice
+    	foreach( $this->db->get_where('invoice_products', array( 'id_invoice' => $id_invoice ))->result() as $l ){
+    		$lines[(int)$l->id_invoice_product] = $l;
+    	}
+
+    	$entries = array(); // one per (line, mode); repeated rows are merged
+    	foreach( (array)$id_lines as $i => $raw_id ){
 
     		$raw_id  = trim((string)$raw_id);
     		$raw_qty = isset($quantities[$i]) ? trim((string)$quantities[$i]) : '';
+    		$mode    = isset($modes[$i]) ? (string)$modes[$i] : 'unit';
 
-    		if( $raw_id === '' || !ctype_digit($raw_id) || (int)$raw_id < 1 ){
-    			throw new Exception('Producto inválido');
+    		if( !ctype_digit($raw_id) || !isset($lines[(int)$raw_id]) ){
+    			throw new Exception('Línea de factura inválida');
     		}
     		if( !ctype_digit($raw_qty) || (int)$raw_qty < 1 || (int)$raw_qty > 1000000 ){
     			throw new Exception('La cantidad a devolver debe ser un número entero mayor a cero');
     		}
+    		if( $mode !== 'unit' && $mode !== 'pack' ){
+    			throw new Exception('Presentación inválida');
+    		}
 
-    		$id = (int)$raw_id;
-    		$wanted[$id] = ( isset($wanted[$id]) ? $wanted[$id] : 0 ) + (int)$raw_qty;
+    		$line = $lines[(int)$raw_id];
+
+    		if( $mode === 'pack' && ( $line->pack_units === NULL || (int)$line->pack_units < 2 ) ){
+    			throw new Exception('Esta línea de la factura no se compró por caja/paquete');
+    		}
+
+    		$key = (int)$raw_id . ':' . $mode;
+    		$entries[$key] = array(
+    			'line' => (int)$raw_id,
+    			'mode' => $mode,
+    			'qty'  => ( isset($entries[$key]) ? $entries[$key]['qty'] : 0 ) + (int)$raw_qty,
+    		);
     	}
 
-    	if( !$wanted ){
+    	if( !$entries ){
     		throw new Exception('Debe seleccionar al menos un producto');
     	}
 
-    	$data = array();
+    	$per_line = array(); // units requested per line
+    	$per_prod = array(); // units requested per product
 
-    	ksort($wanted);
+    	foreach( $entries as $k => $e ){
+
+    		$line  = $lines[$e['line']];
+    		$units = $e['mode'] === 'pack' ? $e['qty'] * (int)$line->pack_units : $e['qty'];
+    		$idp   = (int)$line->id_product;
+
+    		$entries[$k]['units'] = $units;
+    		$per_line[$e['line']] = ( isset($per_line[$e['line']]) ? $per_line[$e['line']] : 0 ) + $units;
+    		$per_prod[$idp]       = ( isset($per_prod[$idp]) ? $per_prod[$idp] : 0 ) + $units;
+    	}
+
+    	ksort($per_prod);
 
     	$this->db->query(
-    		'SELECT id_product FROM products WHERE id_product IN ('.implode(',', array_map('intval', array_keys($wanted))).') ORDER BY id_product FOR UPDATE'
+    		'SELECT id_product FROM products WHERE id_product IN ('.implode(',', array_map('intval', array_keys($per_prod))).') ORDER BY id_product FOR UPDATE'
     	);
 
-    	foreach( $wanted as $id_product => $qty ){
+    	$names = array();
+
+    	foreach( $per_prod as $id_product => $units ){
 
     		$product = $this->db->get_where('products', array( 'id_product' => $id_product ))->row();
 
@@ -83,17 +117,14 @@ class Returns_mdl extends CI_Model{
     			throw new Exception('No se puede devolver un servicio: ' . $product->name);
     		}
 
-    		// the product must be on the chosen invoice
-    		$invoiced = $this->db->query(
+    		$names[$id_product] = $product->name;
+
+    		// what is returned in total for the product may not exceed what the invoice received
+    		$invoiced = (int)$this->db->query(
     			'SELECT SUM(quantity) AS qty FROM invoice_products WHERE id_invoice = ? AND id_product = ?',
     			array( $id_invoice, $id_product )
     		)->row('qty');
 
-    		if( $invoiced === NULL ){
-    			throw new Exception('El producto no pertenece a la factura seleccionada: ' . $product->name);
-    		}
-
-    		// ...and what is returned in total may not exceed what was invoiced
     		$already = (int)$this->db->query(
     			'SELECT COALESCE(SUM(RP.quantity), 0) AS qty FROM returns_products RP
     			 INNER JOIN returns R ON RP.id_return = R.id_return
@@ -101,37 +132,95 @@ class Returns_mdl extends CI_Model{
     			array( $id_invoice, $id_product, (int)$id_return )
     		)->row('qty');
 
-    		$pending = (int)$invoiced - $already;
-
-    		if( $qty > $pending ){
-    			throw new Exception('La cantidad a devolver de ' . $product->name . ' excede lo facturado pendiente de devolver (' . max($pending, 0) . ')');
+    		if( $units > $invoiced - $already ){
+    			throw new Exception('La cantidad a devolver de ' . $product->name . ' excede lo facturado pendiente de devolver (' . max($invoiced - $already, 0) . ' u)');
     		}
-
-    		$ip = $this->db->query(
-    			'SELECT price_cost, price_sell FROM invoice_products WHERE id_invoice = ? AND id_product = ? ORDER BY id_invoice_product DESC LIMIT 1',
-    			array( $id_invoice, $id_product )
-    		)->row();
 
     		// atomic stock check + decrement: never goes below zero, even under concurrency
     		$this->db->query(
     			'UPDATE products SET stock = stock - ? WHERE id_product = ? AND stock >= ?',
-    			array( $qty, $id_product, $qty )
+    			array( $units, $id_product, $units )
     		);
 
     		if( $this->db->affected_rows() < 1 ){
-    			throw new Exception('Stock insuficiente para: ' . $product->name);
+    			throw new Exception('Stock insuficiente para: ' . $product->name . ' (se necesitan ' . $units . ' u; puede que ya se hayan vendido)');
     		}
+    	}
+
+    	// per invoice line: units already returned from THAT line
+    	foreach( $per_line as $id_line => $units ){
+
+    		$returned = (int)$this->db->query(
+    			'SELECT COALESCE(SUM(RP.quantity), 0) AS qty FROM returns_products RP WHERE RP.id_invoice_product = ? AND RP.id_return != ? LOCK IN SHARE MODE',
+    			array( $id_line, (int)$id_return )
+    		)->row('qty');
+
+    		$line = $lines[$id_line];
+
+    		if( $units > (int)$line->quantity - $returned ){
+    			throw new Exception('La cantidad a devolver de ' . $names[(int)$line->id_product] . ' excede lo pendiente de esa línea de la factura (' . max((int)$line->quantity - $returned, 0) . ' u)');
+    		}
+    	}
+
+    	$data = array();
+
+    	foreach( $entries as $e ){
+
+    		$line = $lines[$e['line']];
 
     		$data[] = array(
-    			'id_return'  => $id_return,
-    			'id_product' => $id_product,
-    			'quantity'   => $qty,
-    			'price_cost' => $ip->price_cost,
-    			'price_sell' => $ip->price_sell,
+    			'id_return'          => $id_return,
+    			'id_product'         => (int)$line->id_product,
+    			'id_invoice_product' => $e['line'],
+    			'pack_name'          => $line->pack_name,
+    			'pack_qty'           => $e['mode'] === 'pack' ? $e['qty'] : NULL,
+    			'pack_units'         => $line->pack_units,
+    			'quantity'           => $e['units'],
+    			'price_cost'         => $line->price_cost,
+    			'price_sell'         => $line->price_sell,
     		);
     	}
 
     	$this->db->insert_batch('returns_products', $data);
+    }
+
+    // Lines of an invoice with what is still returnable from each (units), for the returns form.
+    public function invoiceLines( $id_invoice ){
+
+    	$rows = $this->db->query(
+    		'SELECT IP.id_invoice_product, IP.id_product, P.name, P.barcode, P.stock,
+    		        IP.quantity, IP.pack_name, IP.pack_qty, IP.pack_units, IP.price_cost,
+    		        COALESCE((SELECT SUM(RP.quantity) FROM returns_products RP WHERE RP.id_invoice_product = IP.id_invoice_product), 0) AS returned
+    		 FROM invoice_products IP INNER JOIN products P ON IP.id_product = P.id_product
+    		 WHERE IP.id_invoice = ? AND P.active = 1 AND P.is_service = 0
+    		 ORDER BY IP.id_invoice_product',
+    		array((int)$id_invoice)
+    	)->result();
+
+    	// returns made before migration 019 are not tied to a line: they reduce the product's total
+    	$legacy = array();
+    	foreach( $this->db->query(
+    		'SELECT RP.id_product, SUM(RP.quantity) AS qty FROM returns_products RP INNER JOIN returns R ON RP.id_return = R.id_return
+    		 WHERE R.id_invoice = ? AND RP.id_invoice_product IS NULL GROUP BY RP.id_product', array((int)$id_invoice)
+    	)->result() as $l ){
+    		$legacy[(int)$l->id_product] = (int)$l->qty;
+    	}
+
+    	foreach( $rows as $r ){
+
+    		$pending = (int)$r->quantity - (int)$r->returned;
+
+    		if( !empty($legacy[(int)$r->id_product]) && $pending > 0 ){
+    			$take = min($pending, $legacy[(int)$r->id_product]);
+    			$legacy[(int)$r->id_product] -= $take;
+    			$pending -= $take;
+    		}
+
+    		$r->pending    = $pending;
+    		$r->pack_units = $r->pack_units === NULL ? NULL : (int)$r->pack_units;
+    	}
+
+    	return $rows;
     }
 
     public function getInvoicesByProvider( $id_provider ){

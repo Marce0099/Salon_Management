@@ -34,10 +34,10 @@
 		<thead>
 			<tr>
 				<th width="4%"></th>
-				<th width="18%">Código de barra</th>
-				<th width="48%">Descripción</th>
-				<th width="15%">Cantidad en stock</th>
-				<th width="15%">Cantidad a devolver</th>
+				<th width="16%">Código de barra</th>
+				<th width="34%">Descripción / presentación comprada</th>
+				<th width="12%">Stock (u)</th>
+				<th width="34%">Devolver</th>
 			</tr>
 		</thead>
 		<tbody id="products-list">
@@ -58,16 +58,21 @@
 		</td>
 		<td>
 			<input type="text" class="p-barcode" readonly style="cursor:pointer;" data-parsley-excluded="true">
-			<input type="hidden" class="p-id-products" name="id_products[]" required="true">
+			<input type="hidden" class="p-id-lines" name="id_lines[]" required="true">
 		</td>
 		<td>
-			<span class="p-name"></span>
+			<span class="p-name"></span><br>
+			<small class="p-pres text-muted"></small>
 		</td>
 		<td class="text-center">
 			<span class="p-stock"></span>
 		</td>
 		<td>
-			<input type="text" name="quantities_returns[]" class="p-q-return text-center" required="true" data-parsley-type="integer" data-parsley-min="1" data-parsley-max="">
+			<div class="form-inline">
+				<input type="text" name="quantities_returns[]" class="p-q-return text-center" style="width:70px;" required="true" data-parsley-type="integer" data-parsley-min="1" data-parsley-max="">
+				<select name="modes[]" class="p-mode form-control input-sm" style="width:auto;display:inline-block;"></select>
+			</div>
+			<small class="p-hint text-muted"></small>
 		</td>
 	</tr>
 </table>
@@ -127,7 +132,7 @@
 				<div style="max-height:350px;overflow-y:auto;">
 					<table class="table table-bordered table-hover table-condensed">
 						<thead>
-							<tr><th>Código</th><th>Nombre</th><th>Stock</th></tr>
+							<tr><th>Código</th><th>Nombre</th><th>Comprado como</th><th>Pendiente de devolver</th><th>Stock (u)</th></tr>
 						</thead>
 						<tbody id="prod-picker-results"></tbody>
 					</table>
@@ -339,7 +344,7 @@
 				prodPickerRender($('#prod-picker-search').val());
 			},
 			error: function(){
-				$('<tr><td colspan="3" class="text-center text-danger">Error al cargar productos</td></tr>')
+				$('<tr><td colspan="5" class="text-center text-danger">Error al cargar productos</td></tr>')
 					.appendTo($('#prod-picker-results').empty());
 			}
 		});
@@ -365,12 +370,14 @@
 				$('<tr>').data('product', p)
 					.append($('<td>').text(p.barcode || ''))
 					.append($('<td>').text(p.name))
+					.append($('<td>').text(presLabel(p)))
+					.append($('<td>').text(pendLabel(p)))
 					.append($('<td>').text(p.stock))
 					.appendTo($tbody);
 			});
 		}
 		else{
-			$('<tr><td colspan="3" class="text-center text-muted">Sin resultados</td></tr>').appendTo($tbody);
+			$('<tr><td colspan="5" class="text-center text-muted">Sin resultados</td></tr>').appendTo($tbody);
 		}
 	}
 
@@ -394,9 +401,18 @@
 
 		var p = _prodPickerSelected;
 
+		if( p.pending < 1 ){
+			new PNotify({
+				title: 'Notificación',
+				text: 'Esa línea de la factura ya fue devuelta por completo',
+				type: 'warning', styling: 'bootstrap3', delay: 2500
+			});
+			return;
+		}
+
 		var alreadyIn = false;
-		$('#products-list .p-id-products').each(function(){
-			if( $(this).val() == p.id_product && $(this).closest('tr')[0] !== _prodPickerRow[0] ){
+		$('#products-list .p-id-lines').each(function(){
+			if( $(this).val() == p.id_invoice_product && $(this).closest('tr')[0] !== _prodPickerRow[0] ){
 				alreadyIn = true;
 				return false;
 			}
@@ -405,19 +421,79 @@
 		if( alreadyIn ){
 			new PNotify({
 				title: 'Notificación',
-				text: 'El producto ya está incluido en el listado',
+				text: 'Esa línea de la factura ya está incluida en el listado',
 				type: 'warning', styling: 'bootstrap3', delay: 2500
 			});
 			return;
 		}
 
+		_prodPickerRow.data('line', p);
 		_prodPickerRow.find('.p-barcode').val((p.barcode ?? '' ));
-		_prodPickerRow.find('.p-id-products').val(p.id_product);
-		_prodPickerRow.find('.p-name').html(p.name);
-		_prodPickerRow.find('.p-stock').html(p.stock);
-		_prodPickerRow.find('.p-q-return').attr('data-parsley-max', p.stock);
+		_prodPickerRow.find('.p-id-lines').val(p.id_invoice_product);
+		_prodPickerRow.find('.p-name').text(p.name);
+		_prodPickerRow.find('.p-pres').text('Comprado como: ' + presLabel(p) + ' · pendiente: ' + pendLabel(p));
+		_prodPickerRow.find('.p-stock').text(p.stock);
+
+		var $mode = _prodPickerRow.find('.p-mode').empty();
+		$('<option value="unit">Unidades</option>').appendTo($mode);
+		if( p.pack_units >= 2 && p.pending >= p.pack_units ){
+			$('<option value="pack">' + $('<span>').text(p.pack_name || 'Caja').html() + ' (' + p.pack_units + ' u c/u)</option>').appendTo($mode);
+			$mode.val('pack');
+		}
+		_prodPickerRow.find('.p-q-return').val(1);
+		updateRow(_prodPickerRow);
 		_prodPickerSuccess = true;
 		$('#product-picker-modal').modal('hide');
+	});
+
+	// ── Presentation helpers ──────────────────────────────────────────────────
+
+	function presLabel( p ){
+		if( p.pack_units && p.pack_qty ){
+			return p.pack_qty + ' × ' + (p.pack_name || 'Caja') + ' (' + p.pack_units + ' u) = ' + p.quantity + ' u';
+		}
+		return p.quantity + ' u sueltas';
+	}
+
+	function pendLabel( p ){
+		var t = p.pending + ' u';
+		if( p.pack_units >= 2 && p.pending >= p.pack_units ){
+			var boxes = Math.floor(p.pending / p.pack_units), rest = p.pending - boxes * p.pack_units;
+			t += ' (' + boxes + ' ' + (p.pack_name || 'Caja') + (rest ? ' + ' + rest + ' u' : '') + ')';
+		}
+		return t;
+	}
+
+	// max, units equivalence and stock warning for one row
+	function updateRow( $row ){
+
+		var p = $row.data('line');
+		if( !p ) return;
+
+		var pack  = $row.find('.p-mode').val() === 'pack';
+		var per   = pack ? p.pack_units : 1;
+		var max   = Math.floor(p.pending / per);
+		var qty   = parseInt($row.find('.p-q-return').val(), 10) || 0;
+		var units = qty * per;
+		var hint  = '= ' + units + ' u · máx. ' + max + (pack ? ' ' + (p.pack_name || 'Caja') : ' u');
+
+		$row.find('.p-q-return').attr('data-parsley-max', max);
+
+		if( pack && p.pack_units ){
+			var left = p.pending - units;
+			if( left >= 0 && qty > 0 ){ hint += ' · quedan ' + left + ' u de esta línea'; }
+		}
+		else if( p.pack_units >= 2 && qty > 0 ){
+			hint += ' (unidades sacadas de la caja)';
+		}
+
+		var warn = units > parseInt(p.stock, 10);
+		$row.find('.p-hint').toggleClass('text-danger', warn).toggleClass('text-muted', !warn)
+			.text(hint + (warn ? ' · stock insuficiente: ya se vendieron unidades' : ''));
+	}
+
+	$(document).on('change input', '.p-mode, .p-q-return', function(){
+		updateRow($(this).closest('tr'));
 	});
 
 	// ── Delete row ────────────────────────────────────────────────────────────
@@ -482,7 +558,7 @@
 			}
 
 			var ok = true;
-			$('#form .p-id-products').each(function(index, element){
+			$('#form .p-id-lines').each(function(index, element){
 				if( $(element).val() == '' ){
 					new PNotify({
 						title: 'Notificación',
