@@ -33,9 +33,9 @@ class Returns_mdl extends CI_Model{
     // Everything below runs inside Returns::register()'s transaction; any Exception
     // makes the caller roll back (stock updates included).
     // Lines are INVOICE LINES (invoice_products rows): $id_lines[i] + $modes[i] ('unit' | 'pack') + $quantities[i].
-    // Stock and limits are always in base units. $modes[i] is 'unit' (always allowed) or the id of an active
-    // presentation of the line's product that is the one the line was bought in or SMALLER (a six-pack can be
-    // taken out of a box line; a loose-unit line, or a six-pack line, can never give a box): units = quantity x pack units.
+    // Stock and limits are always in base units. $modes[i] is 'unit' (always allowed) or the id_pack the line was
+    // BOUGHT in (whole boxes/packs, from the line's own snapshot): units = quantity x pack_units. Nothing else is
+    // offered: a line can only give units or the presentation it was purchased as.
     public function saveProductsReturn( $id_return, $id_lines, $modes, $quantities, $id_invoice ){
 
     	$id_invoice = (int)$id_invoice;
@@ -51,7 +51,6 @@ class Returns_mdl extends CI_Model{
     		$lines[(int)$l->id_invoice_product] = $l;
     	}
 
-    	$packs = array(); // id_pack => row, loaded lazily
     	$entries = array(); // one per (line, mode); repeated rows are merged
     	foreach( (array)$id_lines as $i => $raw_id ){
 
@@ -74,18 +73,11 @@ class Returns_mdl extends CI_Model{
     				throw new Exception('Presentación inválida');
     			}
 
-    			if( !isset($packs[(int)$mode]) ){
-    				$packs[(int)$mode] = $this->db->get_where('product_packs', array( 'id_pack' => (int)$mode, 'id_product' => (int)$line->id_product, 'active' => 1 ))->row();
+    			if( $line->id_pack === NULL || (int)$line->id_pack !== (int)$mode || (int)$line->pack_units < 2 ){
+    				throw new Exception('Esa línea de la factura no se compró en esa presentación: devuelva unidades o la presentación comprada');
     			}
 
-    			$pack = $packs[(int)$mode];
-
-    			if( !$pack || (int)$pack->units < 2 ){
-    				throw new Exception('Presentación inválida para este producto');
-    			}
-    			if( $line->pack_units === NULL || (int)$pack->units > (int)$line->pack_units ){
-    				throw new Exception('Esa línea de la factura no se compró como ' . $pack->name . ': devuelva unidades o una presentación menor');
-    			}
+    			$pack = (object)array( 'name' => $line->pack_name, 'units' => (int)$line->pack_units );
     		}
 
     		$key = (int)$raw_id . ':' . $mode;
@@ -206,7 +198,7 @@ class Returns_mdl extends CI_Model{
 
     	$rows = $this->db->query(
     		'SELECT IP.id_invoice_product, IP.id_product, P.name, P.barcode, P.stock,
-    		        IP.quantity, IP.pack_name, IP.pack_qty, IP.pack_units, IP.price_cost,
+    		        IP.quantity, IP.id_pack, IP.pack_name, IP.pack_qty, IP.pack_units, IP.price_cost,
     		        COALESCE((SELECT SUM(RP.quantity) FROM returns_products RP WHERE RP.id_invoice_product = IP.id_invoice_product), 0) AS returned
     		 FROM invoice_products IP INNER JOIN products P ON IP.id_product = P.id_product
     		 WHERE IP.id_invoice = ? AND P.active = 1 AND P.is_service = 0
@@ -223,15 +215,6 @@ class Returns_mdl extends CI_Model{
     		$legacy[(int)$l->id_product] = (int)$l->qty;
     	}
 
-    	// presentations the product can be returned by (any line may be returned by any of them)
-    	$packs = array();
-    	foreach( $this->db->query(
-    		'SELECT id_pack, id_product, name, units FROM product_packs WHERE active = 1 AND units >= 2
-    		 AND id_product IN (SELECT id_product FROM invoice_products WHERE id_invoice = ?) ORDER BY units', array((int)$id_invoice)
-    	)->result() as $k ){
-    		$packs[(int)$k->id_product][] = array( 'id' => (int)$k->id_pack, 'name' => $k->name, 'units' => (int)$k->units );
-    	}
-
     	foreach( $rows as $r ){
 
     		$pending = (int)$r->quantity - (int)$r->returned;
@@ -244,12 +227,10 @@ class Returns_mdl extends CI_Model{
 
     		$r->pending    = $pending;
     		$r->pack_units = $r->pack_units === NULL ? NULL : (int)$r->pack_units;
-    		// only the presentation it was bought in or smaller ones; loose-unit lines have none (units only)
+    		// the selector offers units plus the presentation this line was bought in (none for loose-unit lines)
     		$r->packs = array();
-    		if( $r->pack_units !== NULL && isset($packs[(int)$r->id_product]) ){
-    			foreach( $packs[(int)$r->id_product] as $k ){
-    				if( $k['units'] <= $r->pack_units ){ $r->packs[] = $k; }
-    			}
+    		if( $r->id_pack !== NULL && $r->pack_units !== NULL && $r->pack_units >= 2 ){
+    			$r->packs[] = array( 'id' => (int)$r->id_pack, 'name' => $r->pack_name, 'units' => $r->pack_units );
     		}
     	}
 
