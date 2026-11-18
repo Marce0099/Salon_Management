@@ -87,7 +87,11 @@
 							'id_product' => $line['id_product'],
 							'quantity' => $line['quantity'],
 							'price_cost' => $line['price_cost'],
-							'price_sell' => $line['price_sell']
+							'price_sell' => $line['price_sell'],
+							'id_pack' => isset($line['id_pack']) ? $line['id_pack'] : NULL,
+							'pack_name' => isset($line['pack_name']) ? $line['pack_name'] : NULL,
+							'pack_qty' => isset($line['pack_qty']) ? $line['pack_qty'] : NULL,
+							'pack_units' => isset($line['pack_units']) ? $line['pack_units'] : NULL
 						));
 
 						if( $this->db->affected_rows() < 1 ){

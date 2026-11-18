@@ -37,7 +37,7 @@
 		<tr>
 			<td><?php echo $p->barcode; ?></td>
 			<td><?php echo $p->name; ?></td>
-			<td><?php echo $p->quantity; ?></td>
+			<td><?php echo $p->quantity; ?><?php if( !empty($p->pack_name) ): ?> <small class="text-muted">(<?php echo (int)$p->pack_qty; ?> &times; <?php echo htmlspecialchars($p->pack_name); ?> de <?php echo (int)$p->pack_units; ?> u)</small><?php endif; ?></td>
 			<td><?php echo $p->price_cost; ?></td>
 			<td><?php echo $p->price_sell; ?></td>
 			<?php $subtotal = $p->quantity * $p->price_cost; ?>

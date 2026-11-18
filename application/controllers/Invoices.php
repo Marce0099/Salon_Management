@@ -181,6 +181,8 @@
 
 				// a pack multiplies the quantity into base units; cost and sell price stay per unit
 				$units = 1;
+				$pack_id = NULL;
+				$pack_name = NULL;
 				$raw_pack = isset($packs[$i]) ? trim((string)$packs[$i]) : '';
 
 				if( $raw_pack !== '' ){
@@ -194,6 +196,8 @@
 					}
 
 					$units = (int)$pack->units;
+					$pack_id = (int)$pack->id_pack;
+					$pack_name = mb_substr((string)$pack->name, 0, 60);
 
 					if( (int)$qty * $units > 1000000 ){
 						$this->registerError('La cantidad total es demasiado grande');
@@ -214,7 +218,11 @@
 					'quantity' => (int)$qty * $units,
 					'price_cost' => $cost,
 					'price_sell' => $sell,
-					'is_service' => (int)$product->is_service
+					'is_service' => (int)$product->is_service,
+					'id_pack' => $pack_id,
+					'pack_name' => $pack_name,
+					'pack_qty' => $pack_id ? (int)$qty : NULL,
+					'pack_units' => $pack_id ? $units : NULL
 				);
 			}
 
