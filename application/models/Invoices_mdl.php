@@ -63,7 +63,7 @@
 					}
 
 					$rows = $this->db->query(
-						'SELECT id_product FROM products WHERE active = 1 AND id_product IN ('.implode(',', array_map('intval', $ids)).') ORDER BY id_product FOR UPDATE'
+						'SELECT id_product, price_cost, price_sell FROM products WHERE active = 1 AND id_product IN ('.implode(',', array_map('intval', $ids)).') ORDER BY id_product FOR UPDATE'
 					)->result();
 
 					if( count($rows) !== count($ids) ){
@@ -72,6 +72,11 @@
 						$this->releaseLock($lock_name);
 						return array(FALSE, 'Uno de los productos ya no existe, recargue la página', 0);
 					}
+
+					$old = array();
+					foreach( $rows as $r ){ $old[(int)$r->id_product] = $r; }
+
+					$this->load->model('cost_history_mdl');
 
 					$id_invoice = $this->saveInvoice($invoice);
 
@@ -98,6 +103,23 @@
 
 							throw new Exception('Invoice line was not inserted for product '.$line['id_product']);
 						}
+
+						$id_invoice_product = $this->db->insert_id();
+						$prev = $old[(int)$line['id_product']];
+
+						$this->cost_history_mdl->log( $line['id_product'], 'purchase', $prev->price_cost, $line['price_cost'], array(
+							'id_invoice' => $id_invoice,
+							'id_invoice_product' => $id_invoice_product,
+							'id_provider' => isset($invoice['id_provider']) ? $invoice['id_provider'] : NULL,
+							'quantity' => $line['quantity'],
+							'old_sell' => $prev->price_sell,
+							'new_sell' => $line['price_sell'],
+							'created_at' => isset($invoice['date_time']) ? $invoice['date_time'] : NULL
+						));
+
+						// a later line of the same product in this receipt sees this line as its previous one
+						if( $line['price_cost'] !== '' && $line['price_cost'] !== NULL ){ $prev->price_cost = $line['price_cost']; }
+						$prev->price_sell = $line['price_sell'];
 
 						$changed = $this->updateStockPrice( $line['id_product'], $line['quantity'], $line['price_sell'], $line['price_cost'], $line['is_service'] );
 

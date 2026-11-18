@@ -267,6 +267,11 @@ class Products extends Admin_Controller{
 					));
 					$id_product = (int)$db->insert_id();
 
+					if( $d['_cost'] > 0 ){
+						$self->load->model('cost_history_mdl');
+						$self->cost_history_mdl->log( $id_product, 'import', NULL, $d['_cost'], array( 'new_sell' => $d['_sell'] ) );
+					}
+
 					foreach( $d['_packs'] as $pk ){
 
 						$pk['id_product'] = $id_product;
