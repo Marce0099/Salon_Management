@@ -33,8 +33,9 @@ class Returns_mdl extends CI_Model{
     // Everything below runs inside Returns::register()'s transaction; any Exception
     // makes the caller roll back (stock updates included).
     // Lines are INVOICE LINES (invoice_products rows): $id_lines[i] + $modes[i] ('unit' | 'pack') + $quantities[i].
-    // Stock and limits are always in base units. $modes[i] is 'unit' or the id of ANY active presentation of the
-    // line's product (a six-pack can be returned out of a box line): units = quantity x that pack's units.
+    // Stock and limits are always in base units. $modes[i] is 'unit' (always allowed) or the id of an active
+    // presentation of the line's product that is the one the line was bought in or SMALLER (a six-pack can be
+    // taken out of a box line; a loose-unit line, or a six-pack line, can never give a box): units = quantity x pack units.
     public function saveProductsReturn( $id_return, $id_lines, $modes, $quantities, $id_invoice ){
 
     	$id_invoice = (int)$id_invoice;
@@ -81,6 +82,9 @@ class Returns_mdl extends CI_Model{
 
     			if( !$pack || (int)$pack->units < 2 ){
     				throw new Exception('Presentación inválida para este producto');
+    			}
+    			if( $line->pack_units === NULL || (int)$pack->units > (int)$line->pack_units ){
+    				throw new Exception('Esa línea de la factura no se compró como ' . $pack->name . ': devuelva unidades o una presentación menor');
     			}
     		}
 
@@ -240,7 +244,13 @@ class Returns_mdl extends CI_Model{
 
     		$r->pending    = $pending;
     		$r->pack_units = $r->pack_units === NULL ? NULL : (int)$r->pack_units;
-    		$r->packs      = isset($packs[(int)$r->id_product]) ? $packs[(int)$r->id_product] : array();
+    		// only the presentation it was bought in or smaller ones; loose-unit lines have none (units only)
+    		$r->packs = array();
+    		if( $r->pack_units !== NULL && isset($packs[(int)$r->id_product]) ){
+    			foreach( $packs[(int)$r->id_product] as $k ){
+    				if( $k['units'] <= $r->pack_units ){ $r->packs[] = $k; }
+    			}
+    		}
     	}
 
     	return $rows;
