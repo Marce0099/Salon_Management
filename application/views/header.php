@@ -142,6 +142,7 @@
                       <li><a href="<?php echo base_url('providers/register'); ?>">Registrar</a></li>
                       <li><a href="<?php echo base_url('invoices'); ?>">Facturas</a></li>
                       <li><a href="<?php echo base_url('invoices/quick'); ?>">Registrar compra</a></li>
+                      <li><a href="<?php echo base_url('cost_history'); ?>">Historial de costos</a></li>
                       <!--<li><a href="<?php //echo base_url('orders'); ?>">Pedidos</a></li>-->
                       <li><a href="<?php echo base_url('returns'); ?>">Devoluciones</a></li>
                     </ul>

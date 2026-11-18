@@ -167,8 +167,16 @@ class Products_mdl extends CI_Model{
 	public function save( $data ){
 
 		$this->db->insert( 'products', $data );
+		$id_product = $this->db->insert_id();
 
-		return $this->db->insert_id();
+		// initial cost of a new product = first audit row
+		if( $id_product && isset($data['price_cost']) && (float)$data['price_cost'] > 0 ){
+
+			$this->load->model('cost_history_mdl');
+			$this->cost_history_mdl->log( $id_product, 'manual', NULL, $data['price_cost'], array( 'new_sell' => isset($data['price_sell']) ? $data['price_sell'] : NULL ) );
+		}
+
+		return $id_product;
 	}
 
 	public function getProduct( $id_product ){
@@ -185,6 +193,21 @@ class Products_mdl extends CI_Model{
 	public function edit( $id_product, $data ){
 
 		$data['last_update'] = NULL;
+
+		if( isset($data['price_cost']) ){
+
+			$old = $this->db->query('select price_cost, price_sell from products where id_product = ? for update', array((int)$id_product))->row();
+
+			if( $old && is_numeric($data['price_cost']) && abs((float)$old->price_cost - (float)$data['price_cost']) >= 0.00005 ){
+
+				$this->load->model('cost_history_mdl');
+				$this->cost_history_mdl->log( $id_product, 'manual', $old->price_cost, $data['price_cost'], array(
+					'old_sell' => $old->price_sell,
+					'new_sell' => isset($data['price_sell']) ? $data['price_sell'] : $old->price_sell
+				));
+			}
+		}
+
 		$this->db->update('products',$data,array( 'id_product' => $id_product ));
 	}
 
