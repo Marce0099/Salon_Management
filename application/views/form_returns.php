@@ -68,9 +68,9 @@
 			<span class="p-stock"></span>
 		</td>
 		<td>
-			<div class="form-inline">
-				<input type="text" name="quantities_returns[]" class="p-q-return text-center" style="width:70px;" required="true" data-parsley-type="integer" data-parsley-min="1" data-parsley-max="">
-				<select name="modes[]" class="p-mode form-control input-sm" style="width:auto;display:inline-block;"></select>
+			<div class="ret-qty-row">
+				<input type="text" name="quantities_returns[]" class="p-q-return form-control text-center" required="true" data-parsley-type="integer" data-parsley-min="1" data-parsley-max="">
+				<select name="modes[]" class="p-mode form-control"></select>
 			</div>
 			<small class="p-hint text-muted"></small>
 		</td>
@@ -78,6 +78,11 @@
 </table>
 
 <style>
+	.ret-qty-row { display: flex; gap: 6px; align-items: center; }
+	/* admin.css makes every #invoice-table input absolutely positioned and full-cell: undo it for this pair */
+	#invoice-table tbody td .ret-qty-row input.p-q-return { position: static; flex: 0 0 80px; width: 80px; height: 34px; border: 1px solid #ccc; }
+	#invoice-table tbody td .ret-qty-row select.p-mode { flex: 1 1 auto; min-width: 0; width: auto; height: 34px; }
+	#invoice-table tbody td { height: 70px; vertical-align: middle; }
 	#inv-picker-results tr.picker-selected td,
 	#prod-picker-results tr.picker-selected td { background-color: #337ab7 !important; color: #fff; }
 </style>
@@ -434,12 +439,18 @@
 		_prodPickerRow.find('.p-pres').text('Comprado como: ' + presLabel(p) + ' · pendiente: ' + pendLabel(p));
 		_prodPickerRow.find('.p-stock').text(p.stock);
 
+		// selector: units + every presentation of the product that still fits in this line's pending units
 		var $mode = _prodPickerRow.find('.p-mode').empty();
-		$('<option value="unit">Unidades</option>').appendTo($mode);
-		if( p.pack_units >= 2 && p.pending >= p.pack_units ){
-			$('<option value="pack">' + $('<span>').text(p.pack_name || 'Caja').html() + ' (' + p.pack_units + ' u c/u)</option>').appendTo($mode);
-			$mode.val('pack');
-		}
+		$('<option value="unit">Unidades</option>').data('per', 1).appendTo($mode);
+		var boughtAs = null;
+		$.each(p.packs || [], function(_, k){
+			if( p.pending >= k.units ){
+				var $o = $('<option>').val(k.id).text(k.name + ' (' + k.units + ' u)').data('per', k.units).appendTo($mode);
+				if( p.pack_units && k.units == p.pack_units && p.pack_name == k.name ){ boughtAs = k.id; }
+			}
+		});
+		// default: the presentation it was bought in, otherwise units
+		$mode.val(boughtAs !== null ? boughtAs : 'unit');
 		_prodPickerRow.find('.p-q-return').val(1);
 		updateRow(_prodPickerRow);
 		_prodPickerSuccess = true;
@@ -470,22 +481,18 @@
 		var p = $row.data('line');
 		if( !p ) return;
 
-		var pack  = $row.find('.p-mode').val() === 'pack';
-		var per   = pack ? p.pack_units : 1;
+		var pack  = $row.find('.p-mode').val() !== 'unit';
+		var per   = $row.find('.p-mode option:selected').data('per') || 1;
+		var packName = pack ? $row.find('.p-mode option:selected').text().replace(/ \(\d+ u\)$/, '') : '';
 		var max   = Math.floor(p.pending / per);
 		var qty   = parseInt($row.find('.p-q-return').val(), 10) || 0;
 		var units = qty * per;
-		var hint  = '= ' + units + ' u · máx. ' + max + (pack ? ' ' + (p.pack_name || 'Caja') : ' u');
+		var hint  = '= ' + units + ' u · máx. ' + max + (pack ? ' ' + packName : ' u');
 
 		$row.find('.p-q-return').attr('data-parsley-max', max);
 
-		if( pack && p.pack_units ){
-			var left = p.pending - units;
-			if( left >= 0 && qty > 0 ){ hint += ' · quedan ' + left + ' u de esta línea'; }
-		}
-		else if( p.pack_units >= 2 && qty > 0 ){
-			hint += ' (unidades sacadas de la caja)';
-		}
+		var left = p.pending - units;
+		if( qty > 0 && left >= 0 ){ hint += ' · quedan ' + left + ' u de esta línea'; }
 
 		var warn = units > parseInt(p.stock, 10);
 		$row.find('.p-hint').toggleClass('text-danger', warn).toggleClass('text-muted', !warn)

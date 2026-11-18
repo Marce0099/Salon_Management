@@ -33,7 +33,8 @@ class Returns_mdl extends CI_Model{
     // Everything below runs inside Returns::register()'s transaction; any Exception
     // makes the caller roll back (stock updates included).
     // Lines are INVOICE LINES (invoice_products rows): $id_lines[i] + $modes[i] ('unit' | 'pack') + $quantities[i].
-    // Stock and limits are always in base units: a 'pack' quantity is boxes x the line's pack_units.
+    // Stock and limits are always in base units. $modes[i] is 'unit' or the id of ANY active presentation of the
+    // line's product (a six-pack can be returned out of a box line): units = quantity x that pack's units.
     public function saveProductsReturn( $id_return, $id_lines, $modes, $quantities, $id_invoice ){
 
     	$id_invoice = (int)$id_invoice;
@@ -49,6 +50,7 @@ class Returns_mdl extends CI_Model{
     		$lines[(int)$l->id_invoice_product] = $l;
     	}
 
+    	$packs = array(); // id_pack => row, loaded lazily
     	$entries = array(); // one per (line, mode); repeated rows are merged
     	foreach( (array)$id_lines as $i => $raw_id ){
 
@@ -62,21 +64,31 @@ class Returns_mdl extends CI_Model{
     		if( !ctype_digit($raw_qty) || (int)$raw_qty < 1 || (int)$raw_qty > 1000000 ){
     			throw new Exception('La cantidad a devolver debe ser un número entero mayor a cero');
     		}
-    		if( $mode !== 'unit' && $mode !== 'pack' ){
-    			throw new Exception('Presentación inválida');
-    		}
-
     		$line = $lines[(int)$raw_id];
+    		$pack = NULL;
 
-    		if( $mode === 'pack' && ( $line->pack_units === NULL || (int)$line->pack_units < 2 ) ){
-    			throw new Exception('Esta línea de la factura no se compró por caja/paquete');
+    		if( $mode !== 'unit' ){
+
+    			if( !ctype_digit($mode) || (int)$mode < 1 ){
+    				throw new Exception('Presentación inválida');
+    			}
+
+    			if( !isset($packs[(int)$mode]) ){
+    				$packs[(int)$mode] = $this->db->get_where('product_packs', array( 'id_pack' => (int)$mode, 'id_product' => (int)$line->id_product, 'active' => 1 ))->row();
+    			}
+
+    			$pack = $packs[(int)$mode];
+
+    			if( !$pack || (int)$pack->units < 2 ){
+    				throw new Exception('Presentación inválida para este producto');
+    			}
     		}
 
     		$key = (int)$raw_id . ':' . $mode;
     		$entries[$key] = array(
-    			'line' => (int)$raw_id,
-    			'mode' => $mode,
-    			'qty'  => ( isset($entries[$key]) ? $entries[$key]['qty'] : 0 ) + (int)$raw_qty,
+    			'line'  => (int)$raw_id,
+    			'pack'  => $pack,
+    			'qty'   => ( isset($entries[$key]) ? $entries[$key]['qty'] : 0 ) + (int)$raw_qty,
     		);
     	}
 
@@ -90,7 +102,7 @@ class Returns_mdl extends CI_Model{
     	foreach( $entries as $k => $e ){
 
     		$line  = $lines[$e['line']];
-    		$units = $e['mode'] === 'pack' ? $e['qty'] * (int)$line->pack_units : $e['qty'];
+    		$units = $e['pack'] ? $e['qty'] * (int)$e['pack']->units : $e['qty'];
     		$idp   = (int)$line->id_product;
 
     		$entries[$k]['units'] = $units;
@@ -172,9 +184,10 @@ class Returns_mdl extends CI_Model{
     			'id_return'          => $id_return,
     			'id_product'         => (int)$line->id_product,
     			'id_invoice_product' => $e['line'],
-    			'pack_name'          => $line->pack_name,
-    			'pack_qty'           => $e['mode'] === 'pack' ? $e['qty'] : NULL,
-    			'pack_units'         => $line->pack_units,
+    			// presentation actually returned; units taken loose out of a pack line keep that line's pack as context
+    			'pack_name'          => $e['pack'] ? $e['pack']->name : $line->pack_name,
+    			'pack_qty'           => $e['pack'] ? $e['qty'] : NULL,
+    			'pack_units'         => $e['pack'] ? (int)$e['pack']->units : $line->pack_units,
     			'quantity'           => $e['units'],
     			'price_cost'         => $line->price_cost,
     			'price_sell'         => $line->price_sell,
@@ -206,6 +219,15 @@ class Returns_mdl extends CI_Model{
     		$legacy[(int)$l->id_product] = (int)$l->qty;
     	}
 
+    	// presentations the product can be returned by (any line may be returned by any of them)
+    	$packs = array();
+    	foreach( $this->db->query(
+    		'SELECT id_pack, id_product, name, units FROM product_packs WHERE active = 1 AND units >= 2
+    		 AND id_product IN (SELECT id_product FROM invoice_products WHERE id_invoice = ?) ORDER BY units', array((int)$id_invoice)
+    	)->result() as $k ){
+    		$packs[(int)$k->id_product][] = array( 'id' => (int)$k->id_pack, 'name' => $k->name, 'units' => (int)$k->units );
+    	}
+
     	foreach( $rows as $r ){
 
     		$pending = (int)$r->quantity - (int)$r->returned;
@@ -218,6 +240,7 @@ class Returns_mdl extends CI_Model{
 
     		$r->pending    = $pending;
     		$r->pack_units = $r->pack_units === NULL ? NULL : (int)$r->pack_units;
+    		$r->packs      = isset($packs[(int)$r->id_product]) ? $packs[(int)$r->id_product] : array();
     	}
 
     	return $rows;
