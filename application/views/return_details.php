@@ -19,7 +19,15 @@
 		<?php $total = 0; foreach( $return->details as $d ) : ?>
 		<tr>
 			<td><?php echo $d->barcode . ' : ' . $d->name; ?></td>
-			<td><?php echo $d->quantity; ?></td>
+			<td><?php
+				echo (int)$d->quantity . ' u';
+				if( !empty($d->pack_qty) ){
+					echo ' <small class="text-muted">(' . (int)$d->pack_qty . ' ' . htmlspecialchars($d->pack_name) . ' × ' . (int)$d->pack_units . ' u)</small>';
+				}
+				elseif( !empty($d->pack_units) ){
+					echo ' <small class="text-muted">(sacadas de ' . htmlspecialchars($d->pack_name) . ' de ' . (int)$d->pack_units . ' u)</small>';
+				}
+			?></td>
 			<td>$<?php echo number_format($d->price_cost,2); ?></td>
 			<td>$<?php echo number_format( $d->quantity * $d->price_cost, 2 ); ?></td>
 			<?php $total += $d->quantity * $d->price_cost; ?>
