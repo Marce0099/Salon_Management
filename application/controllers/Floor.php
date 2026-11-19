@@ -122,6 +122,7 @@ class Floor extends Admin_Controller{
 		// a table with active (non-voided) consumption must be paid (Stage 7) or have its items voided first
 		$has = $this->db->where('id_tab', (int) $tab->id_tab)->where('status', 'active')->count_all_results('order_items');
 		if( $has > 0 ){
+			$this->audit->denied('tab.release', 'tab', $tab->id_tab, array('tab' => $tab->id_tab, 'summary' => 'Liberar mesa rechazado: tiene consumo activo', 'after' => array('active_items' => (int) $has)));
 			$this->fail('La mesa tiene consumo. Cobre la cuenta o anule los productos antes de liberarla');
 		}
 
@@ -154,7 +155,12 @@ class Floor extends Admin_Controller{
 			$this->fail('Área no encontrada');
 		}
 
+		$before = $id ? $this->floor_mdl->area($id) : NULL;
 		$id = $this->floor_mdl->saveArea($id, $name);
+		$this->audit->log($before ? 'floor.area.update' : 'floor.area.create', 'table_area', $id, array(
+			'summary' => ($before ? 'Área renombrada: ' : 'Área creada: ').$name,
+			'before' => $before ? array('name' => $before->name) : NULL, 'after' => array('name' => $name)
+		));
 		$this->json(array('type' => 'success', 'message' => 'Área guardada', 'id_area' => $id, 'name' => $name));
 	}
 
@@ -175,7 +181,13 @@ class Floor extends Admin_Controller{
 			$this->fail('El área tiene mesas ocupadas');
 		}
 
+		$area = $this->floor_mdl->area($id);
+		$tables = $this->db->select('id_table, label')->where('id_area', $id)->where('active', 1)->get('dining_tables')->result_array();
 		$this->floor_mdl->deleteArea($id);
+		$this->audit->log('floor.area.delete', 'table_area', $id, array(
+			'summary' => 'Área eliminada: '.$area->name,
+			'before' => array('name' => $area->name, 'tables' => $tables)
+		));
 		$this->json(array('type' => 'success', 'message' => 'Área eliminada'));
 	}
 
@@ -243,7 +255,24 @@ class Floor extends Admin_Controller{
 			if( !isset($data['seats']) ){ $data['seats'] = 4; }
 		}
 
+		$new = !$id;
 		$id = $this->floor_mdl->saveTable($id, $data);
+
+		// geometry-only saves (drag/resize) are frequent: only log creation and label/seats/shape changes
+		$diff_b = array(); $diff_a = array();
+		foreach( array('label', 'seats', 'shape') as $k ){
+			if( isset($data[$k]) && ( $new || (string) $current->$k !== (string) $data[$k] ) ){
+				$diff_b[$k] = $new ? NULL : $current->$k;
+				$diff_a[$k] = $data[$k];
+			}
+		}
+		if( $new || $diff_a ){
+			$lbl = isset($data['label']) ? $data['label'] : $current->label;
+			$this->audit->log($new ? 'floor.table.create' : 'floor.table.update', 'dining_table', $id, array(
+				'summary' => ($new ? 'Mesa creada: ' : 'Mesa modificada: ').$lbl,
+				'before' => $new ? NULL : $diff_b, 'after' => $new ? $data : $diff_a
+			));
+		}
 
 		$this->json(array('type' => 'success', 'message' => 'Mesa guardada', 'id_table' => $id));
 	}
@@ -262,7 +291,12 @@ class Floor extends Admin_Controller{
 			$this->fail('La mesa está ocupada');
 		}
 
+		$tbl = $this->floor_mdl->table($id);
 		$this->floor_mdl->deleteTable($id);
+		$this->audit->log('floor.table.delete', 'dining_table', $id, array(
+			'summary' => 'Mesa eliminada: '.$tbl->label,
+			'before' => array('label' => $tbl->label, 'id_area' => (int) $tbl->id_area, 'seats' => (int) $tbl->seats)
+		));
 		$this->json(array('type' => 'success', 'message' => 'Mesa eliminada'));
 	}
 }

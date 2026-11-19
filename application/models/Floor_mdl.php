@@ -132,7 +132,16 @@ class Floor_mdl extends CI_Model{
 				'id_admin'    => (int) $id_admin,
 			));
 			$id_tab = (int) $this->db->insert_id();
+			$id_bill = 0;
 			$this->db->insert('bills', array('id_tab' => $id_tab, 'label' => 'Cuenta 1')); // every tab starts with one floating bill
+			$id_bill = (int) $this->db->insert_id();
+
+			$t = $this->table($id_table);
+			$this->audit->log('tab.open', 'tab', $id_tab, array(
+				'tab' => $id_tab, 'bill' => $id_bill,
+				'summary' => 'Mesa abierta: '.($t ? $t->label : $id_table).' ('.max(1, (int) $guests).' comensales)',
+				'after' => array('id_table' => (int) $id_table, 'table_label' => $t ? $t->label : NULL, 'id_employee' => $id_employee ? (int) $id_employee : NULL, 'guests' => max(1, (int) $guests), 'id_bill' => $id_bill)
+			));
 		}
 
 		$this->db->trans_complete();
@@ -147,6 +156,13 @@ class Floor_mdl extends CI_Model{
 
 	public function closeTab($id_tab, $status = 'void'){
 
+		$this->db->trans_start();
+
+		$before = $this->tab($id_tab);
+		$bills = $status === 'void'
+			? $this->db->select('id_bill, label, status')->where('id_tab', (int) $id_tab)->where_in('status', array('open', 'split'))->get('bills')->result_array()
+			: array();
+
 		$this->db->where('id_tab', (int) $id_tab)->where('status', 'open')
 			->update('tabs', array('status' => $status, 'closed_at' => date('Y-m-d H:i:s')));
 
@@ -155,6 +171,18 @@ class Floor_mdl extends CI_Model{
 		if( $changed && $status === 'void' ){
 			$this->db->where('id_tab', (int) $id_tab)->where_in('status', array('open', 'split'))->update('bills', array('status' => 'void'));
 		}
+
+		if( $changed && $status === 'void' ){
+			$t = $before ? $this->table($before->id_table) : NULL;
+			$this->audit->log('tab.release', 'tab', $id_tab, array(
+				'tab' => $id_tab,
+				'summary' => 'Mesa liberada: '.($t ? $t->label : '#'.$id_tab),
+				'before' => $before ? array('status' => $before->status, 'id_table' => (int) $before->id_table, 'id_employee' => $before->id_employee, 'guests' => (int) $before->guests, 'opened_at' => $before->opened_at) : NULL,
+				'after' => array('status' => 'void', 'voided_bills' => $bills)
+			));
+		}
+
+		$this->db->trans_complete();
 
 		return $changed;
 	}

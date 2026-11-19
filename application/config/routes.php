@@ -53,3 +53,6 @@ $route['default_controller'] = 'login';
 $route['404_override'] = '';
 $route['translate_uri_dashes'] = FALSE;
 $route['admins/list'] = 'admins/index';
+// the controller cannot be called Audit: that name belongs to the library that writes the trail
+$route['audit'] = 'audit_trail';
+$route['audit/(.+)'] = 'audit_trail/$1'; // CI 3.0's (:any) does not match slashes

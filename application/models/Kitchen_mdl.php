@@ -294,7 +294,15 @@ class Kitchen_mdl extends CI_Model{
 
 		if( $res[2] ){ return -3; }
 
-		return $res[0] ? (int) $res[1] : ((int) $res[1] < 0 ? (int) $res[1] : 0);
+		$out = $res[0] ? (int) $res[1] : ((int) $res[1] < 0 ? (int) $res[1] : 0);
+
+		if( $out <= 0 ){
+			$this->audit->denied('order.send', 'order', NULL, array('tab' => $id_tab, 'bill' => (int) $id_bill ?: NULL,
+				'summary' => 'Envío a cocina rechazado ('.($out === -1 ? 'stock insuficiente' : ($out === -2 ? 'ingredientes insuficientes' : 'error')).')',
+				'after' => array('code' => $out, 'lines' => count($lines))));
+		}
+
+		return $out;
 	}
 
 	/** Stock check/decrement + batch + lines, WITHOUT managing the transaction (the caller owns it). Returns id_order, -1 or -2. */
@@ -306,6 +314,7 @@ class Kitchen_mdl extends CI_Model{
 
 		$this->db->insert('orders_kitchen', array('id_tab' => (int) $id_tab, 'id_admin' => (int) $id_admin));
 		$id_order = (int) $this->db->insert_id();
+		$audit_items = array();
 
 		foreach( $lines as $l ){
 
@@ -325,6 +334,7 @@ class Kitchen_mdl extends CI_Model{
 
 			$id_item = (int) $this->db->insert_id();
 			$mods = isset($l['modifiers']) ? $l['modifiers'] : array();
+			$audit_items[] = array('id_order_item' => $id_item, 'id_product' => (int) $l['id_product'], 'name' => $l['name'], 'quantity' => (int) $l['quantity'], 'unit_price' => $l['price'], 'course' => (int) $l['course'], 'notes' => $l['notes'] !== '' ? $l['notes'] : NULL, 'modifiers' => $this->auditMods($mods));
 			if( $mods ){
 				$this->load->model('modifiers_mdl');
 				$this->modifiers_mdl->saveForItem($id_item, $mods);
@@ -341,7 +351,27 @@ class Kitchen_mdl extends CI_Model{
 			$this->logIngredients($this->cur_recipes, $l['id_product'], $l['quantity'], -1, $id_item, $id_admin, $removal);
 		}
 
+		$units = 0; foreach( $audit_items as $ai ){ $units += $ai['quantity']; }
+		$this->audit->log('order.send', 'order', $id_order, array(
+			'tab' => $id_tab, 'bill' => (int) $id_bill ?: NULL,
+			'summary' => 'Enviado a cocina: '.count($audit_items).' platillo(s), '.$units.' unidad(es)',
+			'after' => array('id_order' => $id_order, 'id_bill' => (int) $id_bill ?: NULL, 'items' => $audit_items)
+		));
+
 		return $id_order;
+	}
+
+	/** Compact modifier list for the audit payload (names only; the full snapshot lives in order_item_modifiers). */
+	private function auditMods($mods){
+
+		$out = array();
+		if( is_array($mods) ){
+			foreach( $mods as $md ){
+				if( is_object($md) ){ $md = (array) $md; }
+				if( is_array($md) ){ $out[] = isset($md['name']) ? $md['name'] : (isset($md['id_modifier']) ? $md['id_modifier'] : NULL); }
+			}
+		}
+		return $out;
 	}
 
 	private function isService($id_product){
@@ -428,10 +458,18 @@ class Kitchen_mdl extends CI_Model{
 			$this->cloneItemData($item->id_order_item, $this->db->insert_id());
 		}
 
-		if( $item->bill_status !== 'paid' ){
+		$restocked = $item->bill_status !== 'paid';
+		if( $restocked ){
 			$this->db->query('UPDATE products SET stock = stock + ? WHERE id_product = ? AND is_service = 0', array($qty, (int) $item->id_product));
 			$this->restoreIngredients($item->id_product, $qty, $item->id_order_item, $id_admin);
 		}
+
+		$this->audit->log('order_item.void', 'order_item', $item->id_order_item, array(
+			'tab' => $item->id_tab, 'bill' => $item->id_bill,
+			'summary' => 'Anulado: '.$qty.' x '.$item->product_name.' ('.mb_substr($reason, 0, 80, 'UTF-8').')',
+			'before' => array('status' => 'active', 'quantity' => (int) $item->quantity, 'id_bill' => $item->id_bill, 'bill_status' => $item->bill_status, 'unit_price' => $item->unit_price),
+			'after' => array('voided_quantity' => $qty, 'full_line' => $qty === (int) $item->quantity, 'reason' => $reason, 'stock_restored' => $restocked, 'id_product' => (int) $item->id_product)
+		));
 
 		return array(TRUE, 'Producto anulado', $item, $qty);
 	}
@@ -449,6 +487,11 @@ class Kitchen_mdl extends CI_Model{
 		});
 
 		if( $res[2] ){ return array(FALSE, 'Hay mucha actividad en este momento, intente de nuevo'); }
+
+		if( !$res[0] ){
+			$this->audit->denied('order_item.void', 'order_item', $id_item, array('tab' => $item->id_tab, 'bill' => $item->id_bill,
+				'summary' => 'Anulación rechazada: '.$res[1], 'after' => array('quantity' => (int) $qty, 'reason' => $reason)));
+		}
 
 		return array($res[0], $res[1]);
 	}
@@ -483,10 +526,22 @@ class Kitchen_mdl extends CI_Model{
 				return array(FALSE, array($msg, 0));
 			}
 
+			$this->audit->log('order_item.replace', 'order_item', $id_item, array(
+				'tab' => $old->id_tab, 'bill' => $old->id_bill,
+				'summary' => 'Cambio de plato: '.$old->product_name.' por '.$new->name,
+				'before' => array('id_order_item' => (int) $id_item, 'id_product' => (int) $old->id_product, 'name' => $old->product_name, 'quantity' => (int) $v[3]),
+				'after' => array('id_order' => $id_order, 'id_product' => (int) $new->id_product, 'name' => $new->name, 'quantity' => (int) $new_qty, 'reason' => $reason)
+			));
+
 			return array(TRUE, array('Producto cambiado', $id_order));
 		});
 
 		if( $res[2] ){ return array(FALSE, 'Hay mucha actividad en este momento, intente de nuevo', 0); }
+
+		if( !$res[0] ){
+			$this->audit->denied('order_item.replace', 'order_item', $id_item, array('tab' => $first->id_tab, 'bill' => $first->id_bill,
+				'summary' => 'Cambio de plato rechazado: '.$res[1][0], 'after' => array('new_product' => (int) $new->id_product)));
+		}
 
 		return array($res[0], $res[1][0], $res[1][1]);
 	}

@@ -60,6 +60,7 @@ class Employees extends Admin_Controller{
 		$key = function($d){ return mb_strtolower(trim($d['name']), 'UTF-8'); };
 
 		$response = $this->excel_import->run(array(
+			'audit_entity' => 'employee',
 			'columns' => $this->importColumns(),
 			'db' => $db,
 			'validate' => function(&$d){

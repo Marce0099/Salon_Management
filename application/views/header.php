@@ -161,6 +161,7 @@
                   <?php } ?>
                   <?php if($this->controller->is_admin()){ ?>
                   <li><a href="<?php echo base_url('reports'); ?>"><i class="fa fa-bar-chart"></i> Reportes</a></li>
+                  <li><a href="<?php echo base_url('audit'); ?>"><i class="fa fa-history"></i> Auditoría</a></li>
                   <li><a><i class="fa fa-users"></i> Meseros <span class="fa fa-chevron-down"></span></a>
                     <ul class="nav child_menu">
                       <li><a href="<?php echo base_url('employees'); ?>">Listado</a></li>

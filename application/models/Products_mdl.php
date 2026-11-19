@@ -118,6 +118,8 @@ class Products_mdl extends CI_Model{
 
 		$id_product = (int)$id_product;
 
+		$packs_before = $this->db->select('id_pack, name, units, barcode, price_cost')->where('id_product', $id_product)->get('product_packs')->result_array();
+
 		$existing = array();
 		foreach( $this->db->select('id_pack')->get_where('product_packs', array( 'id_product' => $id_product ))->result() as $r ){
 			$existing[(int)$r->id_pack] = TRUE;
@@ -153,6 +155,13 @@ class Products_mdl extends CI_Model{
 				$this->db->delete( 'product_packs', array( 'id_pack' => $id_pack, 'id_product' => $id_product ) );
 			}
 		}
+
+		$packs_after = $this->db->select('id_pack, name, units, barcode, price_cost')->where('id_product', $id_product)->get('product_packs')->result_array();
+
+		if( json_encode($packs_before) !== json_encode($packs_after) ){
+
+			$this->audit->log('product_pack.update', 'product', $id_product, array('summary' => 'Presentaciones del producto modificadas', 'before' => array('packs' => $packs_before), 'after' => array('packs' => $packs_after)));
+		}
 	}
 
 	public function barcodeExistsForProvider( $barcode, $id_provider ){
@@ -168,6 +177,8 @@ class Products_mdl extends CI_Model{
 
 		$this->db->insert( 'products', $data );
 		$id_product = $this->db->insert_id();
+
+		$this->audit->change('product.create', 'product', $id_product, NULL, $data, array('summary' => 'Producto creado: '.(isset($data['name']) ? $data['name'] : $id_product)));
 
 		// initial cost of a new product = first audit row
 		if( $id_product && isset($data['price_cost']) && (float)$data['price_cost'] > 0 ){
@@ -194,6 +205,8 @@ class Products_mdl extends CI_Model{
 
 		$data['last_update'] = NULL;
 
+		$audit_before = $this->db->query('select * from products where id_product = ? for update', array((int)$id_product))->row_array();
+
 		if( isset($data['price_cost']) ){
 
 			$old = $this->db->query('select price_cost, price_sell from products where id_product = ? for update', array((int)$id_product))->row();
@@ -209,12 +222,21 @@ class Products_mdl extends CI_Model{
 		}
 
 		$this->db->update('products',$data,array( 'id_product' => $id_product ));
+
+		$this->audit->change('product.update', 'product', $id_product, $audit_before, $this->audit->row('products', 'id_product', $id_product), array(
+			'summary' => 'Producto modificado: '.($audit_before ? $audit_before['name'] : $id_product), 'skip' => array('last_update')
+		));
 	}
 
 	public function delete( $id_product ){
 
+		$audit_before = $this->audit->row('products', 'id_product', $id_product);
+
+		$this->db->trans_start();
 		$this->db->where('id_product', $id_product);
 		$this->db->update('products', ["active" => 0]);
+		$this->audit->log('product.delete', 'product', $id_product, array('summary' => 'Producto eliminado: '.($audit_before ? $audit_before['name'] : $id_product), 'before' => array('active' => 1, 'stock' => $audit_before ? $audit_before['stock'] : NULL), 'after' => array('active' => 0)));
+		$this->db->trans_complete();
 
 		//$this->db->delete( 'products', array( 'id_product' => $id_product ) );
 	}
@@ -226,11 +248,17 @@ class Products_mdl extends CI_Model{
 
 	public function addStock( $id_product, $quantity ){
 
-		$sql = 'update products set stock = stock +'.$quantity.' where id_product = '.$id_product;
+		$this->db->trans_start();
+		$before = $this->db->query('select name, stock from products where id_product = ? for update', array((int) $id_product))->row();
+		$this->db->query('update products set stock = stock + ? where id_product = ?', array((int) $quantity, (int) $id_product));
+		$after = $this->getStock($id_product);
+		$this->audit->log('product.stock_add', 'product', $id_product, array(
+			'summary' => 'Stock ajustado '.((int) $quantity >= 0 ? '+' : '').(int) $quantity.': '.($before ? $before->name : $id_product),
+			'before' => array('stock' => $before ? $before->stock : NULL), 'after' => array('stock' => $after, 'delta' => (int) $quantity)
+		));
+		$this->db->trans_complete();
 
-		$this->db->query($sql);
-
-		return $this->getStock($id_product);
+		return $after;
 	}
 
 	public function getLowStockCount(){

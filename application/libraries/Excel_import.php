@@ -495,6 +495,13 @@ class Excel_import{
 
 				call_user_func($cfg['insert'], $to_insert);
 
+				$CI =& get_instance();
+				$entity = isset($cfg['audit_entity']) ? $cfg['audit_entity'] : 'rows';
+				$CI->audit->log('import.'.$entity, $entity, NULL, array(
+					'summary' => 'Importación Excel de '.$entity.': '.count($to_insert).' fila(s)',
+					'after' => array('file' => isset($_FILES['file']['name']) ? $_FILES['file']['name'] : NULL, 'rows' => count($to_insert), 'sample' => array_slice($to_insert, 0, 5))
+				));
+
 				if( $db->trans_status() === FALSE ){
 					throw new Exception('Database error');
 				}

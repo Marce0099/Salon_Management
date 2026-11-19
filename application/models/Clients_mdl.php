@@ -20,7 +20,12 @@ class Clients_mdl extends CI_Model{
 			}
 		}
 
-		return $this->db->insert( 'clients', $data );
+		$this->db->trans_start();
+		$ok = $this->db->insert( 'clients', $data );
+		$this->audit->change('client.create', 'client', $this->db->insert_id(), NULL, $data, array('summary' => 'Cliente creado'));
+		$this->db->trans_complete();
+
+		return $ok;
 	}
 
 	public function getClient( $id_client ){
@@ -41,22 +46,40 @@ class Clients_mdl extends CI_Model{
 
 	public function edit( $id_client, $data ){
 
+		$before = $this->audit->row('clients', 'id_client', $id_client);
+
+		$this->db->trans_start();
 		$this->db->update('clients',$data,array( 'id_client' => $id_client ));
+		$this->audit->change('client.update', 'client', $id_client, $before, $this->audit->row('clients', 'id_client', $id_client), array('summary' => 'Cliente modificado'));
+		$this->db->trans_complete();
+	}
+
+	private function setActive($id_client, $active, $action, $summary){
+
+		$this->db->trans_start();
+		$this->db->where('id_client', $id_client)->update('clients', ['active' => $active]);
+		$this->audit->log($action, 'client', $id_client, array('summary' => $summary, 'before' => array('active' => 1 - $active), 'after' => array('active' => $active)));
+		$this->db->trans_complete();
 	}
 
 	public function delete($id_client){
 
-		$this->db->where('id_client', $id_client)->update('clients', ['active' => 0]);
+		$this->setActive($id_client, 0, 'client.deactivate', 'Cliente desactivado');
 	}
 
 	public function reactivate($id_client){
 
-		$this->db->where('id_client', $id_client)->update('clients', ['active' => 1]);
+		$this->setActive($id_client, 1, 'client.reactivate', 'Cliente reactivado');
 	}
 
 	public function toggleVip($id_client){
 
+		$before = $this->audit->row('clients', 'id_client', $id_client);
+
+		$this->db->trans_start();
 		$this->db->where('id_client', $id_client)->set('is_vip_client', '1 - is_vip_client', false)->update('clients');
+		$this->audit->change('client.vip_toggle', 'client', $id_client, $before, $this->audit->row('clients', 'id_client', $id_client), array('summary' => 'Cliente VIP cambiado'));
+		$this->db->trans_complete();
 	}
 
 	public function searchActive($id_card_client = '', $name = '', $surname = '', $phone = '', $email = ''){

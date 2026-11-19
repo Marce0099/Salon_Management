@@ -64,7 +64,10 @@ class Service_categories extends Admin_Controller{
 						throw new Exception('Esa categoría ya está registrada');
 					}
 
+					$this->db->trans_start();
 					$this->db->insert('service_category', array( 'name_category' => $name_category));
+					$this->audit->log('category.create', 'service_category', $this->db->insert_id(), array('summary' => 'Categoría creada: '.$name_category, 'after' => array('name_category' => $name_category)));
+					$this->db->trans_complete();
 
 					$new_tk = generateToken();
 					$this->session->set_userdata('tk', $new_tk);
@@ -119,7 +122,11 @@ class Service_categories extends Admin_Controller{
 						throw new Exception('Esa categoría ya está registrada');
 					}
 
+					$before = $this->audit->row('service_category', 'id_service_category', $id_service_category);
+					$this->db->trans_start();
 					$this->db->update('service_category', array( 'name_category' => $name_category), array( 'id_service_category' => $id_service_category ));
+					$this->audit->log('category.update', 'service_category', $id_service_category, array('summary' => 'Categoría renombrada: '.$name_category, 'before' => array('name_category' => $before ? $before['name_category'] : NULL), 'after' => array('name_category' => $name_category)));
+					$this->db->trans_complete();
 
 					$new_tk = generateToken();
 					$this->session->set_userdata('tk', $new_tk);

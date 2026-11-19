@@ -191,6 +191,16 @@ class Returns_mdl extends CI_Model{
     	}
 
     	$this->db->insert_batch('returns_products', $data);
+
+    	$audit_lines = array();
+    	foreach( $data as $d ){
+    		$st = $this->db->select('name, stock')->where('id_product', $d['id_product'])->get('products')->row();
+    		$audit_lines[] = array('id_product' => $d['id_product'], 'name' => $st ? $st->name : NULL, 'units' => (int) $d['quantity'], 'pack' => $d['pack_name'], 'stock_after' => $st ? (int) $st->stock : NULL, 'price_cost' => $d['price_cost']);
+    	}
+    	$this->audit->log('return.create', 'return', $id_return, array(
+    		'summary' => 'Devolución a proveedor registrada (factura #'.(int) $id_invoice.', '.count($audit_lines).' linea(s))',
+    		'after' => array('id_invoice' => (int) $id_invoice, 'lines' => $audit_lines)
+    	));
     }
 
     // Lines of an invoice with what is still returnable from each (units), for the returns form.

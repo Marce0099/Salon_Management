@@ -291,6 +291,7 @@ class Sales extends Admin_Controller{
 			$sale['tip'] = $tip_dollar;
 			$sale['iva'] = $iva_dollar;
 			$sale['id_bill'] = $bill_ctx ? $id_bill : NULL;
+			$sale['id_admin'] = (int) $this->id_admin ?: NULL; // cashier who collected (id_employee is the waiter)
 
 			$remaining_cordobas = $total_cordobas;
 
@@ -526,6 +527,7 @@ class Sales extends Admin_Controller{
 					$response['type'] = 'error';
 					$response['message'] = 'La cuenta cambió o ya fue cobrada. Recargue la pantalla e intente de nuevo';
 					$this->db->trans_rollback();
+					$this->audit->denied('sale.checkout', 'bill', $id_bill, array('tab' => $bill_ctx['bill']->id_tab, 'bill' => $id_bill, 'summary' => 'Cobro rechazado: la cuenta cambió o ya fue cobrada'));
 					echo json_encode($response);
 					exit();
 				}
@@ -691,6 +693,20 @@ class Sales extends Admin_Controller{
 
 				$this->bills_mdl->settle($bill_ctx['bill'], $id_sale);
 			}
+
+			$tab_after = $bill_ctx ? $this->db->select('status')->where('id_tab', (int) $bill_ctx['bill']->id_tab)->get('tabs')->row() : NULL;
+
+			$this->audit->log('sale.checkout', 'sale', $id_sale, array(
+				'sale' => $id_sale, 'bill' => $bill_ctx ? $id_bill : NULL, 'tab' => $bill_ctx ? $bill_ctx['bill']->id_tab : NULL,
+				'summary' => 'Venta #'.$id_sale.' cobrada'.($bill_ctx ? ' (cuenta '.$bill_ctx['bill']->label.')' : ' (venta libre)'),
+				'after' => array(
+					'id_sale' => (int) $id_sale, 'id_employee' => $sale['id_employee'], 'client' => $sale['client'],
+					'tip_usd' => (float) $sale['tip'], 'iva_usd' => (float) $sale['iva'], 'lines_cordobas' => round($total_cordobas, 2),
+					'dollar_ex_sell' => (float) $exchange->sell_price,
+					'lines' => $bill_ctx ? $bill_ctx['totals'] : NULL, 'items' => count($id_products),
+					'payments' => $payment_to_save, 'tab_status_after' => $tab_after ? $tab_after->status : NULL
+				)
+			));
 
 			$this->db->trans_complete();
 

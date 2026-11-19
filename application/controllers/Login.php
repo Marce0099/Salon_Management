@@ -43,15 +43,24 @@
 				$this->session->set_userdata('admin_name', $result->name);
 				$this->session->set_userdata('role', $result->role);
 
+				$this->audit->log('login.success', 'admin', $result->id_admin, array('summary' => 'Inicio de sesión', 'best_effort' => TRUE));
+
 				redirect('panel');
 			}
 			else{
+
+				$this->audit->log('login.fail', 'admin', NULL, array('result' => 'denied', 'summary' => 'Intento de acceso fallido', 'after' => array('username' => substr((string)$username, 0, 60)), 'actor' => array('id_admin' => NULL, 'admin_name' => NULL, 'role' => NULL), 'best_effort' => TRUE));
 
 				$this->form( array('error' => TRUE, 'company_name' => $this->settings_mdl->get('company_name', 'Conceptos') ) );
 			}
 		}
 
 		public function out(){
+
+			if( $this->session->userdata('id_admin') ){
+
+				$this->audit->log('logout', 'admin', $this->session->userdata('id_admin'), array('summary' => 'Cierre de sesión', 'best_effort' => TRUE));
+			}
 
 			$this->session->set_userdata('id_admin','');
 			$this->session->set_userdata('admin_name','');

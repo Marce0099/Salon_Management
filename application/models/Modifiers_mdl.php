@@ -59,6 +59,9 @@ class Modifiers_mdl extends CI_Model{
 
 		$this->db->trans_begin();
 
+		$mod_before = $id ? array('modifier' => $this->audit->row('modifiers', 'id_modifier', (int) $id),
+			'removes' => $this->db->select('id_ingredient, quantity')->where('id_modifier', (int) $id)->get('modifier_ingredients')->result_array()) : NULL;
+
 		if( $id ){
 			$this->db->where('id_modifier', (int) $id)->update('modifiers', array('name' => $name, 'kitchen_text' => $text, 'exclusive_group' => $group));
 		}
@@ -72,6 +75,11 @@ class Modifiers_mdl extends CI_Model{
 			$this->db->insert('modifier_ingredients', array('id_modifier' => (int) $id, 'id_ingredient' => (int) $id_ing, 'quantity' => $qty));
 		}
 
+		$mod_after = array('modifier' => $this->audit->row('modifiers', 'id_modifier', (int) $id),
+			'removes' => $this->db->select('id_ingredient, quantity')->where('id_modifier', (int) $id)->get('modifier_ingredients')->result_array());
+		$this->audit->log($mod_before ? 'modifier.update' : 'modifier.create', 'modifier', $id, array(
+			'summary' => ($mod_before ? 'Modificador modificado: ' : 'Modificador creado: ').$name, 'before' => $mod_before, 'after' => $mod_after));
+
 		if( $this->db->trans_status() === FALSE ){
 			$this->db->trans_rollback();
 			return 0;
@@ -83,7 +91,10 @@ class Modifiers_mdl extends CI_Model{
 
 	public function setActive($id, $active){
 
+		$this->db->trans_start();
 		$this->db->where('id_modifier', (int) $id)->update('modifiers', array('active' => $active ? 1 : 0));
+		$this->audit->log($active ? 'modifier.restore' : 'modifier.deactivate', 'modifier', $id, array('summary' => ($active ? 'Modificador reactivado #' : 'Modificador desactivado #').(int) $id, 'after' => array('active' => $active ? 1 : 0)));
+		$this->db->trans_complete();
 	}
 
 	// ---------- attach to dishes ----------
@@ -101,8 +112,13 @@ class Modifiers_mdl extends CI_Model{
 	public function setProduct($id_product, $ids){
 
 		$this->db->trans_begin();
+		$attach_before = $this->attachedIds($id_product);
 		$this->db->where('id_product', (int) $id_product)->delete('product_modifiers');
 		foreach( $ids as $id ){ $this->db->insert('product_modifiers', array('id_product' => (int) $id_product, 'id_modifier' => (int) $id)); }
+		$attach_after = $this->attachedIds($id_product);
+		if( $attach_before != $attach_after ){
+			$this->audit->log('modifier.attach', 'product', $id_product, array('summary' => 'Modificadores del platillo cambiados (producto #'.(int) $id_product.')', 'before' => array('modifiers' => $attach_before), 'after' => array('modifiers' => $attach_after)));
+		}
 
 		if( $this->db->trans_status() === FALSE ){
 			$this->db->trans_rollback();

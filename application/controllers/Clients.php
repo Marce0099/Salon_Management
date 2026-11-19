@@ -121,6 +121,7 @@ class Clients extends Admin_Controller{
 		};
 
 		$response = $this->excel_import->run(array(
+			'audit_entity' => 'client',
 			'columns' => $this->importColumns(),
 			'db' => $db,
 			'validate' => function(&$d){
