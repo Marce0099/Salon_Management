@@ -20,6 +20,7 @@ Internal point-of-sale for a restaurant in Nicaragua (originally a salon/cosmeti
 | `application/core/MY_Controller.php` | `Admin_Controller` base (session login, `renderPanel`, `is_admin()`, `is_super()`) |
 | `application/libraries/` | `Easysearch.php`, `Imagetool.php`, `MY_PHPMailer.php` |
 | `migrations/` | `restaurant_00N_*.sql`, applied by hand to DB `restaurant` (pre-stage dumps are git-excluded) |
+| `.claude/docs/audit_events.md` | **Audit trail contract** (table, write rules, action catalog, read API v1) shared with the future Rust/Tauri backend; JSON Schema in `docs/audit_event.schema.json` |
 | `.claude/docs/architectural_patterns.md` | Controller/Model conventions, Easysearch, AJAX shape, session flash, form token, thermal printing |
 
 ## Running the App
@@ -69,6 +70,10 @@ Money convention: product prices, tip and IVA are stored in **dollars** (the uni
 **Cost audit (migration 020).** `product_cost_history` (`id_product`->products CASCADE, `source` purchase|manual|import, `id_invoice`->invoices SET NULL, `id_invoice_product`, `id_provider` snapshot, `old_cost`/`new_cost` DECIMAL(12,4) per base unit in $, `quantity` base units, `old_sell`/`new_sell`, `id_admin`, `created_at`). One row per purchase line written inside `Invoices_mdl::receive` (old cost = the locked product row, so every purchase is logged even at the same cost; lines without cost log nothing), plus manual cost edits (`Products_mdl::edit`/`save`) and Excel import of new products (`Cost_history_mdl::log`). Migration 020 backfills past invoices. Screen `/cost_history` (admin; menu Proveedores > Historial de costos): summary per product or, with a product, stats (current, weighted average by units, highest, lowest) and the per-invoice list with previous vs purchased cost; filters product/provider/source/dates/only changes.
 
 Availability while ordering = `products.stock` (`Kitchen_mdl::available`), since the decrement happens when the order is sent. `Floor::close_tab` refuses a table with active items. Equal-split money: parts apportion subtotal/tip/IVA with floor-to-cents, last part takes the remainder (`Bills_mdl::childTotals`).
+
+### Audit trail (migration 022)
+
+`audit_log` (append-only, BIGINT `id`, `occurred_at` DATETIME(3) **UTC**, `request_id`, `source` php|rust|tauri, actor snapshot `id_admin`/`admin_name`/`role`, `ip`, `terminal_id`, `user_agent`, `request`, `action` dotted verb, `result` ok|denied|error, `entity_type`/`entity_id`, context `id_tab`/`id_bill`/`id_sale`, Spanish `summary`, `before_json`/`after_json`, `schema_version`). Every state-changing action writes ONE row through the `Audit` library (`$this->audit->log/change/denied`, autoloaded) INSIDE the action's transaction; contract + action catalog in `.claude/docs/audit_events.md`. Viewer `/audit` (admin; `login.*`/`admin.*` super only; menu "Auditoría"), timelines `/audit/timeline/{tab|bill|sale}/{id}`, CSV `/audit/export`, JSON `/audit/api/v1/events|entity/...` (controller `Audit_trail`, routed from `/audit/...` because the class name `Audit` is the library). `sales.id_admin` = cashier who collected the sale (`id_employee` stays the waiter). New write paths MUST log an event. CI 3.0 `(:any)` routes do not match slashes: use `(.+)`.
 
 ### Ingredients & recipes (Block B)
 

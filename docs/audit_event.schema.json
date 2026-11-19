@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "audit_event.schema.json",
+  "title": "AuditEvent (schema_version 1)",
+  "type": "object",
+  "required": ["id", "schema_version", "occurred_at", "request_id", "source", "actor", "action", "result", "entity", "context"],
+  "properties": {
+    "id": { "type": "integer" },
+    "schema_version": { "const": 1 },
+    "occurred_at": { "type": "string", "format": "date-time", "description": "UTC, millisecond precision" },
+    "request_id": { "type": "string", "pattern": "^[A-Za-z0-9_-]{8,40}$" },
+    "source": { "enum": ["php", "rust", "tauri"] },
+    "actor": {
+      "type": "object",
+      "properties": {
+        "id_admin": { "type": ["integer", "null"] },
+        "name": { "type": ["string", "null"], "maxLength": 100 },
+        "role": { "enum": ["super", "administrador", "trabajador", null] }
+      }
+    },
+    "ip": { "type": ["string", "null"] },
+    "terminal_id": { "type": ["string", "null"], "maxLength": 64 },
+    "user_agent": { "type": ["string", "null"], "maxLength": 255 },
+    "request": { "type": ["string", "null"], "maxLength": 120 },
+    "action": { "type": "string", "pattern": "^[a-z_]+(\\.[a-z_]+)*$", "maxLength": 60 },
+    "result": { "enum": ["ok", "denied", "error"] },
+    "entity": {
+      "type": "object",
+      "properties": { "type": { "type": ["string", "null"] }, "id": { "type": ["string", "null"] } }
+    },
+    "context": {
+      "type": "object",
+      "properties": {
+        "id_tab": { "type": ["integer", "null"] },
+        "id_bill": { "type": ["integer", "null"] },
+        "id_sale": { "type": ["integer", "null"] }
+      }
+    },
+    "summary": { "type": ["string", "null"], "maxLength": 255 },
+    "before": { "type": ["object", "null"] },
+    "after": { "type": ["object", "null"] }
+  }
+}
