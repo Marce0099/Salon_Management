@@ -387,7 +387,12 @@ class Kitchen extends Admin_Controller{
 				$printer->setTextSize(1, 1);
 
 				foreach( $i->mods as $mod_text ){
-					$printer->text("   ** ".$this->ascii($mod_text)."\n");
+					// bold, wrapped at 36 chars; continuation lines stay indented so they never look detached from their dish
+					$printer->setEmphasis(TRUE);
+					foreach( explode("\n", wordwrap($this->ascii($mod_text), 36, "\n", TRUE)) as $n => $part ){
+						$printer->text(($n === 0 ? "   ** " : "      ").$part."\n");
+					}
+					$printer->setEmphasis(FALSE);
 				}
 
 				if( $i->notes ){
