@@ -78,6 +78,11 @@ class Floor extends Admin_Controller{
 
 		$this->requirePost();
 
+		$this->load->model('cash_mdl');
+		if( !$this->cash_mdl->getOpenedCash() ){
+			$this->fail('La caja está cerrada. Abra la caja para abrir mesas');
+		}
+
 		$id_table = (int) $this->input->post('id_table');
 		$guests   = (int) $this->input->post('guests');
 		$id_emp   = $this->input->post('id_employee');

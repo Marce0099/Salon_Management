@@ -193,7 +193,7 @@
 					success: function(r){
 						if( r.tk ){ $('#ip-tk').val(r.tk); }
 						notify(r.type, r.message);
-						if( r.type === 'success' ){ setTimeout(function(){ window.location = '<?php echo base_url('ingredients/purchase_detail/'); ?>' + r.id_purchase; }, 800); }
+						if( r.type === 'success' ){ setTimeout(function(){ window.location = '<?php echo base_url('ingredients/purchase_detail'); ?>/' + r.id_purchase; }, 800); }
 						else { btn.prop('disabled', false); }
 					},
 					error: function(){ notify('error', 'Ha ocurrido un error guardando la compra'); btn.prop('disabled', false); }
