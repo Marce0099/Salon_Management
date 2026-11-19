@@ -220,11 +220,16 @@
 	$('#cart').on('click', '.js-minus', function(){ var l = cart[idx(this)]; if( l.qty > 1 ){ l.qty--; renderCart(); } });
 	$('#cart').on('click', '.js-del', function(){ cart.splice(idx(this), 1); renderCart(); });
 	$('#cart').on('click', '.js-mod', function(){
-		var l = cart[idx(this)], id = parseInt($(this).attr('data-mod'), 10), p = l.mods.indexOf(id), pr = prod(l.id), was = !l.stocked || fitsLines(pr, linesOf(pr));
-		if( p === -1 ){ l.mods.push(id); } else { l.mods.splice(p, 1); }
+		var l = cart[idx(this)], id = parseInt($(this).attr('data-mod'), 10), p = l.mods.indexOf(id), pr = prod(l.id), was = !l.stocked || fitsLines(pr, linesOf(pr)), before = l.mods.slice();
+		if( p === -1 ){
+			// exclusive group: picking one option switches off the others of the same group
+			var me = l.modOpts.filter(function(m){ return m.id === id; })[0], grp = me && me.grp;
+			if( grp ){ l.mods = l.mods.filter(function(mid){ var o = l.modOpts.filter(function(m){ return m.id === mid; })[0]; return !(o && o.grp === grp); }); }
+			l.mods.push(id);
+		} else { l.mods.splice(p, 1); }
 		l.mods.sort(function(a, b){ return a - b; });
 		if( was && l.stocked && !fitsLines(pr, linesOf(pr)) ){
-			if( p === -1 ){ l.mods.splice(l.mods.indexOf(id), 1); } else { l.mods.push(id); l.mods.sort(function(a, b){ return a - b; }); }
+			l.mods = before;
 			notify('error', 'Sin ese modificador faltarían ingredientes de ' + l.name); return;
 		}
 		// two lines of the same dish with the same modifiers/notes merge back into one

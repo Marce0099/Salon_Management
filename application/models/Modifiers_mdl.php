@@ -25,6 +25,15 @@ class Modifiers_mdl extends CI_Model{
 		return $this->db->get('modifiers')->row();
 	}
 
+	/** Distinct exclusive group names in use (suggestions for the form). */
+	public function groups(){
+
+		$out = array();
+		foreach( $this->db->query('SELECT DISTINCT exclusive_group FROM modifiers WHERE exclusive_group IS NOT NULL ORDER BY exclusive_group')->result() as $r ){ $out[] = $r->exclusive_group; }
+
+		return $out;
+	}
+
 	/** Ingredient removals of a modifier: rows[id_ingredient, quantity (NULL = all), name, unit]. */
 	public function ingredientsOf($id){
 
@@ -46,15 +55,15 @@ class Modifiers_mdl extends CI_Model{
 	}
 
 	/** Creates/updates a modifier and replaces its ingredient list atomically. $rows = array(id_ingredient => qty|NULL). Returns the id or 0. */
-	public function save($id, $name, $text, $rows){
+	public function save($id, $name, $text, $rows, $group = NULL){
 
 		$this->db->trans_begin();
 
 		if( $id ){
-			$this->db->where('id_modifier', (int) $id)->update('modifiers', array('name' => $name, 'kitchen_text' => $text));
+			$this->db->where('id_modifier', (int) $id)->update('modifiers', array('name' => $name, 'kitchen_text' => $text, 'exclusive_group' => $group));
 		}
 		else{
-			$this->db->insert('modifiers', array('name' => $name, 'kitchen_text' => $text));
+			$this->db->insert('modifiers', array('name' => $name, 'kitchen_text' => $text, 'exclusive_group' => $group));
 			$id = (int) $this->db->insert_id();
 		}
 
@@ -116,9 +125,9 @@ class Modifiers_mdl extends CI_Model{
 		}
 
 		$out = array();
-		$rows = $this->db->query('SELECT pm.id_product, m.id_modifier AS id, m.name FROM product_modifiers pm JOIN modifiers m ON m.id_modifier = pm.id_modifier AND m.active = 1 ORDER BY m.name')->result();
+		$rows = $this->db->query('SELECT pm.id_product, m.id_modifier AS id, m.name, m.exclusive_group FROM product_modifiers pm JOIN modifiers m ON m.id_modifier = pm.id_modifier AND m.active = 1 ORDER BY m.name')->result();
 		foreach( $rows as $r ){
-			$out[(int) $r->id_product][] = array('id' => (int) $r->id, 'name' => $r->name, 'rem' => isset($rem[(int) $r->id]) ? (object) $rem[(int) $r->id] : new stdClass());
+			$out[(int) $r->id_product][] = array('id' => (int) $r->id, 'name' => $r->name, 'grp' => $r->exclusive_group === NULL ? '' : mb_strtolower($r->exclusive_group, 'UTF-8'), 'rem' => isset($rem[(int) $r->id]) ? (object) $rem[(int) $r->id] : new stdClass());
 		}
 
 		return $out;
@@ -169,11 +178,20 @@ class Modifiers_mdl extends CI_Model{
 			$clean[(int) $id] = (int) $id;
 		}
 
-		$rows = $this->db->query('SELECT m.id_modifier, m.name, m.kitchen_text FROM modifiers m
+		$rows = $this->db->query('SELECT m.id_modifier, m.name, m.kitchen_text, m.exclusive_group FROM modifiers m
 			JOIN product_modifiers pm ON pm.id_modifier = m.id_modifier AND pm.id_product = ?
 			WHERE m.active = 1 AND m.id_modifier IN ('.implode(',', $clean).') ORDER BY m.id_modifier', array((int) $id_product))->result();
 
 		if( count($rows) !== count($clean) ){ return array('Hay un modificador que no corresponde a este platillo', array()); }
+
+		// at most one modifier per exclusive group on a line
+		$seen = array();
+		foreach( $rows as $m ){
+			if( $m->exclusive_group === NULL ){ continue; }
+			$g = mb_strtolower($m->exclusive_group, 'UTF-8');
+			if( isset($seen[$g]) ){ return array('Solo se puede elegir una opción de "'.$m->exclusive_group.'" ('.$seen[$g].' y '.$m->name.')', array()); }
+			$seen[$g] = $m->name;
+		}
 
 		$recipe_qty = array();
 		foreach( (array) $recipe as $r ){ $recipe_qty[(int) $r->id_ingredient] = (float) $r->quantity; }

@@ -8,12 +8,15 @@ foreach( $rows as $r ){ $rows_json[] = array('id' => (int) $r->id_ingredient, 'q
 ?>
 <h4 class="section-title"><?php echo $is_edit ? 'Editar modificador' : 'Nuevo modificador'; ?></h4>
 
+<div class="row">
 <div class="col-md-6">
 	<form id="form" autocomplete="off" onsubmit="return false;" spellcheck="false">
 		<div class="form-group"><label>Nombre (lo ve el mesero)</label><input type="text" name="name" maxlength="60" class="form-control" placeholder="Sin queso" value="<?php echo $is_edit ? htmlspecialchars($modifier->name) : ''; ?>"></div>
 		<div class="form-group"><label>Texto en la comanda (opcional)</label><input type="text" name="kitchen_text" maxlength="60" class="form-control" placeholder="SIN QUESO" value="<?php echo $is_edit ? htmlspecialchars($modifier->kitchen_text) : ''; ?>"><small class="text-muted">Si lo deja vacío se usa el nombre en mayúsculas.</small></div>
 
-		<label>Ingredientes que quita (opcional)</label>
+		<div class="form-group"><label>Grupo excluyente (opcional)</label><input type="text" name="exclusive_group" maxlength="40" list="mod-groups" class="form-control" placeholder="Término" value="<?php echo $is_edit ? htmlspecialchars((string) $modifier->exclusive_group) : ''; ?>"><datalist id="mod-groups"><?php foreach( $groups as $g ) : ?><option value="<?php echo htmlspecialchars($g); ?>"><?php endforeach; ?></datalist><small class="text-muted">Los modificadores con el mismo grupo no se pueden marcar juntos en un platillo (al elegir uno se quita el otro). Ej.: "Término" para Término medio / Tres cuartos / Bien cocido.</small></div>
+
+			<label>Ingredientes que quita (opcional)</label>
 		<p class="text-muted" style="font-size:12px;">Deje la cantidad vacía para quitar <strong>toda</strong> la cantidad que lleva el platillo; escriba una cantidad para quitar solo esa parte. Nunca se quita más de lo que lleva la receta, y si el platillo no usa ese ingrediente no pasa nada. Sin ingredientes = solo texto para cocina.</p>
 		<div class="table-responsive"><table class="table table-condensed" id="mod-table" style="min-width:400px;">
 			<thead><tr><th>Ingrediente</th><th style="width:140px;">Cantidad a quitar</th><th style="width:50px;">Unid.</th><th style="width:40px;"></th></tr></thead>
@@ -27,6 +30,7 @@ foreach( $rows as $r ){ $rows_json[] = array('id' => (int) $r->id_ingredient, 'q
 			<a href="<?php echo base_url('modifiers'); ?>" class="btn btn-default">Cancelar</a>
 		</div>
 	</form>
+</div>
 </div>
 
 <script>
