@@ -15,7 +15,12 @@ class Sale_goals_mdl extends CI_Model{
             'amount' => $data['goal']
         ];
 
-    	return $this->db->insert( 'goals', $dato );
+    	$this->db->trans_start();
+    	$ok = $this->db->insert( 'goals', $dato );
+    	$this->audit->change('goal.create', 'goal', $this->db->insert_id(), NULL, $dato, array('summary' => 'Meta mensual creada'));
+    	$this->db->trans_complete();
+
+    	return $ok;
     }
 
     public function getMonths(){

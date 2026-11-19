@@ -157,6 +157,58 @@ class Audit{
 		}
 	}
 
+	/** Current row of a table as an array (NULL when missing); used to snapshot before/after values. */
+	public function row( $table, $pk, $id ){
+
+		$r = $this->CI->db->get_where($table, array($pk => $id))->row_array();
+
+		return $r ? $r : NULL;
+	}
+
+	/** Only the columns whose value changed. Never includes password/hash columns. Returns array(before, after). */
+	public function diff( $before, $after, $skip = array() ){
+
+		$b = array(); $a = array();
+		$before = is_array($before) ? $before : array();
+		$after = is_array($after) ? $after : array();
+
+		foreach( $after as $k => $v ){
+
+			if( in_array($k, $skip, TRUE) || preg_match('/pass|hash/i', $k) ){ continue; }
+
+			$old = array_key_exists($k, $before) ? $before[$k] : NULL;
+
+			$same = ( is_numeric($old) && is_numeric($v) ) ? ( abs((float)$old - (float)$v) < 0.0000001 ) : ( (string)$old === (string)$v );
+
+			if( !$same ){
+
+				$b[$k] = $old;
+				$a[$k] = $v;
+			}
+		}
+
+		return array($b, $a);
+	}
+
+	/** Logs a change of one row (before/after = full rows, reduced to the differing columns). No row is written when nothing changed. */
+	public function change( $action, $entity_type, $entity_id, $before, $after, $o = array() ){
+
+		list($b, $a) = $this->diff($before, $after, isset($o['skip']) ? $o['skip'] : array());
+
+		if( !$a && empty($o['force']) ){ return TRUE; }
+
+		if( $before === NULL ){
+
+			$after = is_array($after) ? $after : array();
+			foreach( array_keys($after) as $k ){ if( preg_match('/pass|hash/i', $k) ){ unset($after[$k]); } }
+		}
+
+		$o['before'] = $before === NULL ? NULL : $b;
+		$o['after'] = $before === NULL ? $after : $a;
+
+		return $this->log($action, $entity_type, $entity_id, $o);
+	}
+
 	/** A refused action (permission, stock, locked bill...). Never breaks the flow. */
 	public function denied( $action, $entity_type = NULL, $entity_id = NULL, $o = array() ){
 

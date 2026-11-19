@@ -48,6 +48,15 @@ class Ingredients_mdl extends CI_Model{
 			'id_admin'      => $id_admin ? (int) $id_admin : NULL,
 			'id_order_item' => $id_order_item ? (int) $id_order_item : NULL,
 		));
+
+		if( $type !== 'order' && $type !== 'void' ){
+
+			$ing = $this->db->select('name, unit')->where('id_ingredient', (int) $id_ingredient)->get('ingredients')->row();
+			$this->audit->log('ingredient.'.$type, 'ingredient', $id_ingredient, array(
+				'summary' => 'Ingrediente '.($ing ? $ing->name : $id_ingredient).': '.$type.' '.($qty >= 0 ? '+' : '').$qty.($ing ? ' '.$ing->unit : '').($reason ? ' ('.mb_substr($reason, 0, 80, 'UTF-8').')' : ''),
+				'after' => array('type' => $type, 'quantity' => (float) $qty, 'reason' => $reason)
+			));
+		}
 	}
 
 	/** Adds (or removes, if negative) stock atomically and logs it. A removal never drops below zero. Returns TRUE/FALSE. */
@@ -140,6 +149,8 @@ class Ingredients_mdl extends CI_Model{
 		$id_ingredient = (int) $id_ingredient;
 		$current = array();
 		foreach( $this->getPacks($id_ingredient) as $p ){ $current[(int) $p->id_pack] = $p; }
+		$packs_before = array();
+		foreach( $current as $cp ){ $packs_before[] = array('name' => $cp->name, 'size' => (float) $cp->size); }
 
 		$keep = array();
 		foreach( $packs as $p ){
@@ -169,6 +180,12 @@ class Ingredients_mdl extends CI_Model{
 			else{
 				$this->db->insert('ingredient_packs', array('id_ingredient' => $id_ingredient, 'name' => $p['name'], 'size' => $p['size']));
 			}
+		}
+
+		$packs_after = array();
+		foreach( $this->getPacks($id_ingredient) as $cp ){ $packs_after[] = array('name' => $cp->name, 'size' => (float) $cp->size); }
+		if( json_encode($packs_before) !== json_encode($packs_after) ){
+			$this->audit->log('ingredient.packs', 'ingredient', $id_ingredient, array('summary' => 'Presentaciones de ingrediente modificadas', 'before' => array('packs' => $packs_before), 'after' => array('packs' => $packs_after)));
 		}
 	}
 
@@ -241,6 +258,7 @@ class Ingredients_mdl extends CI_Model{
 				'id_admin'     => $id_admin ? (int) $id_admin : NULL,
 			));
 			$id_purchase = (int) $self->db->insert_id();
+			$audit_lines = array();
 
 			foreach( $lines as $l ){
 
@@ -258,6 +276,9 @@ class Ingredients_mdl extends CI_Model{
 					$new_cost = round($new_cost, 6);
 				}
 
+				$audit_lines[] = array('id_ingredient' => $id, 'base_qty' => $base, 'pack' => $l['pack_name'], 'pack_qty' => $l['pack_qty'], 'line_cost_cor' => $l['line_cost_cor'],
+					'stock_before' => (float) $s->stock, 'stock_after' => round((float) $s->stock + $base, 3), 'cost_unit_old' => $s->cost_unit, 'cost_unit_new' => $new_cost);
+
 				$self->db->query('UPDATE ingredients SET stock = stock + ?, cost_unit = ? WHERE id_ingredient = ?', array($base, $new_cost, $id));
 				$self->log($id, 'receive', $base, 'Compra #'.$id_purchase, $id_admin);
 
@@ -274,6 +295,11 @@ class Ingredients_mdl extends CI_Model{
 					'line_cost_cor' => $l['line_cost_cor'],
 				));
 			}
+
+			$self->audit->log('ingredient.purchase', 'ingredient_purchase', $id_purchase, array(
+				'summary' => 'Compra de ingredientes #'.$id_purchase.' ('.count($audit_lines).' linea(s))',
+				'after' => array('id_purchase' => $id_purchase, 'header' => $header, 'lines' => $audit_lines)
+			));
 
 			return array(TRUE, 'Compra registrada', $id_purchase);
 		});
@@ -351,10 +377,16 @@ class Ingredients_mdl extends CI_Model{
 	public function saveRecipe($id_product, $rows){
 
 		$this->db->trans_begin();
+		$before = $this->db->select('id_ingredient, quantity')->where('id_product', (int) $id_product)->get('recipe_items')->result_array();
 		$this->db->where('id_product', (int) $id_product)->delete('recipe_items');
 
 		foreach( $rows as $id_ing => $qty ){
 			$this->db->insert('recipe_items', array('id_product' => (int) $id_product, 'id_ingredient' => (int) $id_ing, 'quantity' => $qty));
+		}
+
+		$after = $this->db->select('id_ingredient, quantity')->where('id_product', (int) $id_product)->get('recipe_items')->result_array();
+		if( json_encode($before) !== json_encode($after) ){
+			$this->audit->log('recipe.update', 'product', $id_product, array('summary' => 'Receta modificada (producto #'.(int) $id_product.')', 'before' => array('recipe' => $before), 'after' => array('recipe' => $after)));
 		}
 
 		if( $this->db->trans_status() === FALSE ){
@@ -447,11 +479,18 @@ class Ingredients_mdl extends CI_Model{
 	 */
 	public function applyPrepared($id, $yield, $rows){
 
+		$before = array('batch_yield' => $this->db->select('batch_yield')->where('id_ingredient', (int) $id)->get('ingredients')->row('batch_yield'),
+			'components' => $this->db->select('id_component, quantity')->where('id_ingredient', (int) $id)->get('ingredient_components')->result_array());
 		$this->db->where('id_ingredient', (int) $id)->delete('ingredient_components');
 		$this->db->where('id_ingredient', (int) $id)->update('ingredients', array('batch_yield' => $yield));
 
 		foreach( $rows as $id_comp => $qty ){
 			$this->db->insert('ingredient_components', array('id_ingredient' => (int) $id, 'id_component' => (int) $id_comp, 'quantity' => $qty));
+		}
+
+		$after = array('batch_yield' => $yield, 'components' => $this->db->select('id_component, quantity')->where('id_ingredient', (int) $id)->get('ingredient_components')->result_array());
+		if( json_encode($before) !== json_encode($after) ){
+			$this->audit->log('ingredient.components', 'ingredient', $id, array('summary' => 'Sub-receta de ingrediente modificada', 'before' => $before, 'after' => $after));
 		}
 	}
 

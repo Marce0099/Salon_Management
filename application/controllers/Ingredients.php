@@ -228,6 +228,7 @@ class Ingredients extends Admin_Controller{
 			if( !$ing ){ $this->fail('Ingrediente inválido'); }
 			$this->db->trans_begin();
 			$this->db->where('id_ingredient', $id)->update('ingredients', $data);
+			$this->audit->change('ingredient.update', 'ingredient', $id, (array) $ing, array_merge((array) $ing, $data), array('summary' => 'Ingrediente modificado: '.$ing->name));
 			$this->ingredients_mdl->applyPrepared($id, $yield, $comps);
 			$this->ingredients_mdl->savePacks($id, $packs);
 			if( $this->db->trans_status() === FALSE ){
@@ -245,6 +246,7 @@ class Ingredients extends Admin_Controller{
 		$data['stock'] = 0;
 		$this->db->insert('ingredients', $data);
 		$new = (int) $this->db->insert_id();
+		$this->audit->change('ingredient.create', 'ingredient', $new, NULL, $data, array('summary' => 'Ingrediente creado: '.$name));
 		if( $stock > 0 ){
 			$this->db->query('UPDATE ingredients SET stock = ? WHERE id_ingredient = ?', array($stock, $new));
 			$this->ingredients_mdl->log($new, 'adjustment', $stock, 'Stock inicial', $this->id_admin);
@@ -274,7 +276,10 @@ class Ingredients extends Admin_Controller{
 				$flash = array('class' => 'error', 'message' => 'No se puede desactivar: es componente de '.$users[0]->name);
 			}
 			else{
+				$this->db->trans_start();
 				$this->db->where('id_ingredient', (int) $id)->update('ingredients', array('active' => 0));
+				$this->audit->log('ingredient.deactivate', 'ingredient', $id, array('summary' => 'Ingrediente desactivado: '.$ing->name, 'before' => array('active' => 1, 'stock' => $ing->stock), 'after' => array('active' => 0)));
+				$this->db->trans_complete();
 				$flash = array('class' => 'success', 'message' => 'Ingrediente desactivado');
 			}
 		}
@@ -285,7 +290,10 @@ class Ingredients extends Admin_Controller{
 
 	public function restore($id = 0){
 
+		$this->db->trans_start();
 		$this->db->where('id_ingredient', (int) $id)->update('ingredients', array('active' => 1));
+		$this->audit->log('ingredient.reactivate', 'ingredient', $id, array('summary' => 'Ingrediente reactivado #'.(int) $id, 'before' => array('active' => 0), 'after' => array('active' => 1)));
+		$this->db->trans_complete();
 		$this->session->set_userdata('view_data', array('status' => array('class' => 'success', 'message' => 'Ingrediente reactivado')));
 		redirect('ingredients');
 	}
@@ -407,6 +415,7 @@ class Ingredients extends Admin_Controller{
 		$this->db->trans_begin();
 		$this->db->insert('ingredients', array('name' => $name, 'unit' => $unit));
 		$id = (int) $this->db->insert_id();
+		$this->audit->log('ingredient.create', 'ingredient', $id, array('summary' => 'Ingrediente creado (rápido): '.$name, 'after' => array('name' => $name, 'unit' => $unit)));
 		if( $pack ){ $this->ingredients_mdl->savePacks($id, array($pack)); }
 		if( $this->db->trans_status() === FALSE ){
 			$this->db->trans_rollback();
@@ -429,8 +438,11 @@ class Ingredients extends Admin_Controller{
 		if( $name === '' || mb_strlen($name, 'UTF-8') > 150 || preg_match('/[<>]/', $name) || preg_match('/[\x{10000}-\x{10FFFF}]/u', $name) ){ $this->fail('Nombre inválido (máx. 150 caracteres)'); }
 		if( $this->db->query('SELECT 1 FROM providers WHERE active = 1 AND provider = ? LIMIT 1', array($name))->row() ){ $this->fail('Ya existe un proveedor con ese nombre'); }
 
+		$this->db->trans_start();
 		$this->db->insert('providers', array('provider' => $name));
 		$id = (int) $this->db->insert_id();
+		$this->audit->log('provider.create', 'provider', $id, array('summary' => 'Proveedor creado (rápido): '.$name, 'after' => array('provider' => $name)));
+		$this->db->trans_complete();
 		if( !$id ){ $this->fail('No se pudo crear el proveedor'); }
 
 		$this->ok('Proveedor creado', array('provider' => array('id' => $id, 'name' => $name)));

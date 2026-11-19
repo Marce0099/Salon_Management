@@ -10,9 +10,13 @@ class Employees_mdl extends CI_Model{
 
 	public function save( $data ){
 
+		$this->db->trans_start();
 		$this->db->insert( 'employees', $data );
+		$id = $this->db->insert_id();
+		$this->audit->change('employee.create', 'employee', $id, NULL, $data, array('summary' => 'Mesero creado: '.(isset($data['name']) ? $data['name'] : '')));
+		$this->db->trans_complete();
 
-		return sprintf('%03d', $this->db->insert_id() );
+		return sprintf('%03d', $id );
 	}
 
 	public function getEmployee( $id_employee ){
@@ -22,13 +26,23 @@ class Employees_mdl extends CI_Model{
 
 	public function edit( $id_employee, $data ){
 
+		$before = $this->audit->row('employees', 'id_employee', $id_employee);
+
+		$this->db->trans_start();
 		$this->db->update('employees',$data,array( 'id_employee' => $id_employee ));
+		$this->audit->change('employee.update', 'employee', $id_employee, $before, $this->audit->row('employees', 'id_employee', $id_employee), array('summary' => 'Mesero modificado: '.($before ? $before['name'] : $id_employee)));
+		$this->db->trans_complete();
 	}
 
 	public function delete($id_employee){
 
+		$before = $this->audit->row('employees', 'id_employee', $id_employee);
+
+		$this->db->trans_start();
 		$this->db->where('id_employee', $id_employee);
 		$this->db->update('employees', ["active" => 0]);
+		$this->audit->log('employee.deactivate', 'employee', $id_employee, array('summary' => 'Mesero desactivado: '.($before ? $before['name'] : $id_employee), 'before' => array('active' => 1), 'after' => array('active' => 0)));
+		$this->db->trans_complete();
 
 		//$this->db->delete( 'employees', array( 'id_employee' => $id_employee ) );
 	}

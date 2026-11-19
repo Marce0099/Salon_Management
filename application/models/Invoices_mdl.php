@@ -63,7 +63,7 @@
 					}
 
 					$rows = $this->db->query(
-						'SELECT id_product, price_cost, price_sell FROM products WHERE active = 1 AND id_product IN ('.implode(',', array_map('intval', $ids)).') ORDER BY id_product FOR UPDATE'
+						'SELECT id_product, name, stock, price_cost, price_sell FROM products WHERE active = 1 AND id_product IN ('.implode(',', array_map('intval', $ids)).') ORDER BY id_product FOR UPDATE'
 					)->result();
 
 					if( count($rows) !== count($ids) ){
@@ -79,6 +79,7 @@
 					$this->load->model('cost_history_mdl');
 
 					$id_invoice = $this->saveInvoice($invoice);
+					$audit_lines = array();
 
 					if( !$id_invoice ){
 
@@ -107,6 +108,14 @@
 						$id_invoice_product = $this->db->insert_id();
 						$prev = $old[(int)$line['id_product']];
 
+						$audit_lines[] = array(
+							'id_product' => (int) $line['id_product'], 'name' => $prev->name, 'units' => (int) $line['quantity'],
+							'pack' => isset($line['pack_name']) ? $line['pack_name'] : NULL, 'pack_qty' => isset($line['pack_qty']) ? $line['pack_qty'] : NULL,
+							'cost_old' => $prev->price_cost, 'cost_new' => $line['price_cost'], 'sell_old' => $prev->price_sell, 'sell_new' => $line['price_sell'],
+							'stock_before' => $line['is_service'] ? NULL : (int) $prev->stock, 'stock_after' => $line['is_service'] ? NULL : (int) $prev->stock + (int) $line['quantity']
+						);
+						if( !$line['is_service'] ){ $prev->stock = (int) $prev->stock + (int) $line['quantity']; }
+
 						$this->cost_history_mdl->log( $line['id_product'], 'purchase', $prev->price_cost, $line['price_cost'], array(
 							'id_invoice' => $id_invoice,
 							'id_invoice_product' => $id_invoice_product,
@@ -134,6 +143,11 @@
 
 						throw new Exception('Transaction status is FALSE');
 					}
+
+					$this->audit->log('invoice.receive', 'invoice', $id_invoice, array(
+						'summary' => 'Compra registrada: factura '.$invoice['invoice_no'].' ('.count($audit_lines).' linea(s))',
+						'after' => array('invoice_no' => $invoice['invoice_no'], 'id_provider' => isset($invoice['id_provider']) ? $invoice['id_provider'] : NULL, 'date_time' => isset($invoice['date_time']) ? $invoice['date_time'] : NULL, 'lines' => $audit_lines)
+					));
 
 					$this->db->trans_commit();
 					$this->releaseLock($lock_name);

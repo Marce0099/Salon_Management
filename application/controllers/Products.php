@@ -125,6 +125,7 @@ class Products extends Admin_Controller{
 		};
 
 		$response = $this->excel_import->run(array(
+			'audit_entity' => 'product',
 			'columns' => $this->importColumns(),
 			'db' => $db,
 			'validate' => function(&$d) use ($self, $db, &$prod_codes, &$pack_codes){
@@ -691,7 +692,18 @@ class Products extends Admin_Controller{
 
 		try{
 
-			$product = $this->products_mdl->getProduct( $id_product );
+			if( !$this->is_admin() ){
+
+				$this->audit->denied('product.stock_add', 'product', $id_product, array('summary' => 'Ajuste de stock rechazado: requiere administrador'));
+				throw new Exception('No tiene permiso para esta acción');
+			}
+
+			if( !preg_match('/^-?[0-9]{1,9}$/', (string) $quantity) ){
+
+				throw new Exception('Cantidad inválida');
+			}
+
+			$product = $this->products_mdl->getProduct( (int) $id_product );
 
 			if( !$product ){
 
@@ -788,6 +800,11 @@ class Products extends Admin_Controller{
 					$this->internal_use_mdl->saveProducts(
 						$id_internal_use, $data['id_products'], $data['quantities']
 					);
+
+					$this->audit->log('internal_use.create', 'internal_use', $id_internal_use, array(
+						'summary' => 'Uso interno registrado: '.mb_substr($reason, 0, 100, 'UTF-8'),
+						'after' => array('reason' => $reason, 'products' => $data['id_products'], 'quantities' => $data['quantities'])
+					));
 
 					if( $this->db->trans_status() === FALSE ){
 						throw new Exception('No se ha podido registrar el uso interno');

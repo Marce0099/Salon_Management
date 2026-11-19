@@ -50,7 +50,10 @@ class Admins_mdl extends CI_Model{
 			throw new \Exception('Ha ocurrido un error guardando los datos');
 		}
 
-		return $this->db->insert_id();
+		$id = $this->db->insert_id();
+		$this->audit->change('admin.create', 'admin', $id, NULL, $data, array('summary' => 'Usuario creado: '.(isset($data['username']) ? $data['username'] : '').' ('.(isset($data['role']) ? $data['role'] : '').')'));
+
+		return $id;
 	}
 
 	public function countActive(){
@@ -68,7 +71,15 @@ class Admins_mdl extends CI_Model{
 
 	public function delete($id_admin){
 
+		$before = $this->audit->row('admins', 'id_admin', $id_admin);
+
+		$this->db->trans_start();
 		$this->db->where('id_admin', $id_admin);
 		$this->db->update('admins', ["active" => 0]);
+		$this->audit->log('admin.deactivate', 'admin', $id_admin, array(
+			'summary' => 'Usuario desactivado: '.($before ? $before['username'] : $id_admin),
+			'before' => array('active' => 1, 'username' => $before ? $before['username'] : NULL, 'role' => $before ? $before['role'] : NULL), 'after' => array('active' => 0)
+		));
+		$this->db->trans_complete();
 	}
 }

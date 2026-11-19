@@ -68,6 +68,7 @@ class Providers extends Admin_Controller{
 		$key = function($d){ return mb_strtolower(trim($d['provider']).'|'.trim($d['representative']), 'UTF-8'); };
 
 		$response = $this->excel_import->run(array(
+			'audit_entity' => 'provider',
 			'columns' => $this->importColumns(),
 			'db' => $db,
 			'validate' => function(&$d){
@@ -141,7 +142,10 @@ class Providers extends Admin_Controller{
 			);
 
 			try {
+				$this->db->trans_start();
 				$this->db->insert('providers',$data);
+				$this->audit->change('provider.create', 'provider', $this->db->insert_id(), NULL, $data, array('summary' => 'Proveedor creado: '.$data['provider']));
+				$this->db->trans_complete();
 			} catch (\Throwable $th) {
 				$message = $th->getMessage() ?? 'Ha ocurrido un error registrando proveedor';
 				echo json_encode(array('message'=>$message,'type'=>'error'));
@@ -188,7 +192,11 @@ class Providers extends Admin_Controller{
 			);
 
 			try {
+				$before = $this->audit->row('providers', 'id_provider', $id_provider);
+				$this->db->trans_start();
 				$this->db->update('providers',$data,array('id_provider'=>$id_provider));
+				$this->audit->change('provider.update', 'provider', $id_provider, $before, $this->audit->row('providers', 'id_provider', $id_provider), array('summary' => 'Proveedor modificado: '.($before ? $before['provider'] : $id_provider)));
+				$this->db->trans_complete();
 			} catch (\Throwable $th) {
 				$message = $th->getMessage() ?? 'Ha ocurrido un error editando proveedor';
 				echo json_encode(array('message'=>$message,'type'=>'error'));
@@ -223,8 +231,12 @@ class Providers extends Admin_Controller{
 				throw new Exception('El proveedor no existe');
 			}
 	
+			$before = $this->audit->row('providers', 'id_provider', $id_provider);
+			$this->db->trans_start();
 			$this->db->where('id_provider', $id_provider);
 			$this->db->update('providers', ["active" => 0]);
+			$this->audit->log('provider.deactivate', 'provider', $id_provider, array('summary' => 'Proveedor desactivado: '.($before ? $before['provider'] : $id_provider), 'before' => array('active' => 1), 'after' => array('active' => 0)));
+			$this->db->trans_complete();
 
 			$view_data['status'] = array( 'class' => 'success', 'message' => 'Proveedor eliminado' );
 
