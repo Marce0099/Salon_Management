@@ -41,6 +41,8 @@ class Kitchen extends Admin_Controller{
 			}
 		}
 
+		$this->audit->denied('order.send', 'order', NULL, array('tab' => (int) $this->input->post('id_tab') ?: NULL, 'summary' => 'Envío a cocina rechazado: '.$message));
+
 		$this->json(array('type' => 'error', 'message' => $message, 'availability' => $avail, 'stock' => $stock));
 	}
 
@@ -228,11 +230,17 @@ class Kitchen extends Admin_Controller{
 
 		$this->requirePost();
 
-		if( !$this->kitchen_mdl->order($this->input->post('id_order')) ){
+		$ord = $this->kitchen_mdl->order($this->input->post('id_order'));
+		if( !$ord ){
 			$this->fail('Pedido no encontrado');
 		}
 
 		$print = $this->printTicket((int) $this->input->post('id_order'));
+		$now = $this->kitchen_mdl->order($ord->id_order);
+		$this->audit->log('order.reprint', 'order', $ord->id_order, array('tab' => $ord->id_tab, 'best_effort' => TRUE,
+			'summary' => 'Comanda reimpresa #'.$ord->id_order.($print['ok'] ? '' : ' (falló)'),
+			'before' => array('print_status' => $ord->print_status, 'printed_at' => $ord->printed_at, 'print_error' => $ord->print_error),
+			'after' => array('print_status' => $now ? $now->print_status : NULL, 'print_error' => $now ? $now->print_error : NULL)));
 
 		$this->json(array('type' => $print['ok'] ? 'success' : 'error', 'message' => $print['ok'] ? 'Comanda reimpresa' : 'No se pudo imprimir: '.$print['error']));
 	}

@@ -39,12 +39,20 @@ class Bills_mdl extends CI_Model{
 
 		$label = trim($label) !== '' ? trim($label) : $this->nextLabel($id_tab);
 		$this->db->insert('bills', array('id_tab' => (int) $id_tab, 'label' => $label));
-		return (int) $this->db->insert_id();
+		$id = (int) $this->db->insert_id();
+		$this->audit->log('bill.create', 'bill', $id, array('tab' => $id_tab, 'bill' => $id, 'summary' => 'Cuenta creada: '.$label, 'after' => array('label' => $label)));
+		return $id;
 	}
 
 	public function rename($id_bill, $label){
 
+		$before = $this->get($id_bill);
+		$this->db->trans_start();
 		$this->db->where('id_bill', (int) $id_bill)->update('bills', array('label' => $label));
+		$this->audit->log('bill.rename', 'bill', $id_bill, array('tab' => $before ? $before->id_tab : NULL, 'bill' => $id_bill,
+			'summary' => 'Cuenta renombrada: '.($before ? $before->label : '').' a '.$label,
+			'before' => array('label' => $before ? $before->label : NULL), 'after' => array('label' => $label)));
+		$this->db->trans_complete();
 	}
 
 	public function items($id_bill){
@@ -234,7 +242,14 @@ class Bills_mdl extends CI_Model{
 
 		$this->db->trans_complete();
 
-		return $this->db->trans_status() ? $res : array(FALSE, 'No se pudo mover el producto', 0);
+		$res = $this->db->trans_status() ? $res : array(FALSE, 'No se pudo mover el producto', 0);
+
+		if( !$res[0] ){
+			$this->audit->denied('bill.move_item', 'order_item', $id_item, array('tab' => $item->id_tab, 'bill' => $item->id_bill,
+				'summary' => 'Movimiento rechazado: '.$res[1], 'after' => array('to_bill' => (int) $id_target, 'quantity' => (int) $qty)));
+		}
+
+		return $res;
 	}
 
 	private function doMove($item, $id_target, $qty){
@@ -246,13 +261,16 @@ class Bills_mdl extends CI_Model{
 
 		if( $qty < 1 || $qty > (int) $item->quantity ){ return array(FALSE, 'Cantidad inválida', 0); }
 
+		$id_target_created = FALSE;
 		if( $id_target === 0 ){
 			$id_target = $this->create($item->id_tab);
+			$id_target_created = TRUE;
 		}
 		$to = $this->get($id_target);
 		if( !$to || (int) $to->id_tab !== (int) $item->id_tab || $to->status !== 'open' || $to->parent_bill ){ return array(FALSE, 'La cuenta destino no es válida', 0); }
 		if( (int) $to->id_bill === (int) $from->id_bill ){ return array(FALSE, 'El producto ya está en esa cuenta', 0); }
 
+		$new_line = NULL;
 		if( $qty === (int) $item->quantity ){
 			$this->db->where('id_order_item', (int) $item->id_order_item)->update('order_items', array('id_bill' => (int) $to->id_bill));
 		}
@@ -264,9 +282,17 @@ class Bills_mdl extends CI_Model{
 			$clone['quantity'] = $qty;
 			$clone['id_bill']  = (int) $to->id_bill;
 			$this->db->insert('order_items', $clone);
+			$new_line = (int) $this->db->insert_id();
 			$this->load->model('kitchen_mdl');
-			$this->kitchen_mdl->cloneItemData($item->id_order_item, $this->db->insert_id());
+			$this->kitchen_mdl->cloneItemData($item->id_order_item, $new_line);
 		}
+
+		$this->audit->log('bill.move_item', 'order_item', $item->id_order_item, array(
+			'tab' => $item->id_tab, 'bill' => $to->id_bill,
+			'summary' => 'Movido: '.$qty.' x '.$item->product_name.' de '.$from->label.' a '.$to->label,
+			'before' => array('id_bill' => (int) $from->id_bill, 'quantity' => (int) $item->quantity),
+			'after' => array('id_bill' => (int) $to->id_bill, 'moved_quantity' => $qty, 'new_line' => $new_line, 'new_bill' => $id_target_created)
+		));
 
 		return array(TRUE, 'Producto movido', (int) $to->id_bill);
 	}
@@ -287,11 +313,22 @@ class Bills_mdl extends CI_Model{
 
 		$ok = $from->status === 'open' && !$from->parent_bill && $into->status === 'open' && !$into->parent_bill;
 		if( $ok ){
+			$moved = $this->db->select('id_order_item, product_name, quantity, status')->where('id_bill', (int) $from->id_bill)->get('order_items')->result_array();
 			$this->db->where('id_bill', (int) $from->id_bill)->update('order_items', array('id_bill' => (int) $into->id_bill));
 			$this->db->where('id_bill', (int) $from->id_bill)->update('bills', array('status' => 'void'));
+			$this->audit->log('bill.merge', 'bill', $into->id_bill, array(
+				'tab' => $from->id_tab, 'bill' => $into->id_bill,
+				'summary' => 'Cuentas unidas: '.$from->label.' en '.$into->label,
+				'before' => array('from_bill' => (int) $from->id_bill, 'from_label' => $from->label, 'into_bill' => (int) $into->id_bill),
+				'after' => array('moved_lines' => $moved, 'voided_bill' => (int) $from->id_bill)
+			));
 		}
 
 		$this->db->trans_complete();
+
+		if( !$ok ){
+			$this->audit->denied('bill.merge', 'bill', $id_into, array('tab' => $from->id_tab, 'summary' => 'Union rechazada: cuentas no abiertas', 'after' => array('from' => (int) $id_from)));
+		}
 
 		return $ok ? array(TRUE, 'Cuentas unidas') : array(FALSE, 'Solo se pueden unir cuentas abiertas');
 	}
@@ -328,6 +365,13 @@ class Bills_mdl extends CI_Model{
 					));
 				}
 				$this->db->where('id_bill', (int) $bill->id_bill)->update('bills', array('status' => 'split'));
+				$kids = $this->db->select('id_bill, label, amount_override')->where('parent_bill', (int) $bill->id_bill)->get('bills')->result_array();
+				$this->audit->log('bill.split_equal', 'bill', $bill->id_bill, array(
+					'tab' => $bill->id_tab, 'bill' => $bill->id_bill,
+					'summary' => 'Cuenta dividida en '.$parts.' partes: '.$bill->label,
+					'before' => array('status' => 'open', 'subtotal' => $sub),
+					'after' => array('parts' => (int) $parts, 'children' => $kids)
+				));
 				$res = array(TRUE, 'Cuenta dividida en '.$parts.' partes');
 			}
 		}
@@ -355,8 +399,14 @@ class Bills_mdl extends CI_Model{
 				$res = array(FALSE, 'Ya hay partes cobradas; no se puede deshacer la división');
 			}
 			else{
+				$kids = $this->db->select('id_bill, label, amount_override, status')->where('parent_bill', (int) $bill->id_bill)->get('bills')->result_array();
 				$this->db->where('parent_bill', (int) $bill->id_bill)->delete('bills');
 				$this->db->where('id_bill', (int) $bill->id_bill)->update('bills', array('status' => 'open'));
+				$this->audit->log('bill.undo_split', 'bill', $bill->id_bill, array(
+					'tab' => $bill->id_tab, 'bill' => $bill->id_bill,
+					'summary' => 'División deshecha: '.$bill->label,
+					'before' => array('status' => 'split', 'deleted_children' => $kids), 'after' => array('status' => 'open')
+				));
 				$res = array(TRUE, 'División deshecha');
 			}
 		}

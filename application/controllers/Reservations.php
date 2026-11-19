@@ -151,12 +151,15 @@ class Reservations extends Admin_Controller{
 			$this->fail('Debe seleccionar un mesero');
 		}
 
+		$this->db->trans_start();
 		$id_tab = $this->floor_mdl->openTab($r->id_table, $id_emp, $r->party_size, $this->id_admin);
 		if( !$id_tab ){
+			$this->db->trans_complete();
 			$this->fail('La mesa ya está ocupada');
 		}
 
 		$this->reservations_mdl->setStatus($r->id_reservation, 'seated', $id_tab);
+		$this->db->trans_complete();
 		$this->json(array('type' => 'success', 'message' => 'Mesa abierta para la reserva', 'id_tab' => $id_tab));
 	}
 }

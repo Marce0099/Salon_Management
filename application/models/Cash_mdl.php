@@ -213,19 +213,46 @@ class Cash_mdl extends CI_Model{
 		// constraint; on this PHP/PDO version (default PDO::ERRMODE_EXCEPTION since PHP 8.1) that
 		// surfaces as a normal catchable PDOException, which Cash::open()'s existing
 		// catch (\Throwable $th) around this call already handles
+		$this->db->trans_start();
 		$this->db->insert( 'cash', $data );
+		$id = (int) $this->db->insert_id();
+		$this->audit->log('cash.open', 'cash', $id, array(
+			'summary' => 'Caja abierta: C$'.$data['open_quantity'].' y $'.$data['open_quantity_dollar'],
+			'after' => array('open_quantity' => $data['open_quantity'], 'open_quantity_dollar' => $data['open_quantity_dollar'])
+		));
+		$this->db->trans_complete();
+
+		if( $this->db->trans_status() === FALSE ){ throw new Exception('cash open failed'); }
 	}
 
 	public function save_outcome( $data ){
 
+		$this->db->trans_start();
 		$this->db->insert('outcomes',$data);
+		$id = (int) $this->db->insert_id();
+		$this->audit->log('outcome.create', 'outcome', $id, array(
+			'summary' => 'Egreso C$'.$data['quantity'].': '.mb_substr((string) $data['description'], 0, 120, 'UTF-8'),
+			'after' => array('quantity' => $data['quantity'], 'description' => $data['description'])
+		));
+		$this->db->trans_complete();
+
+		if( $this->db->trans_status() === FALSE ){ throw new Exception('outcome failed'); }
 	}
 
 	public function save_close( $data ){
 
 		$cash = $this->getOpenedCash();
 
+		$this->db->trans_start();
 		$this->db->update('cash',$data,array( 'id_cash' => $cash->id_cash ));
+		$this->audit->log('cash.close', 'cash', $cash->id_cash, array(
+			'summary' => 'Caja cerrada. Contado: C$'.$data['close_user_quantity_cordobas'].' y $'.$data['close_user_quantity_dollar'],
+			'before' => array('open_quantity' => $cash->open_quantity, 'open_quantity_dollar' => $cash->open_quantity_dollar),
+			'after' => $data
+		));
+		$this->db->trans_complete();
+
+		if( $this->db->trans_status() === FALSE ){ throw new Exception('cash close failed'); }
 	}
 
 	public function getCash($id_cash){

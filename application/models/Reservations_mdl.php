@@ -35,8 +35,15 @@ class Reservations_mdl extends CI_Model{
 
 	public function create($data){
 
+		$this->db->trans_start();
 		$this->db->insert('table_reservations', $data);
-		return (int) $this->db->insert_id();
+		$id = (int) $this->db->insert_id();
+		$this->audit->log('reservation.create', 'reservation', $id, array(
+			'summary' => 'Reserva creada: '.$data['name'].' ('.$data['party_size'].' pers.) '.$data['start_at'],
+			'after' => $data
+		));
+		$this->db->trans_complete();
+		return $id;
 	}
 
 	public function setStatus($id, $status, $id_tab = NULL){
@@ -44,8 +51,23 @@ class Reservations_mdl extends CI_Model{
 		$data = array('status' => $status);
 		if( $id_tab !== NULL ){ $data['id_tab'] = (int) $id_tab; }
 
+		$this->db->trans_start();
+		$before = $this->get($id);
 		$this->db->where('id_reservation', (int) $id)->where('status', 'active')->update('table_reservations', $data);
-		return $this->db->affected_rows() > 0;
+		$changed = $this->db->affected_rows() > 0;
+
+		if( $changed ){
+			$names = array('cancelled' => 'cancelada', 'no_show' => 'marcada como no llegó', 'seated' => 'sentada');
+			$this->audit->log('reservation.'.$status, 'reservation', $id, array(
+				'tab' => $id_tab,
+				'summary' => 'Reserva '.(isset($names[$status]) ? $names[$status] : $status).': '.($before ? $before->name : '#'.$id),
+				'before' => array('status' => $before ? $before->status : NULL),
+				'after' => array('status' => $status, 'id_tab' => $id_tab !== NULL ? (int) $id_tab : NULL)
+			));
+		}
+		$this->db->trans_complete();
+
+		return $changed;
 	}
 
 	public function tables(){
