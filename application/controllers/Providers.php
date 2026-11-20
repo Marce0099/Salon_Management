@@ -116,7 +116,7 @@ class Providers extends Admin_Controller{
 	}
 
 	private function set_rules(){
-		$this->form_validation->set_rules('representative','','trim|required|max_length[150]');
+		$this->form_validation->set_rules('representative','','trim|max_length[150]');
 		if(!empty($_POST['phone_provider']))
 			$this->form_validation->set_rules('phone_provider','','regex_match[/^[0-9 -+]{3,20}$/]');
 		if(!empty($_POST['email_provider']))

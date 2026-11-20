@@ -22,7 +22,7 @@
 		</div>
 		<div class="form-group">
 			<label for="representative">Representante:</label>
-			<input type="text" name="representative" id="representative" required="required" class="form-control" value="<?php if($provider) echo $provider->representative; ?>">
+			<input type="text" name="representative" id="representative" class="form-control" value="<?php if($provider) echo $provider->representative; ?>">
 		</div>
 		<div class="form-group">
 			<label for="phone_provider">Teléfono:</label>
