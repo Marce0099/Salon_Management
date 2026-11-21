@@ -27,9 +27,9 @@ Language-neutral: PHP (today) and the Rust/Tauri backend (future) write and read
 | Bills | `bill.create`, `bill.rename`, `bill.move_item` (+ denied), `bill.merge` (+ denied), `bill.split_equal`, `bill.undo_split` (logs the deleted children) |
 | Sales / cash | `sale.checkout` (cashier = `sales.id_admin`; + denied), `cash.open`, `cash.close`, `outcome.create` |
 | Catalog | `product.create/update/delete/stock_add`, `product_pack.update`, `category.create/update`, `modifier.create/update/restore/deactivate/attach`, `recipe.update` |
-| Purchasing | `invoice.receive` (old/new cost, sell price and stock per line), `return.create`, `provider.create/update/deactivate`, `internal_use.create` |
+| Purchasing | `invoice.receive` (old/new cost, sell price and stock per line; `cost_new_cor`/`sell_new_cor` = the C$ typed, source of truth since migration 023; `cost_*`/`sell_*` are the derived dollars), `return.create`, `provider.create/update/deactivate`, `internal_use.create` |
 | Ingredients | `ingredient.create/update/deactivate/reactivate/components/packs`, `ingredient.purchase`, `ingredient.receive/waste/adjustment/prepare_in/prepare_out` (per movement) |
-| People/config | `employee.*`, `client.*`, `admin.create/deactivate` (security: super only), `settings.update` (one row per changed key), `exchange.update`, `bank_account.create/update/disable`, `goal.create`, `import.<entity>` |
+| People/config | `employee.*`, `client.*`, `admin.create/deactivate` (security: super only), `settings.update` (one row per changed key), `exchange.update` (also re-derives every dollar price from its `*_cor` column, see CLAUDE.md C$-first), `bank_account.create/update/disable`, `goal.create`, `import.<entity>` |
 
 Kitchen `order`/`void` ingredient movements are not duplicated (covered by `order.send` / `order_item.void`).
 

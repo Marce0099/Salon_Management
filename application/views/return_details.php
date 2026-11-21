@@ -28,15 +28,15 @@
 					echo ' <small class="text-muted">(sacadas de ' . htmlspecialchars($d->pack_name) . ' de ' . (int)$d->pack_units . ' u)</small>';
 				}
 			?></td>
-			<td><?php echo fmt_money_pair($d->price_cost); ?></td>
-			<td><?php echo fmt_money_pair($d->quantity * $d->price_cost); ?></td>
-			<?php $total += $d->quantity * $d->price_cost; ?>
+			<td><?php echo fmt_cor_usd($d->price_cost_cor, $d->price_cost); ?></td>
+			<td><?php echo fmt_cor_usd($d->price_cost_cor !== NULL ? $d->quantity * $d->price_cost_cor : NULL, $d->quantity * $d->price_cost); ?></td>
+			<?php $total += $d->quantity * $d->price_cost; $total_cor = (isset($total_cor) ? $total_cor : 0) + ($d->price_cost_cor !== NULL ? $d->quantity * $d->price_cost_cor : $d->quantity * $d->price_cost * fx_rate()); ?>
 		</tr>
 		<?php endforeach; ?>
 	</tbody>
 	<tfoot>
 		<tr>
-			<td colspan="4" class="text-right"><strong>Total costo: <?php echo fmt_money_pair($total); ?></strong></td>
+			<td colspan="4" class="text-right"><strong>Total costo: <?php echo fmt_cor_usd(isset($total_cor) ? $total_cor : NULL, $total); ?></strong></td>
 		</tr>
 	</tfoot>
 </table>

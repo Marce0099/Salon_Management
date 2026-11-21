@@ -22,11 +22,11 @@ class Returns_mdl extends CI_Model{
 
         if( $get ){
 
-            return $this->db->query("select sum(T.quantity * T.price_cost) as total_cost from ($query) as T")->row();
+            return $this->db->query("select sum(T.quantity * T.price_cost) as total_cost, sum(T.quantity * IFNULL(T.price_cost_cor, T.price_cost * ".fx_rate().")) as total_cost_cor from ($query) as T")->row();
         }
         else{
 
-            return $this->db->query("select sum(quantity * price_cost) as total_cost from returns_products")->row();
+            return $this->db->query("select sum(quantity * price_cost) as total_cost, sum(quantity * IFNULL(price_cost_cor, price_cost * ".fx_rate().")) as total_cost_cor from returns_products")->row();
         }
     }
 
@@ -187,6 +187,8 @@ class Returns_mdl extends CI_Model{
     			'quantity'           => $e['units'],
     			'price_cost'         => $line->price_cost,
     			'price_sell'         => $line->price_sell,
+    			'price_cost_cor'     => $line->price_cost_cor,
+    			'price_sell_cor'     => $line->price_sell_cor,
     		);
     	}
 
@@ -195,7 +197,7 @@ class Returns_mdl extends CI_Model{
     	$audit_lines = array();
     	foreach( $data as $d ){
     		$st = $this->db->select('name, stock')->where('id_product', $d['id_product'])->get('products')->row();
-    		$audit_lines[] = array('id_product' => $d['id_product'], 'name' => $st ? $st->name : NULL, 'units' => (int) $d['quantity'], 'pack' => $d['pack_name'], 'stock_after' => $st ? (int) $st->stock : NULL, 'price_cost' => $d['price_cost']);
+    		$audit_lines[] = array('id_product' => $d['id_product'], 'name' => $st ? $st->name : NULL, 'units' => (int) $d['quantity'], 'pack' => $d['pack_name'], 'stock_after' => $st ? (int) $st->stock : NULL, 'price_cost' => $d['price_cost'], 'price_cost_cor' => $d['price_cost_cor']);
     	}
     	$this->audit->log('return.create', 'return', $id_return, array(
     		'summary' => 'Devolución a proveedor registrada (factura #'.(int) $id_invoice.', '.count($audit_lines).' linea(s))',
