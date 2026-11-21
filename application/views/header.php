@@ -65,6 +65,8 @@
     <script src="<?php echo base_url("assets/gentelella/vendors/jquery/dist/jquery.min.js"); ?>"></script>
     
     <script src="<?php echo base_url("assets/js/numeraljs.min.js"); ?>"></script>
+    <script>window.FX = { rate: <?php echo (float) fx_rate(); ?>, buy: <?php echo (float) fx_rate(); ?> };</script>
+    <script src="<?php echo base_url("assets/js/money.js"); ?>"></script>
     <script src="<?php echo base_url("assets/js/bootbox.min.js"); ?>"></script>
 
     <!-- validation -->
