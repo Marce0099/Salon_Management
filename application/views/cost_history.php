@@ -1,11 +1,11 @@
 <?php
-	$money = function($v){ return ($v === NULL || $v === '') ? '—' : '$'.number_format((float)$v, 2); };
-	$money4 = function($v){ return ($v === NULL || $v === '') ? '—' : '$'.preg_replace('/(\.\d\d)0+$|(\.\d\d\d)0$/', '$1$2', number_format((float)$v, 4, '.', '')); };
+	$money = function($v){ return ($v === NULL || $v === '') ? '—' : fmt_money_pair((float)$v); };
+	$money4 = function($v){ return ($v === NULL || $v === '') ? '—' : fmt_money_pair((float)$v); };
 	$labels = array('purchase' => 'Compra', 'manual' => 'Edición manual', 'import' => 'Importación');
 	$qs = function($extra) use ($f){ return base_url('cost_history').'?'.http_build_query(array_merge(array('id_provider' => $f['id_provider'] ?: '', 'source' => $f['source'], 'from' => $f['from'], 'to' => $f['to'], 'only_changes' => $f['only_changes'] ?: ''), $extra)); };
 ?>
 <h3 class="section-title">Historial de costos<?php if( $product ) echo ': '.htmlspecialchars($product->name); ?></h3>
-<p class="text-muted">Cada compra y cada cambio manual del costo queda registrado. Úsalo para ver el costo promedio y el más alto antes de cambiar un precio de venta. Costos en dólares por unidad.</p>
+<p class="text-muted">Cada compra y cada cambio manual del costo queda registrado. Úsalo para ver el costo promedio y el más alto antes de cambiar un precio de venta. Costos en córdobas por unidad (el dólar va entre paréntesis).</p>
 
 <div class="panel panel-default">
 	<div class="panel-heading">Filtros</div>

@@ -74,8 +74,8 @@
 		<tr>
 			<th colspan="7">
 				Productos: <?php echo $no_limit_count; ?> | 
-				Total costo: $<?php echo number_format($total_inventory->total_cost,2); ?> |
-				Total venta: $<?php echo number_format($total_inventory->total_sell,2); ?> 
+				Total costo: <?php echo fmt_money_pair($total_inventory->total_cost); ?> |
+				Total venta: <?php echo fmt_money_pair($total_inventory->total_sell); ?> 
 			</th>
 		</tr>
 		<tr>
@@ -129,8 +129,8 @@
 			<td class="text-center">
 			<?php echo $p->stock; ?>
 			</td>
-			<td class="text-center"><?php echo number_format($p->price_cost,2); ?></td>
-			<td class="text-center"><?php echo number_format($p->price_sell,2); ?></td>
+			<td class="text-center"><?php echo fmt_money_pair($p->price_cost); ?></td>
+			<td class="text-center"><?php echo fmt_money_pair($p->price_sell); ?></td>
 			<td class="text-center">
 				<div class="btn-group">
 					<a href="#" data-toggle="dropdown" class="dropdown-toggle"><i class="fa fa-cog"></i></a>

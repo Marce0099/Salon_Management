@@ -21,15 +21,15 @@
 		<tr>
 			<td><?php echo $d->barcode . ' : ' . $d->name; ?></td>
 			<td><?php echo $d->quantity; ?></td>
-			<td>$<?php echo number_format($d->price_cost,2); ?></td>
-			<td>$<?php echo number_format( $d->quantity * $d->price_cost, 2 ); ?></td>
+			<td><?php echo fmt_money_pair($d->price_cost); ?></td>
+			<td><?php echo fmt_money_pair($d->quantity * $d->price_cost); ?></td>
 			<?php $total += $d->quantity * $d->price_cost; ?>
 		</tr>
 		<?php endforeach; ?>
 	</tbody>
 	<tfoot>
 		<tr>
-			<td colspan="4" class="text-right"><strong>Total costo: $<?php echo number_format($total,2); ?></strong></td>
+			<td colspan="4" class="text-right"><strong>Total costo: <?php echo fmt_money_pair($total); ?></strong></td>
 		</tr>
 	</tfoot>
 </table>

@@ -38,17 +38,17 @@
 			<td><?php echo $p->barcode; ?></td>
 			<td><?php echo $p->name; ?></td>
 			<td><?php echo $p->quantity; ?><?php if( !empty($p->pack_name) ): ?> <small class="text-muted">(<?php echo (int)$p->pack_qty; ?> &times; <?php echo htmlspecialchars($p->pack_name); ?> de <?php echo (int)$p->pack_units; ?> u)</small><?php endif; ?></td>
-			<td><?php echo $p->price_cost; ?></td>
-			<td><?php echo $p->price_sell; ?></td>
+			<td><?php echo fmt_money_pair($p->price_cost); ?></td>
+			<td><?php echo fmt_money_pair($p->price_sell); ?></td>
 			<?php $subtotal = $p->quantity * $p->price_cost; ?>
-			<td><?php echo number_format($subtotal,2); ?></td>
+			<td><?php echo fmt_money_pair($subtotal); ?></td>
 			<?php $total += $subtotal; ?>
 		</tr>
 		<?php endforeach; ?>
 	</tbody>
 	<tfoot>
 		<td colspan="6" class="text-right">
-			<strong>Total: $ <?php echo number_format($total,2); ?></strong>
+			<strong>Total: <?php echo fmt_money_pair($total); ?></strong>
 		</td>
 	</tfoot>
 </table>

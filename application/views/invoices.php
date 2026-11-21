@@ -82,7 +82,7 @@
 			<td><?php echo date('d/m/Y', strtotime($i->date_time)); ?></td>
 			<td><?php echo $i->provider; ?></td>
 			<td><?php echo $i->num_products; ?></td>
-			<td>C$ <?php echo number_format($i->total,2); ?></td>
+			<td><?php echo fmt_money_pair($i->total); ?></td>
 			<td>
 			<a href="<?php echo base_url("invoices/details/{$i->id_invoice}"); ?>"><i class="fa fa-table"></i> Detalles</a>
 			</td>

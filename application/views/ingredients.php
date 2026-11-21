@@ -42,7 +42,7 @@
 			<td><?php echo htmlspecialchars($i->name); ?><?php if( $i->batch_yield !== NULL ) : ?> <span class="label label-primary">Preparado</span><?php endif; ?></td>
 			<td class="text-right"><span class="<?php echo $is_low ? 'text-danger' : ''; ?>"><strong><?php echo ing_n($i->stock).' '.$i->unit; ?></strong></span><?php if( $is_low ) : ?> <span class="label label-danger">Bajo</span><?php endif; ?></td>
 			<td class="text-right"><?php echo $i->alert_threshold > 0 ? ing_n($i->alert_threshold).' '.$i->unit : '—'; ?></td>
-			<td class="text-right"><?php echo $i->eff_cost !== NULL ? '$ '.rtrim(rtrim(number_format((float) $i->eff_cost, 6, '.', ''), '0'), '.') : '—'; ?></td>
+			<td class="text-right"><?php echo $i->eff_cost !== NULL ? fmt_money_pair((float) $i->eff_cost, null, 4) : '—'; ?></td>
 			<td><?php
 				$pl = array();
 				if( isset($packs[(int) $i->id_ingredient]) ){ foreach( $packs[(int) $i->id_ingredient] as $p ){ $pl[] = htmlspecialchars($p->name).' = '.ing_n($p->size).' '.$i->unit; } }

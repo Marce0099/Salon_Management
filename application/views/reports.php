@@ -1,5 +1,5 @@
 <?php
-function rp_usd($n){ return '$'.number_format((float) $n, 2); }
+function rp_usd($n){ return '$'.number_format((float) $n, 2); } // secondary info only
 function rp_cor($n){ return 'C$'.number_format((float) $n, 2); }
 $print_labels = array('printed' => array('Impresa', 'success'), 'failed' => array('No impresa', 'danger'), 'skipped' => array('Sin cocina', 'default'), 'pending' => array('Pendiente', 'warning'));
 

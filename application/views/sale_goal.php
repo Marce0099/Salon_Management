@@ -70,8 +70,8 @@
 		<tr>
 			<td><?php echo $this->sale_goals_mdl->getMonthName($r->month_goal); ?></td>
 			<td><?php echo $r->year_goal; ?></td>
-			<td><?php echo number_format($r->amount, 0); ?></td>
-			<td><?php echo $r->Ganancias != null? number_format($r->Ganancias, 2) : 'No registrado'; ?></td>
+			<td><?php echo fmt_money_pair($r->amount, null, 0); ?></td>
+			<td><?php echo $r->Ganancias != null? fmt_money_pair($r->Ganancias) : 'No registrado'; ?></td>
 			<!--<td>
 			<a href="<?php //echo base_url("sale_goals/details/{$r->id_goal}"); ?>"><i class="fa fa-gear"></i> Accion</a>
 			</td>-->

@@ -74,6 +74,6 @@ if( !function_exists('fmt_money_pair') ){
 
 		$cor = usd_to_cor($usd, $rate);
 
-		return fmt_cor($cor, $decimals).' <small class="text-muted">('.fmt_usd($usd).')</small>';
+		return fmt_cor($cor, $decimals).' <small class="text-muted">('.fmt_usd($usd, $decimals).')</small>';
 	}
 }
