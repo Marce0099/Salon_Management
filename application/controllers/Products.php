@@ -51,15 +51,15 @@ class Products extends Admin_Controller{
 			array('key' => 'barcode',       'label' => 'Código de barras',      'required' => FALSE, 'text' => TRUE, 'width' => 20, 'note' => 'Opcional, máximo 20 caracteres, único en todo el sistema', 'purpose' => 'Identifica el producto al escanear y evita duplicados. Si queda vacío el producto se identifica por su nombre.', 'example' => '7501234567890'),
 			array('key' => 'name',          'label' => 'Nombre',                'required' => TRUE,  'text' => TRUE, 'width' => 34, 'note' => 'Texto, máximo 250 caracteres', 'purpose' => 'Nombre que verán meseros y reportes.', 'example' => 'Cerveza Toña 12oz'),
 			array('key' => 'category',      'label' => 'Categoría',             'required' => FALSE, 'text' => TRUE, 'width' => 20, 'note' => 'Solo platillos. Si no existe se crea', 'purpose' => 'Agrupa los platillos en el menú. Si la categoría no existe se crea sola. Déjela vacía en productos de inventario.', 'example' => 'Entradas'),
-			array('key' => 'price_cost',    'label' => 'Precio costo',          'required' => TRUE,  'text' => TRUE, 'width' => 14, 'note' => 'Dólares, número (por unidad). Ej.: 1.25', 'purpose' => 'Lo que le cuesta al restaurante una unidad. Sirve para calcular márgenes.', 'example' => '0.85'),
-			array('key' => 'price_sell',    'label' => 'Precio venta',          'required' => TRUE,  'text' => TRUE, 'width' => 14, 'note' => 'Dólares, número. Ej.: 2.50', 'purpose' => 'Lo que paga el cliente por una unidad.', 'example' => '1.75'),
+			array('key' => 'price_cost',    'label' => 'Precio costo',          'required' => TRUE,  'text' => TRUE, 'width' => 14, 'note' => 'Córdobas, número (por unidad). Ej.: 45.00', 'purpose' => 'Lo que le cuesta al restaurante una unidad. Sirve para calcular márgenes.', 'example' => '31.50'),
+			array('key' => 'price_sell',    'label' => 'Precio venta',          'required' => TRUE,  'text' => TRUE, 'width' => 14, 'note' => 'Córdobas, número. Ej.: 90.00', 'purpose' => 'Lo que paga el cliente por una unidad.', 'example' => '65.00'),
 			array('key' => 'stock',         'label' => 'Stock',                 'required' => FALSE, 'text' => TRUE, 'width' => 10, 'note' => 'Entero, 0 si se deja vacío. Vacío para platillos', 'purpose' => 'Unidades que hay hoy en bodega. Las compras y ventas lo irán moviendo.', 'example' => '24'),
 			array('key' => 'alert',         'label' => 'Alerta stock mínimo',   'required' => FALSE, 'text' => TRUE, 'width' => 18, 'note' => 'Entero opcional. No aplica a platillos', 'purpose' => 'Cuando el stock baje a este número aparece en la campana de stock bajo.', 'example' => '6'),
 			array('key' => 'is_service',    'label' => 'Platillo',              'required' => FALSE, 'text' => TRUE, 'width' => 10, 'note' => 'Sí o No (No si se deja vacío). Platillo = sin inventario', 'purpose' => 'Sí = platillo preparado al momento (sin inventario). No = producto de bodega que se compra y se cuenta.', 'example' => 'No'),
 			array('key' => 'prints_kitchen','label' => 'Imprime en cocina',     'required' => FALSE, 'text' => TRUE, 'width' => 16, 'note' => 'Sí o No (Sí para platillos, No para productos si se deja vacío)', 'purpose' => 'Sí = sale en la comanda de cocina al enviar la orden. Las bebidas normalmente van en No.', 'example' => 'No'),
 			array('key' => 'pack_name',     'label' => 'Presentación',          'required' => FALSE, 'text' => TRUE, 'width' => 16, 'note' => 'Opcional, máximo 60 caracteres. Para otra presentación, repita la fila (ver notas abajo)', 'purpose' => 'Forma en que lo compra a su proveedor, para recibir mercadería sin hacer cuentas.', 'example' => 'Six-pack'),
 			array('key' => 'pack_units',    'label' => 'Unidades presentación', 'required' => FALSE, 'text' => TRUE, 'width' => 18, 'note' => 'Entero mayor a 1 (obligatorio si hay presentación)', 'purpose' => 'Cuántas unidades trae esa presentación. El stock se suma en unidades.', 'example' => '6'),
-			array('key' => 'pack_cost',     'label' => 'Costo presentación',    'required' => FALSE, 'text' => TRUE, 'width' => 16, 'note' => 'Opcional, dólares por presentación', 'purpose' => 'Lo que cuesta la presentación completa (no por unidad). Sugiere el costo al recibir compras.', 'example' => '4.50'),
+			array('key' => 'pack_cost',     'label' => 'Costo presentación',    'required' => FALSE, 'text' => TRUE, 'width' => 16, 'note' => 'Opcional, córdobas por presentación', 'purpose' => 'Lo que cuesta la presentación completa (no por unidad). Sugiere el costo al recibir compras.', 'example' => '165.00'),
 			array('key' => 'pack_barcode',  'label' => 'Código presentación',   'required' => FALSE, 'text' => TRUE, 'width' => 20, 'note' => 'Opcional, máximo 20 caracteres, único', 'purpose' => 'Código del empaque (caja, six-pack) para recibir escaneando. Distinto al del producto.', 'example' => '7501234567891'),
 		);
 	}
@@ -71,13 +71,13 @@ class Products extends Admin_Controller{
 		$this->load->library('excel_import');
 		$this->excel_import->sendTemplate('plantilla_productos.xlsx', $this->importColumns(), array(
 			'Un producto se considera repetido cuando coincide el código de barras (o el nombre, si no tiene código).',
-			'Los precios son en dólares, igual que en el formulario de productos.',
+			'Los precios son en córdobas (C$), igual que en el formulario de productos.',
 			'VARIAS PRESENTACIONES: escriba el producto en una fila y, para cada presentación adicional, repita la fila con el mismo código de barras (o el mismo nombre) cambiando solo las 4 columnas de presentación. Nombres y unidades de presentación no pueden repetirse dentro de un producto.',
 			'Si el producto ya existe en el sistema, la fila se omite (las presentaciones de productos existentes se agregan desde Productos > editar).',
 			'Los platillos (Platillo = Sí) no llevan stock, alerta ni presentaciones; los productos de inventario no llevan categoría.',
 		), array(
-			array('7501234567890', 'Cerveza Toña 12oz', '', '0.85', '1.75', '24', '6', 'No', 'No', 'Six-pack', '6', '4.50', '7501234567891'),
-			array('7501234567890', 'Cerveza Toña 12oz', '', '0.85', '1.75', '', '', 'No', 'No', 'Caja', '24', '17.00', '7501234567892'),
+			array('7501234567890', 'Cerveza Toña 12oz', '', '31.50', '65.00', '24', '6', 'No', 'No', 'Six-pack', '6', '165.00', '7501234567891'),
+			array('7501234567890', 'Cerveza Toña 12oz', '', '31.50', '65.00', '', '', 'No', 'No', 'Caja', '24', '630.00', '7501234567892'),
 			array('', 'Nacatamal', 'Platos fuertes', '1.20', '3.50', '', '', 'Sí', 'Sí', '', '', '', ''),
 		));
 	}
@@ -204,7 +204,8 @@ class Products extends Admin_Controller{
 					'name' => $d['pack_name'],
 					'units' => $pack_units,
 					'barcode' => $d['pack_barcode'] !== '' ? $d['pack_barcode'] : NULL,
-					'price_cost' => $pack_cost !== NULL ? round($pack_cost, 2) : NULL,
+					'price_cost' => $pack_cost !== NULL ? cor_to_usd($pack_cost, NULL, 2) : NULL,
+					'price_cost_cor' => $pack_cost !== NULL ? round($pack_cost, 2) : NULL,
 				)) : array();
 
 				return NULL;
@@ -257,8 +258,10 @@ class Products extends Admin_Controller{
 					$db->insert('products', array(
 						'barcode' => $d['barcode'] !== '' ? $d['barcode'] : NULL,
 						'name' => $d['name'],
-						'price_cost' => (string)round($d['_cost'], 4),
-						'price_sell' => (string)round($d['_sell'], 4),
+						'price_cost' => (string)cor_to_usd($d['_cost'], NULL, 6),
+						'price_sell' => (string)cor_to_usd($d['_sell'], NULL, 6),
+						'price_cost_cor' => round($d['_cost'], 4),
+						'price_sell_cor' => round($d['_sell'], 2),
 						'stock' => $d['_stock'],
 						'stock_alert_threshold' => $d['_alert'],
 						'is_service' => $d['_service'],
@@ -270,7 +273,7 @@ class Products extends Admin_Controller{
 
 					if( $d['_cost'] > 0 ){
 						$self->load->model('cost_history_mdl');
-						$self->cost_history_mdl->log( $id_product, 'import', NULL, $d['_cost'], array( 'new_sell' => $d['_sell'] ) );
+						$self->cost_history_mdl->log( $id_product, 'import', NULL, cor_to_usd($d['_cost'], NULL, 6), array( 'new_sell' => cor_to_usd($d['_sell'], NULL, 6) ) );
 					}
 
 					foreach( $d['_packs'] as $pk ){
@@ -406,7 +409,8 @@ class Products extends Admin_Controller{
 				'name' => $name,
 				'units' => (int)$u,
 				'barcode' => $bc === '' ? NULL : $bc,
-				'price_cost' => $cost === '' ? NULL : round((float)$cost, 2)
+				'price_cost' => $cost === '' ? NULL : cor_to_usd((float)$cost, NULL, 2),
+				'price_cost_cor' => $cost === '' ? NULL : round((float)$cost, 2)
 			);
 		}
 

@@ -68,6 +68,18 @@ class Bills_mdl extends CI_Model{
 		return $row ? (float) $row->sell_price : 1.0;
 	}
 
+	/** Dollar amount snapped to an exact number of córdoba cents (prices are C$-first; dollars are derived). */
+	private function q($usd){
+		$r = $this->sellRate();
+		return $r > 0 ? round(round($usd * $r, 2) / $r, 6) : round($usd, 2);
+	}
+
+	/** Equal share (floor to C$ cents) of a dollar amount among $n parts. */
+	private function floorShare($usd, $n){
+		$r = $this->sellRate();
+		return $r > 0 ? round(floor(round($usd * $r * 100, 0) / $n) / ($r * 100), 6) : floor($usd * 100 / $n) / 100;
+	}
+
 	public function rates(){
 
 		$this->load->model('settings_mdl');
@@ -95,10 +107,11 @@ class Bills_mdl extends CI_Model{
 			$sub = (float) $row->s;
 		}
 
-		$tip = round($sub * $rates['tip'] / 100, 2);
-		$iva = round($sub * $rates['iva'] / 100, 2);
+		$sub = $this->q($sub);
+		$tip = $this->q($sub * $rates['tip'] / 100);
+		$iva = $this->q($sub * $rates['iva'] / 100);
 
-		return array('subtotal' => round($sub, 2), 'tip' => $tip, 'iva' => $iva, 'total' => round($sub + $tip + $iva, 2));
+		return array('subtotal' => $sub, 'tip' => $tip, 'iva' => $iva, 'total' => $this->q($sub + $tip + $iva));
 	}
 
 	/**
@@ -116,10 +129,10 @@ class Bills_mdl extends CI_Model{
 
 		$out = array();
 		foreach( array('subtotal', 'tip', 'iva') as $k ){
-			$share = floor($pt[$k] * 100 / $n) / 100;
-			$out[$k] = $last ? round($pt[$k] - $share * ($n - 1), 2) : $share;
+			$share = $this->floorShare($pt[$k], $n);
+			$out[$k] = $last ? $this->q($pt[$k] - $share * ($n - 1)) : $share;
 		}
-		$out['total'] = round($out['subtotal'] + $out['tip'] + $out['iva'], 2);
+		$out['total'] = $this->q($out['subtotal'] + $out['tip'] + $out['iva']);
 
 		return $out;
 	}
@@ -354,10 +367,10 @@ class Bills_mdl extends CI_Model{
 				$res = array(FALSE, 'La cuenta no tiene consumo para dividir');
 			}
 			else{
-				$share = floor($sub * 100 / $parts) / 100;
+				$share = $this->floorShare($sub, $parts);
 				$acc = 0.0;
 				for( $k = 1; $k <= $parts; $k++ ){
-					$amount = $k < $parts ? $share : round($sub - $acc, 2); // last part absorbs the rounding cents
+					$amount = $k < $parts ? $share : $this->q($sub - $acc); // last part absorbs the rounding cents
 					$acc += $amount;
 					$this->db->insert('bills', array(
 						'id_tab' => (int) $bill->id_tab, 'label' => $bill->label.' · parte '.$k.'/'.$parts,

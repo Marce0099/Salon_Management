@@ -19,7 +19,7 @@ foreach( $recipe as $r ){ $rec_json[] = array('id' => (int) $r->id_ingredient, '
 	<thead><tr><th>Ingrediente</th><th style="width:160px;">Cantidad por porción</th><th style="width:60px;">Unid.</th><th class="text-right" style="width:100px;">Costo</th><th style="width:50px;"></th></tr></thead>
 	<tbody></tbody>
 	<tfoot>
-		<tr><td colspan="3" class="text-right"><strong>Costo por porción</strong></td><td class="text-right"><strong id="total-cost">$ 0.00</strong></td><td></td></tr>
+		<tr><td colspan="3" class="text-right"><strong>Costo por porción</strong></td><td class="text-right"><strong id="total-cost">C$ 0.00</strong></td><td></td></tr>
 		<tr><td colspan="3" class="text-right"><strong>Margen</strong></td><td class="text-right"><strong id="margin">—</strong></td><td></td></tr>
 	</tfoot>
 </table>
@@ -50,12 +50,12 @@ foreach( $recipe as $r ){ $rec_json[] = array('id' => (int) $r->id_ingredient, '
 			var tr = $(this), ing = byId(tr.find('.r-ing').val()), q = parseFloat(String(tr.find('.r-qty').val()).replace(',', '.')) || 0;
 			tr.find('.r-unit').text(ing ? ing.unit : '');
 			if( ing && ing.cost === null ){ missing = true; tr.find('.r-cost').text('—'); }
-			else if( ing ){ var c = ing.cost * q; total += c; tr.find('.r-cost').text('$ ' + c.toFixed(4).replace(/0+$/, '').replace(/\.$/, '.00').replace(/(\.\d)$/, '$10')); }
+			else if( ing ){ var c = ing.cost * q; total += c; tr.find('.r-cost').text('C$ ' + FX.toCor(c).toFixed(2)); }
 			else { tr.find('.r-cost').text(''); }
 		});
-		$('#total-cost').text('$ ' + total.toFixed(2));
+		$('#total-cost').text('C$ ' + FX.toCor(total).toFixed(2) + ' ($' + total.toFixed(2) + ')');
 		$('#cost-warn').toggle(missing);
-		$('#margin').text(PRICE > 0 && total > 0 ? ((PRICE - total) / PRICE * 100).toFixed(1) + ' %  ($ ' + (PRICE - total).toFixed(2) + ')' : '—');
+		$('#margin').text(PRICE > 0 && total > 0 ? ((PRICE - total) / PRICE * 100).toFixed(1) + ' %  (C$ ' + FX.toCor(PRICE - total).toFixed(2) + ')' : '—');
 	}
 	$('#add-row').on('click', function(){ addRow('', ''); });
 	$('#recipe-table').on('change keyup', '.r-ing, .r-qty', recalc).on('click', '.r-del', function(){ $(this).closest('tr').remove(); recalc(); });

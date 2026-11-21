@@ -79,7 +79,7 @@ class Products_mdl extends CI_Model{
 			return NULL;
 		}
 
-		$sql = 'select id_product, barcode, name, price_cost, price_sell, is_service from products where active = 1 and is_service = 0 and trim(upper(barcode)) = trim(upper(?))';
+		$sql = 'select id_product, barcode, name, price_cost, price_sell, price_cost_cor, price_sell_cor, is_service from products where active = 1 and is_service = 0 and trim(upper(barcode)) = trim(upper(?))';
 		$p = $this->db->query( $sql, array( $code ) )->row();
 
 		if( $p ){
@@ -96,7 +96,7 @@ class Products_mdl extends CI_Model{
 		}
 
 		$p = $this->db->query(
-			'select id_product, barcode, name, price_cost, price_sell, is_service from products where active = 1 and is_service = 0 and id_product = ?',
+			'select id_product, barcode, name, price_cost, price_sell, price_cost_cor, price_sell_cor, is_service from products where active = 1 and is_service = 0 and id_product = ?',
 			array( (int)$pk->id_product )
 		)->row();
 
@@ -106,7 +106,7 @@ class Products_mdl extends CI_Model{
 	public function getPacks( $id_product ){
 
 		return $this->db->query(
-			'select id_pack, name, units, barcode, price_cost from product_packs where id_product = ? and active = 1 order by units asc, id_pack asc',
+			'select id_pack, name, units, barcode, price_cost, price_cost_cor from product_packs where id_product = ? and active = 1 order by units asc, id_pack asc',
 			array( (int)$id_product )
 		)->result();
 	}
@@ -173,7 +173,23 @@ class Products_mdl extends CI_Model{
 		return $this->db->query( $sql )->row();
 	}
 
+	// Prices arrive typed in cordobas: keep them as *_cor (source of truth) and derive the legacy dollar columns.
+	private function cordobaPrices( &$data ){
+
+		foreach( array('price_cost' => 4, 'price_sell' => 2) as $k => $d ){
+
+			if( isset($data[$k]) && $data[$k] !== '' && is_numeric($data[$k]) ){
+
+				$cor = round((float)$data[$k], $d);
+				$data[$k.'_cor'] = $cor;
+				$data[$k] = (string) cor_to_usd($cor, NULL, 6);
+			}
+		}
+	}
+
 	public function save( $data ){
+
+		$this->cordobaPrices($data);
 
 		$this->db->insert( 'products', $data );
 		$id_product = $this->db->insert_id();
@@ -204,6 +220,7 @@ class Products_mdl extends CI_Model{
 	public function edit( $id_product, $data ){
 
 		$data['last_update'] = NULL;
+		$this->cordobaPrices($data);
 
 		$audit_before = $this->db->query('select * from products where id_product = ? for update', array((int)$id_product))->row_array();
 
@@ -298,7 +315,7 @@ class Products_mdl extends CI_Model{
 
 	public function searchActive($barcode = '', $name = '', $type = 'all'){
 
-		$sql = 'SELECT id_product, barcode, name, price_cost, price_sell, is_service
+		$sql = 'SELECT id_product, barcode, name, price_cost, price_sell, price_cost_cor, price_sell_cor, is_service
 		        FROM products WHERE active = 1';
 
 		if( !empty($barcode) ){

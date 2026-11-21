@@ -32,16 +32,16 @@
 		<label class="control-label col-md-3 col-sm-3 col-xs-12" for="price_sell">Precio de costo:
         </label>
 		<div class="col-md-2 col-sm-3 col-xs-8">
-            <input type="text" data-parsley-type="number" name="price_cost" id="price_cost" class="form-control has-feedback-left" required="true" value="<?php if($product){ echo $product->price_cost; } ?>">
-            <span class="form-control-feedback left">$</span>
+            <input type="text" data-parsley-type="number" name="price_cost" id="price_cost" class="form-control has-feedback-left" required="true" value="<?php if($product){ echo $product->price_cost_cor !== NULL ? $product->price_cost_cor : usd_to_cor($product->price_cost); } ?>">
+            <span class="form-control-feedback left" style="width:auto;padding-left:6px;">C$</span>
         </div>
 	</div>
 	<div class="form-group">
 		<label class="control-label col-md-3 col-sm-3 col-xs-12" for="price_sell">Precio de venta:
         </label>
 		<div class="col-md-2 col-sm-3 col-xs-8">
-            <input type="text" data-parsley-type="number" name="price_sell" id="price_sell" class="form-control has-feedback-left" required="true" value="<?php if($product){ echo $product->price_sell; } ?>">
-            <span class="form-control-feedback left">$</span>
+            <input type="text" data-parsley-type="number" name="price_sell" id="price_sell" class="form-control has-feedback-left" required="true" value="<?php if($product){ echo $product->price_sell_cor !== NULL ? $product->price_sell_cor : usd_to_cor($product->price_sell); } ?>">
+            <span class="form-control-feedback left" style="width:auto;padding-left:6px;">C$</span>
         </div>
 	</div>
 	<div class="form-group" id="stock-alert-group">
@@ -120,7 +120,7 @@
 					<input type="hidden" name="pack_ids[]" value="<?php echo (int)$pk->id_pack; ?>">
 					<div class="col-xs-6 col-sm-3"><input type="text" name="pack_names[]" class="form-control" placeholder="Nombre" maxlength="60" value="<?php echo htmlspecialchars($pk->name); ?>"></div>
 					<div class="col-xs-6 col-sm-2"><input type="text" name="pack_units[]" class="form-control" placeholder="Unidades (2 o más)" data-parsley-type="integer" data-parsley-min="2" data-parsley-max="100000" value="<?php echo (int)$pk->units; ?>"></div>
-					<div class="col-xs-6 col-sm-2"><input type="text" name="pack_costs[]" class="form-control" placeholder="Costo $" data-parsley-type="number" value="<?php echo $pk->price_cost !== NULL ? htmlspecialchars($pk->price_cost) : ''; ?>"></div>
+					<div class="col-xs-6 col-sm-2"><input type="text" name="pack_costs[]" class="form-control" placeholder="Costo C$" data-parsley-type="number" value="<?php echo $pk->price_cost_cor !== NULL ? htmlspecialchars($pk->price_cost_cor) : ($pk->price_cost !== NULL ? usd_to_cor($pk->price_cost) : ''); ?>"></div>
 					<div class="col-xs-5 col-sm-3"><input type="text" name="pack_barcodes[]" class="form-control" placeholder="Código barra" maxlength="20" value="<?php echo htmlspecialchars((string)$pk->barcode); ?>"></div>
 					<div class="col-xs-1 col-sm-1"><a href="javascript:;" class="btn btn-link text-danger remove-pack"><i class="fa fa-times"></i></a></div>
 				</div>
@@ -142,7 +142,7 @@
 		<input type="hidden" name="pack_ids[]" value="" disabled>
 		<div class="col-xs-6 col-sm-3"><input type="text" name="pack_names[]" class="form-control" placeholder="Nombre" maxlength="60" disabled></div>
 		<div class="col-xs-6 col-sm-2"><input type="text" name="pack_units[]" class="form-control" placeholder="Unidades (2 o más)" data-parsley-type="integer" data-parsley-min="2" data-parsley-max="100000" disabled></div>
-		<div class="col-xs-6 col-sm-2"><input type="text" name="pack_costs[]" class="form-control" placeholder="Costo $" data-parsley-type="number" disabled></div>
+		<div class="col-xs-6 col-sm-2"><input type="text" name="pack_costs[]" class="form-control" placeholder="Costo C$" data-parsley-type="number" disabled></div>
 		<div class="col-xs-5 col-sm-3"><input type="text" name="pack_barcodes[]" class="form-control" placeholder="Código barra" maxlength="20" disabled></div>
 		<div class="col-xs-1 col-sm-1"><a href="javascript:;" class="btn btn-link text-danger remove-pack"><i class="fa fa-times"></i></a></div>
 	</div>
