@@ -13,6 +13,16 @@
 			return ( $v === NULL || $v === '' || !is_numeric($v) ) ? NULL : round((float)$v, 4);
 		}
 
+		/** Dollar amount -> C$ at the live rate, snapped to the cent when it is only rounding noise. */
+		private function cor( $usd, $decimals = 4 ){
+
+			if( $usd === NULL ){ return NULL; }
+
+			$c = round($usd * fx_rate(), $decimals);
+
+			return abs($c - round($c, 2)) < 0.002 ? round($c, 2) : $c;
+		}
+
 		/** Inserts one row; call it inside the caller's transaction. Costs are per base unit in dollars. */
 		public function log( $id_product, $source, $old_cost, $new_cost, $extra = array() ){
 
@@ -34,6 +44,10 @@
 				'quantity' => isset($extra['quantity']) ? (int)$extra['quantity'] : NULL,
 				'old_sell' => isset($extra['old_sell']) ? $this->dec($extra['old_sell']) : NULL,
 				'new_sell' => isset($extra['new_sell']) ? $this->dec($extra['new_sell']) : NULL,
+				'old_cost_cor' => $this->cor($this->dec($old_cost)),
+				'new_cost_cor' => $this->cor($new),
+				'old_sell_cor' => isset($extra['old_sell']) ? $this->cor($this->dec($extra['old_sell']), 2) : NULL,
+				'new_sell_cor' => isset($extra['new_sell']) ? $this->cor($this->dec($extra['new_sell']), 2) : NULL,
 				'id_admin' => $this->session->userdata('id_admin') ? (int)$this->session->userdata('id_admin') : NULL,
 				'created_at' => !empty($extra['created_at']) ? $extra['created_at'] : date('Y-m-d H:i:s')
 			);
@@ -61,10 +75,10 @@
 
 			list($w, $b) = $this->where($f);
 
-			$sql = 'select P.id_product, P.name, P.barcode, P.price_cost as current_cost, P.price_sell as current_sell,
-				count(*) as n, min(H.new_cost) as min_cost, max(H.new_cost) as max_cost,
-				sum(case when H.quantity > 0 then H.new_cost * H.quantity end) / nullif(sum(case when H.quantity > 0 then H.quantity end), 0) as avg_cost,
-				substring_index(group_concat(H.new_cost order by H.created_at desc, H.id_cost_history desc), ",", 1) as last_cost,
+			$sql = 'select P.id_product, P.name, P.barcode, P.price_cost_cor as current_cost, P.price_sell_cor as current_sell,
+				count(*) as n, min(H.new_cost_cor) as min_cost, max(H.new_cost_cor) as max_cost,
+				sum(case when H.quantity > 0 then H.new_cost_cor * H.quantity end) / nullif(sum(case when H.quantity > 0 then H.quantity end), 0) as avg_cost,
+				substring_index(group_concat(H.new_cost_cor order by H.created_at desc, H.id_cost_history desc), ",", 1) as last_cost,
 				max(H.created_at) as last_date
 				from product_cost_history H inner join products P on P.id_product = H.id_product'.$w.'
 				group by P.id_product order by P.name';

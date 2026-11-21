@@ -88,3 +88,14 @@ if( !function_exists('fmt_cor_usd') ){
 		return fmt_cor($cor, $decimals).' <small class="text-muted">('.fmt_usd($usd, $decimals).')</small>';
 	}
 }
+
+if( !function_exists('fmt_cor_pair') ){
+
+	/** Amount already in C$ with its dollar equivalent (live rate) as secondary info. NULL -> dash. */
+	function fmt_cor_pair($cor, $decimals = 2){
+
+		if( $cor === NULL || $cor === '' ){ return '—'; }
+
+		return fmt_cor($cor, $decimals).' <small class="text-muted">('.fmt_usd(cor_to_usd($cor), $decimals).')</small>';
+	}
+}

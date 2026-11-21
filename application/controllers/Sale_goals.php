@@ -29,7 +29,7 @@ class Sale_goals extends Admin_Controller{
             SELECT 
             YEAR(S.date_time) AS Año, 
             MONTH(S.date_time) AS Mes,
-            SUM(ROUND(SP.quantity * (SP.price - (SP.price * (SP.discount / 100))),2)) AS "Ganancias"
+            SUM(ROUND(SP.quantity * (SP.price - (SP.price * (SP.discount / 100))) * S.dollar_ex_sell,2)) AS "Ganancias"
             FROM sales as S
             INNER JOIN sale_products as SP on S.id_sale = SP.id_sale
             GROUP BY Año, Mes

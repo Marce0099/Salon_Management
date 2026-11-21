@@ -1,6 +1,6 @@
 <?php
-	$money = function($v){ return ($v === NULL || $v === '') ? '—' : fmt_money_pair((float)$v); };
-	$money4 = function($v){ return ($v === NULL || $v === '') ? '—' : fmt_money_pair((float)$v); };
+	$money = function($v){ return fmt_cor_pair(($v === NULL || $v === '') ? NULL : (float)$v); }; // values are C$
+	$money4 = function($v){ return fmt_cor_pair(($v === NULL || $v === '') ? NULL : (float)$v); };
 	$labels = array('purchase' => 'Compra', 'manual' => 'Edición manual', 'import' => 'Importación');
 	$qs = function($extra) use ($f){ return base_url('cost_history').'?'.http_build_query(array_merge(array('id_provider' => $f['id_provider'] ?: '', 'source' => $f['source'], 'from' => $f['from'], 'to' => $f['to'], 'only_changes' => $f['only_changes'] ?: ''), $extra)); };
 ?>
@@ -62,7 +62,7 @@
 	<?php if( !$stats ) : ?>
 		<div class="alert alert-info">No hay registros de costo para este producto con los filtros elegidos.</div>
 	<?php else :
-		$cur = (float)$product->price_cost; $sell = (float)$product->price_sell;
+		$cur = (float)$product->price_cost_cor; $sell = (float)$product->price_sell_cor;
 		$margin = function($cost) use ($sell){ return ($sell > 0 && $cost !== NULL) ? number_format(($sell - $cost) / $sell * 100, 0).'%' : '—'; };
 	?>
 	<div class="row">
@@ -79,8 +79,8 @@
 		<thead><tr><th>Fecha</th><th>Origen</th><th>Factura</th><th>Proveedor</th><th class="text-right">Unidades</th><th class="text-right">Costo anterior</th><th class="text-right">Costo comprado</th><th class="text-right">Diferencia</th><th class="text-right">Precio venta</th><th>Usuario</th></tr></thead>
 		<tbody>
 		<?php foreach( $rows as $r ) :
-			$diff = $r->old_cost !== NULL ? (float)$r->new_cost - (float)$r->old_cost : NULL;
-			$pct = ( $diff !== NULL && (float)$r->old_cost > 0 ) ? $diff / (float)$r->old_cost * 100 : NULL;
+			$diff = $r->old_cost_cor !== NULL ? (float)$r->new_cost_cor - (float)$r->old_cost_cor : NULL;
+			$pct = ( $diff !== NULL && (float)$r->old_cost_cor > 0 ) ? $diff / (float)$r->old_cost_cor * 100 : NULL;
 		?>
 			<tr>
 				<td><?php echo date('d/m/Y H:i', strtotime($r->created_at)); ?></td>
@@ -88,10 +88,10 @@
 				<td><?php if( $r->id_invoice ) : ?><a href="<?php echo base_url('invoices/details/'.(int)$r->id_invoice); ?>"><?php echo htmlspecialchars($r->invoice_no); ?></a><?php else : ?>—<?php endif; ?></td>
 				<td><?php echo $r->provider !== NULL ? htmlspecialchars($r->provider) : '—'; ?></td>
 				<td class="text-right"><?php echo $r->quantity !== NULL ? (int)$r->quantity : '—'; ?></td>
-				<td class="text-right"><?php echo $money4($r->old_cost); ?></td>
-				<td class="text-right"><strong><?php echo $money4($r->new_cost); ?></strong></td>
-				<td class="text-right"><?php if( $diff === NULL ) : ?>—<?php elseif( abs($diff) < 0.00005 ) : ?><span class="text-muted">sin cambio</span><?php else : ?><span class="<?php echo $diff > 0 ? 'text-danger' : 'text-success'; ?>"><?php echo ($diff > 0 ? '+' : '-').$money4(abs($diff)); ?><?php if( $pct !== NULL ) echo ' ('.($diff > 0 ? '+' : '-').number_format(abs($pct), 1).'%)'; ?></span><?php endif; ?></td>
-				<td class="text-right"><?php echo $money4($r->new_sell); ?></td>
+				<td class="text-right"><?php echo $money4($r->old_cost_cor); ?></td>
+				<td class="text-right"><strong><?php echo $money4($r->new_cost_cor); ?></strong></td>
+				<td class="text-right"><?php if( $diff === NULL ) : ?>—<?php elseif( abs($diff) < 0.005 ) : ?><span class="text-muted">sin cambio</span><?php else : ?><span class="<?php echo $diff > 0 ? 'text-danger' : 'text-success'; ?>"><?php echo ($diff > 0 ? '+' : '-').$money4(abs($diff)); ?><?php if( $pct !== NULL ) echo ' ('.($diff > 0 ? '+' : '-').number_format(abs($pct), 1).'%)'; ?></span><?php endif; ?></td>
+				<td class="text-right"><?php echo $money4($r->new_sell_cor); ?></td>
 				<td><?php echo $r->username !== NULL ? htmlspecialchars($r->username) : '—'; ?></td>
 			</tr>
 		<?php endforeach; ?>
