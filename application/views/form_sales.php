@@ -15,7 +15,7 @@
 						title="Al marcar esta casilla se desactivan los descuentos automáticos (VIP, cumpleaños, categoría) y podrá escribir el descuento manualmente en cada producto o servicio. No se podrá usar cupón mientras esté activa.">
 				</th>
 				<th width="30%">Producto</th>
-				<th>Precio ($)</th>
+				<th>Precio (C$)</th>
 				<th>Cantidad</th>
 				<th>Descuento</th>
 				<th>Atendido por</th>
@@ -671,7 +671,7 @@
 						$('<tr>').data('product', p)
 							.append($('<td>').text(p.barcode || ''))
 							.append($('<td>').text(p.name))
-							.append($('<td>').text(FX.pair(p.price_sell)))
+							.append($('<td>').text(FX.pair(p.price_sell_cor)))
 							.append($('<td>').text(p.is_service == 1 ? 'Platillo' : 'Producto'))
 							.appendTo($tbody);
 					});
@@ -728,7 +728,7 @@
 		}
 
 		row.find('.p-name').html( p.barcode ? (p.barcode+' : '+p.name) : p.name );
-		row.find('.p-price').val(p.price_sell);
+		row.find('.p-price').val(p.price_sell_cor);
 		row.find('.form-ids').val(p.id_product);
 		row.find('.p-commission_rate').val(p.commisssion_rate);
 
@@ -775,7 +775,7 @@
 			var row = $(this);
 			var price = numeral( row.find('.p-price').val() ).value();
 			var qt = numeral( row.find('.p-quantity').val() ).value();
-			var undiscounted = price * qt * dollarSellRate;
+			var undiscounted = price * qt; // price is C$
 			undiscountedTotals.push(undiscounted);
 			servicesTotalUndiscounted += undiscounted;
 		});
@@ -1132,12 +1132,12 @@
 
 				if( discount ) subtotal_dollar -= subtotal_dollar * discount / 100;
 
-				var subtotal_cordobas = subtotal_dollar * dollarSellRate;
+				var subtotal_cordobas = Math.round(subtotal_dollar * 100) / 100; // price is C$ (subtotal_dollar holds C$, name kept); rounded per line like the server
 
-				r.find('.subtotal-dollar').html( numeral(subtotal_dollar).format('0,0.00') );
+				r.find('.subtotal-dollar').html( numeral(subtotal_cordobas / dollarSellRate).format('0,0.00') );
 				r.find('.subtotal-cordobas').html( numeral(subtotal_cordobas).format('0,0.00') );
 
-				total_dollar += subtotal_dollar;
+				total_dollar += subtotal_cordobas / dollarSellRate;
 				total_cordobas += subtotal_cordobas;
 
 				if( r.hasClass('p-service') ) total_services += subtotal_cordobas;
@@ -1184,7 +1184,7 @@
 
 				categoryRate = r.data('category-discount-rate') || 0;
 				birthdayEligible = _selectedClientBirthday && !!r.data('birthday-eligible');
-				undiscountedCordobas = subtotal_dollar * dollarSellRate;
+				undiscountedCordobas = subtotal_dollar;
 
 				if( categoryRate > categoryRepresentative ) categoryRepresentative = categoryRate;
 				servicesTotalUndiscounted += undiscountedCordobas;
@@ -1299,12 +1299,12 @@
 				subtotal_dollar = subtotal_dollar - ( subtotal_dollar * discount / 100 );
 			}
 
-			var subtotal_cordobas = subtotal_dollar * dollarSellRate;
+			var subtotal_cordobas = Math.round(subtotal_dollar * 100) / 100; // price is C$ (subtotal_dollar holds C$, name kept); rounded per line like the server
 
-			r.find('.subtotal-dollar').html( numeral(subtotal_dollar).format('0,0.00') );
+			r.find('.subtotal-dollar').html( numeral(subtotal_cordobas / dollarSellRate).format('0,0.00') );
 			r.find('.subtotal-cordobas').html( numeral(subtotal_cordobas).format('0,0.00') );
 
-			total_dollar += subtotal_dollar;
+			total_dollar += subtotal_cordobas / dollarSellRate;
 			total_cordobas += subtotal_cordobas;
 
 			if( r.hasClass('p-service') ) total_services += subtotal_cordobas;
@@ -1408,14 +1408,14 @@
 		});
 
 		function setBillExtras(){
-			var tip = Math.max(0, numeral($('#tip_amount').val()).value() || 0) / dollarSellRate; // typed in C$
-			system.extra_cordobas = (tip + billPrefill.iva) * dollarSellRate;
-			$('#iva-cordobas').text(numeral(billPrefill.iva * dollarSellRate).format('0,0.00'));
-			$('#iva-dollar').text(numeral(billPrefill.iva).format('0,0.00'));
+			var tip = Math.max(0, numeral($('#tip_amount').val()).value() || 0); // typed in C$
+			system.extra_cordobas = tip + billPrefill.iva; // iva and tip are C$
+			$('#iva-cordobas').text(numeral(billPrefill.iva).format('0,0.00'));
+			$('#iva-dollar').text(numeral(billPrefill.iva / dollarSellRate).format('0,0.00'));
 			updateTotal($('#sales-list tr').first());
 		}
 
-		$('#tip_amount').val((Number(billPrefill.tip) * dollarSellRate).toFixed(2)).on('input', setBillExtras);
+		$('#tip_amount').val(Number(billPrefill.tip).toFixed(2)).on('input', setBillExtras);
 		setBillExtras();
 	}
 

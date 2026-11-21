@@ -62,22 +62,14 @@ class Bills_mdl extends CI_Model{
 		return $this->modifiers_mdl->attachTexts($this->db->where('id_bill', (int) $id_bill)->where('status', 'active')->order_by('id_order_item')->get('order_items')->result());
 	}
 
-	/** Córdobas per dollar used to display prices (same rate every sale snapshots). */
-	public function sellRate(){
-		$row = $this->db->get('dollar_exchange')->row();
-		return $row ? (float) $row->sell_price : 1.0;
+	/** Amount snapped to exact córdoba cents (money is stored in C$ with 2 decimals). */
+	private function q($cor){
+		return round($cor, 2);
 	}
 
-	/** Dollar amount snapped to an exact number of córdoba cents (prices are C$-first; dollars are derived). */
-	private function q($usd){
-		$r = $this->sellRate();
-		return $r > 0 ? round(round($usd * $r, 2) / $r, 6) : round($usd, 2);
-	}
-
-	/** Equal share (floor to C$ cents) of a dollar amount among $n parts. */
-	private function floorShare($usd, $n){
-		$r = $this->sellRate();
-		return $r > 0 ? round(floor(round($usd * $r * 100, 0) / $n) / ($r * 100), 6) : floor($usd * 100 / $n) / 100;
+	/** Equal share (floor to C$ cents) of a C$ amount among $n parts. */
+	private function floorShare($cor, $n){
+		return floor(round($cor * 100, 0) / $n) / 100;
 	}
 
 	public function rates(){
@@ -179,7 +171,7 @@ class Bills_mdl extends CI_Model{
 		foreach( $rows as $r ){
 			$out[] = array(
 				'id_product' => (int) $r->id_product, 'name' => $r->name, 'barcode' => (string) $r->barcode, 'is_service' => (int) $r->is_service,
-				'commisssion_rate' => $r->commisssion_rate, 'quantity' => (int) $r->q, 'price' => round((float) $r->amt / (int) $r->q, 6),
+				'commisssion_rate' => $r->commisssion_rate, 'quantity' => (int) $r->q, 'price' => round((float) $r->amt / (int) $r->q, 2),
 				'mods_text' => isset($texts[(int) $r->id_product]) ? mb_substr(implode(', ', $texts[(int) $r->id_product]), 0, 255, 'UTF-8') : '',
 			);
 		}

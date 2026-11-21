@@ -19,7 +19,6 @@
 			// uniq_invoice_no_provider constraint; on this PHP/PDO version (default
 			// PDO::ERRMODE_EXCEPTION since PHP 8.1) that surfaces as a normal catchable
 			// PDOException, which Invoices_mdl::receive() catches (inside its transaction) and handles
-			if( !isset($data['dollar_ex_sell']) ){ $data['dollar_ex_sell'] = fx_rate(); }
 			$this->db->insert( 'invoices', $data );
 
 			return $this->db->insert_id();
@@ -64,7 +63,7 @@
 					}
 
 					$rows = $this->db->query(
-						'SELECT id_product, name, stock, price_cost, price_sell FROM products WHERE active = 1 AND id_product IN ('.implode(',', array_map('intval', $ids)).') ORDER BY id_product FOR UPDATE'
+						'SELECT id_product, name, stock, price_cost_cor, price_sell_cor FROM products WHERE active = 1 AND id_product IN ('.implode(',', array_map('intval', $ids)).') ORDER BY id_product FOR UPDATE'
 					)->result();
 
 					if( count($rows) !== count($ids) ){
@@ -93,10 +92,8 @@
 							'id_invoice' => $id_invoice,
 							'id_product' => $line['id_product'],
 							'quantity' => $line['quantity'],
-							'price_cost' => $line['price_cost'],
-							'price_sell' => $line['price_sell'],
-							'price_cost_cor' => isset($line['price_cost_cor']) ? $line['price_cost_cor'] : NULL,
-							'price_sell_cor' => isset($line['price_sell_cor']) ? $line['price_sell_cor'] : NULL,
+							'price_cost_cor' => $line['price_cost_cor'],
+							'price_sell_cor' => $line['price_sell_cor'],
 							'id_pack' => isset($line['id_pack']) ? $line['id_pack'] : NULL,
 							'pack_name' => isset($line['pack_name']) ? $line['pack_name'] : NULL,
 							'pack_qty' => isset($line['pack_qty']) ? $line['pack_qty'] : NULL,
@@ -114,26 +111,26 @@
 						$audit_lines[] = array(
 							'id_product' => (int) $line['id_product'], 'name' => $prev->name, 'units' => (int) $line['quantity'],
 							'pack' => isset($line['pack_name']) ? $line['pack_name'] : NULL, 'pack_qty' => isset($line['pack_qty']) ? $line['pack_qty'] : NULL,
-							'cost_old' => $prev->price_cost, 'cost_new' => $line['price_cost'], 'cost_new_cor' => isset($line['price_cost_cor']) ? $line['price_cost_cor'] : NULL, 'sell_new_cor' => isset($line['price_sell_cor']) ? $line['price_sell_cor'] : NULL, 'sell_old' => $prev->price_sell, 'sell_new' => $line['price_sell'],
+							'cost_old_cor' => $prev->price_cost_cor, 'cost_new_cor' => $line['price_cost_cor'], 'sell_old_cor' => $prev->price_sell_cor, 'sell_new_cor' => $line['price_sell_cor'],
 							'stock_before' => $line['is_service'] ? NULL : (int) $prev->stock, 'stock_after' => $line['is_service'] ? NULL : (int) $prev->stock + (int) $line['quantity']
 						);
 						if( !$line['is_service'] ){ $prev->stock = (int) $prev->stock + (int) $line['quantity']; }
 
-						$this->cost_history_mdl->log( $line['id_product'], 'purchase', $prev->price_cost, $line['price_cost'], array(
+						$this->cost_history_mdl->log( $line['id_product'], 'purchase', $prev->price_cost_cor, $line['price_cost_cor'], array(
 							'id_invoice' => $id_invoice,
 							'id_invoice_product' => $id_invoice_product,
 							'id_provider' => isset($invoice['id_provider']) ? $invoice['id_provider'] : NULL,
 							'quantity' => $line['quantity'],
-							'old_sell' => $prev->price_sell,
-							'new_sell' => $line['price_sell'],
+							'old_sell' => $prev->price_sell_cor,
+							'new_sell' => $line['price_sell_cor'],
 							'created_at' => isset($invoice['date_time']) ? $invoice['date_time'] : NULL
 						));
 
 						// a later line of the same product in this receipt sees this line as its previous one
-						if( $line['price_cost'] !== '' && $line['price_cost'] !== NULL ){ $prev->price_cost = $line['price_cost']; }
-						$prev->price_sell = $line['price_sell'];
+						if( $line['price_cost_cor'] !== NULL ){ $prev->price_cost_cor = $line['price_cost_cor']; }
+						$prev->price_sell_cor = $line['price_sell_cor'];
 
-						$changed = $this->updateStockPrice( $line['id_product'], $line['quantity'], $line['price_sell'], $line['price_cost'], $line['is_service'], isset($line['price_cost_cor']) ? $line['price_cost_cor'] : NULL, isset($line['price_sell_cor']) ? $line['price_sell_cor'] : NULL );
+						$changed = $this->updateStockPrice( $line['id_product'], $line['quantity'], $line['price_sell_cor'], $line['price_cost_cor'], $line['is_service'] );
 
 						// a stocked product always changes (stock + qty); services may legitimately keep the same prices
 						if( !$line['is_service'] && $changed < 1 ){
@@ -210,7 +207,7 @@
 
 		// Arguments are validated by Invoices::save(); still bound, never concatenated.
 		// Services carry no stock, so only their prices are updated.
-		public function updateStockPrice( $id_product, $quantity, $price_sell, $price_cost, $is_service = 0, $cost_cor = NULL, $sell_cor = NULL ){
+		public function updateStockPrice( $id_product, $quantity, $sell_cor, $cost_cor, $is_service = 0 ){
 
 			$set = array();
 			$binds = array();
@@ -220,15 +217,8 @@
 				$set[] = 'stock = stock + ?';
 				$binds[] = (int)$quantity;
 			}
-			if( $price_cost !== '' && $price_cost !== NULL ){
-
-				$set[] = 'price_cost = ?';
-				$binds[] = $price_cost;
-				if( $cost_cor !== NULL ){ $set[] = 'price_cost_cor = ?'; $binds[] = $cost_cor; }
-			}
+			if( $cost_cor !== NULL ){ $set[] = 'price_cost_cor = ?'; $binds[] = $cost_cor; }
 			if( $sell_cor !== NULL ){ $set[] = 'price_sell_cor = ?'; $binds[] = $sell_cor; }
-			$set[] = 'price_sell = ?';
-			$binds[] = $price_sell;
 			$binds[] = (int)$id_product;
 
 			$this->db->query('update products set '.implode(', ',$set).' where id_product = ?', $binds);

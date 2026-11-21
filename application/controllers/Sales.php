@@ -257,26 +257,26 @@ class Sales extends Admin_Controller{
 					$discounts[$i] = (int) round( (float) $raw );
 				}
 
-				$price = str_replace(',', '', $prices[$i] );
+				$price = round( (float) str_replace(',', '', $prices[$i] ), 2 ); // prices are C$ (2 decimals)
 				$subtotal = $price * $quantities[$i];
 
 				if( $discounts[$i] )
 					$subtotal -= $subtotal * $discounts[$i] / 100;
 
-				$total_cordobas += $subtotal * $exchange->sell_price;
+				$total_cordobas += round($subtotal, 2);
 			}
 
 			/* bill checkout: tip (editable, 0..subtotal) and IVA (fixed by settings) are charged on top of the lines */
-			$tip_dollar = 0;
-			$iva_dollar = 0;
+			$tip_cor = 0;
+			$iva_cor = 0;
 
 			if( $bill_ctx ){
 
 				$bt = $bill_ctx['totals'];
 				$tip_raw = $this->input->post('tip_amount');
-				$tip_dollar = ( $tip_raw === NULL || $tip_raw === '' ) ? $bt['tip'] : round( floatval(str_replace(',', '', $tip_raw)) / $exchange->sell_price, 6 ); // typed in cordobas
+				$tip_cor = ( $tip_raw === NULL || $tip_raw === '' ) ? $bt['tip'] : round( floatval(str_replace(',', '', $tip_raw)), 2 ); // typed in cordobas
 
-				if( $tip_dollar < 0 || $tip_dollar > $bt['subtotal'] + 0.0005 ){
+				if( $tip_cor < 0 || $tip_cor > $bt['subtotal'] + 0.005 ){
 
 					$response['type'] = 'error';
 					$response['message'] = 'La propina debe estar entre 0 y el subtotal de la cuenta';
@@ -284,12 +284,13 @@ class Sales extends Admin_Controller{
 					exit();
 				}
 
-				$iva_dollar = $bt['iva'];
-				$total_cordobas += ( $tip_dollar + $iva_dollar ) * $exchange->sell_price;
+				$iva_cor = $bt['iva'];
+				$total_cordobas += $tip_cor + $iva_cor;
 			}
 
-			$sale['tip'] = $tip_dollar;
-			$sale['iva'] = $iva_dollar;
+			$total_cordobas = round($total_cordobas, 2);
+			$sale['tip'] = $tip_cor;
+			$sale['iva'] = $iva_cor;
 			$sale['id_bill'] = $bill_ctx ? $id_bill : NULL;
 			$sale['id_admin'] = (int) $this->id_admin ?: NULL; // cashier who collected (id_employee is the waiter)
 
@@ -671,7 +672,7 @@ class Sales extends Admin_Controller{
 				$sale_product['id_sale'] = $id_sale;
 				$sale_product['id_product'] = $id_products[$i];
 				$sale_product['quantity'] = $quantities[$i];
-				$sale_product['price'] = str_replace(',', '', $prices[$i] );
+				$sale_product['price'] = round( (float) str_replace(',', '', $prices[$i] ), 2 );
 				$sale_product['discount'] = $discounts[$i];
 				$cr = $commission_rate[$i] === "" ? NULL : $commission_rate[$i];
 				$sale_product['commission_rate'] = $cr;
@@ -684,7 +685,7 @@ class Sales extends Admin_Controller{
 				if( $sale_product['discount'] )
 					$subtotal -= $subtotal * $sale_product['discount'] / 100;
 
-				$total_cordobas += $subtotal * $exchange->sell_price;
+				$total_cordobas += round($subtotal, 2);
 
 				$stock = $this->sales_mdl->saveSaleProduct($sale_product, FALSE); // stock already taken under lock above (free-form) or by the kitchen order (bill)
 			}
@@ -701,7 +702,7 @@ class Sales extends Admin_Controller{
 				'summary' => 'Venta #'.$id_sale.' cobrada'.($bill_ctx ? ' (cuenta '.$bill_ctx['bill']->label.')' : ' (venta libre)'),
 				'after' => array(
 					'id_sale' => (int) $id_sale, 'id_employee' => $sale['id_employee'], 'client' => $sale['client'],
-					'tip_usd' => (float) $sale['tip'], 'iva_usd' => (float) $sale['iva'], 'lines_cordobas' => round($total_cordobas, 2),
+					'tip_cor' => (float) $sale['tip'], 'iva_cor' => (float) $sale['iva'], 'lines_cordobas' => round($total_cordobas, 2),
 					'dollar_ex_sell' => (float) $exchange->sell_price,
 					'lines' => $bill_ctx ? $bill_ctx['totals'] : NULL, 'items' => count($id_products),
 					'payments' => $payment_to_save, 'tab_status_after' => $tab_after ? $tab_after->status : NULL
@@ -799,7 +800,7 @@ class Sales extends Admin_Controller{
 				$subtotal -= $subtotal * $d->discount / 100;
 
 			$total_dol += $subtotal;
-			$subtotal_cor = $subtotal * $sale->dollar_ex_sell;
+			$subtotal_cor = $subtotal;
 
 			// cap the name at 34 chars so the auto-sized "Descripción" column can never
 			// grow past this width and push the price column out of alignment. Widened from 24 to
@@ -819,22 +820,22 @@ class Sales extends Admin_Controller{
 			'.( !empty($d->mods_text) ? '<tr><td></td><td class="left" colspan="2" style="font-size:8px;">'.htmlspecialchars('   * '.$d->mods_text).'</td></tr>' : '' );
 		}
 
-		// restaurant checkout: IVA and tip (stored in dollars) are charged on top of the lines
+		// restaurant checkout: IVA and tip (stored in C$) are charged on top of the lines
 		$extras_html = '';
-		$subtotal_lines_cor = $total_dol * $sale->dollar_ex_sell;
+		$subtotal_lines_cor = $total_dol;
 
 		if( (float) $sale->iva > 0 ){
-			$extras_html .= '<tr><td class="left label-col">IVA:</td><td class="left">C$'.number_format($sale->iva * $sale->dollar_ex_sell, 2).'</td></tr>';
+			$extras_html .= '<tr><td class="left label-col">IVA:</td><td class="left">C$'.number_format($sale->iva, 2).'</td></tr>';
 		}
 		if( (float) $sale->tip > 0 ){
-			$extras_html .= '<tr><td class="left label-col">Propina:</td><td class="left">C$'.number_format($sale->tip * $sale->dollar_ex_sell, 2).'</td></tr>';
+			$extras_html .= '<tr><td class="left label-col">Propina:</td><td class="left">C$'.number_format($sale->tip, 2).'</td></tr>';
 		}
 		if( $extras_html !== '' ){
 			$extras_html = '<tr><td class="left label-col">Subtotal:</td><td class="left">C$'.number_format($subtotal_lines_cor, 2).'</td></tr>'.$extras_html;
 		}
 
 		$total_dol += (float) $sale->tip + (float) $sale->iva;
-		$total_cor = $total_dol * $sale->dollar_ex_sell;
+		$total_cor = $total_dol;
 		$total_a_pagar_cor = $total_cor;
 		$_total_cor = $total_a_pagar_cor;
 
@@ -1116,7 +1117,7 @@ class Sales extends Admin_Controller{
 					$subtotal -= $subtotal * $d->discount / 100;
 
 				$total_dol += $subtotal;
-				$subtotal_cor = $subtotal * $sale->dollar_ex_sell;
+				$subtotal_cor = $subtotal;
 
 				$printer->text( $this->format_columns(
 
@@ -1133,19 +1134,19 @@ class Sales extends Admin_Controller{
 			if( (float) $sale->tip > 0 || (float) $sale->iva > 0 ){
 
 				$printer->text( str_repeat('-', 43)."\n" );
-				$printer->text( $this->format_columns( '', 'Subtotal', "C$".number_format( $total_dol * $sale->dollar_ex_sell, 2 ) ) );
+				$printer->text( $this->format_columns( '', 'Subtotal', "C$".number_format( $total_dol, 2 ) ) );
 
 				if( (float) $sale->iva > 0 ){
-					$printer->text( $this->format_columns( '', 'IVA', "C$".number_format( $sale->iva * $sale->dollar_ex_sell, 2 ) ) );
+					$printer->text( $this->format_columns( '', 'IVA', "C$".number_format( $sale->iva, 2 ) ) );
 				}
 				if( (float) $sale->tip > 0 ){
-					$printer->text( $this->format_columns( '', 'Propina', "C$".number_format( $sale->tip * $sale->dollar_ex_sell, 2 ) ) );
+					$printer->text( $this->format_columns( '', 'Propina', "C$".number_format( $sale->tip, 2 ) ) );
 				}
 
 				$total_dol += (float) $sale->tip + (float) $sale->iva;
 			}
 
-			$total_cor = $total_dol * $sale->dollar_ex_sell;
+			$total_cor = $total_dol;
 			$total_a_pagar_cor = $total_cor;
 			$_total_cor = $total_a_pagar_cor;
 
@@ -1315,7 +1316,7 @@ class Sales extends Admin_Controller{
 				foreach( $ctx['lines'] as $l ){
 					$products[] = array(
 						'id_product' => $l['id_product'], 'name' => $l['name'], 'barcode' => $l['barcode'], 'is_service' => $l['is_service'],
-						'price_sell' => (string) $l['price'], 'commisssion_rate' => $l['commisssion_rate'], 'quantity' => $l['quantity'],
+						'price_sell_cor' => (string) $l['price'], 'commisssion_rate' => $l['commisssion_rate'], 'quantity' => $l['quantity'],
 					);
 				}
 

@@ -31,7 +31,7 @@ $e = function($f) use ($ingredient){ return isset($ingredient->$f) && $ingredien
 		<p class="text-muted">La existencia se cambia con "Recibir" o "Merma / conteo" para dejar historial.</p>
 		<?php endif; ?>
 		<div class="form-group"><label>Alerta de existencia baja (opcional)</label><input type="text" inputmode="decimal" name="alert_threshold" class="form-control" value="<?php echo $is_edit && $ingredient->alert_threshold > 0 ? $num($ingredient->alert_threshold) : ''; ?>"></div>
-		<div class="form-group"><label>Costo por unidad base (C$, opcional)</label><input type="text" inputmode="decimal" name="cost_unit" class="form-control" value="<?php echo $is_edit && $ingredient->cost_unit !== NULL ? $num((float) $ingredient->cost_unit * fx_rate()) : ''; ?>"><small class="text-muted">Se actualiza solo al recibir con costo total.</small></div>
+		<div class="form-group"><label>Costo por unidad base (C$, opcional)</label><input type="text" inputmode="decimal" name="cost_unit" class="form-control" value="<?php echo $is_edit && $ingredient->cost_unit !== NULL ? $num((float) $ingredient->cost_unit) : ''; ?>"><small class="text-muted">Se actualiza solo al recibir con costo total.</small></div>
 		<fieldset style="border:1px solid #ddd; padding:10px; margin-bottom:15px;">
 			<legend style="font-size:14px; width:auto; border:0; margin:0;">Presentaciones de compra (opcional)</legend>
 			<p class="text-muted" style="font-size:12px;">Cada forma en que lo compra: ej. "Saco 25 lb" = 11340, "Bolsa 1 lb" = 454 (tamaño en unidad base). Se usan al registrar compras.</p>
@@ -83,14 +83,14 @@ $e = function($f) use ($ingredient){ return isset($ingredient->$f) && $ingredien
 			tr.find('.c-unit').text(ing ? ing.unit : '');
 			if( ing ){
 				var cost = COSTS[id];
-				if( cost === null || cost === undefined ){ missing = true; tr.find('.c-cost').text('—'); } else { total += cost * q; tr.find('.c-cost').text(FX.cor(FX.toCor(cost * q))); }
+				if( cost === null || cost === undefined ){ missing = true; tr.find('.c-cost').text('—'); } else { total += cost * q; tr.find('.c-cost').text(FX.cor(cost * q)); }
 				list.push({ id_ingredient: id, quantity: tr.find('.c-qty').val() });
 			} else { tr.find('.c-cost').text(''); }
 		});
 		$('#components').val(JSON.stringify(list));
-		$('#batch-cost').text(FX.cor(FX.toCor(total)));
+		$('#batch-cost').text(FX.cor(total));
 		var y = parseFloat(String($('#batch_yield').val()).replace(',', '.')) || 0;
-		$('#unit-cost').text(y > 0 && total > 0 ? FX.cor(FX.toCor(total / y), Math.abs(FX.toCor(total / y) * 100 - Math.round(FX.toCor(total / y) * 100)) < 1e-6 ? 2 : 4) : '—');
+		$('#unit-cost').text(y > 0 && total > 0 ? FX.cor(total / y, Math.abs(total / y * 100 - Math.round(total / y * 100)) < 1e-6 ? 2 : 4) : '—');
 		$('#comp-warn').toggle(missing);
 	}
 	var PACKS = <?php echo json_encode($packs_json); ?>;

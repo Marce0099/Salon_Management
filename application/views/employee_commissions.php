@@ -31,7 +31,7 @@
 			</tr>
 		</thead>
 		<tbody>
-			<?php $com_total = 0; $com_total_usd = 0; foreach( $sales as $s ) : ?>
+			<?php $com_total = 0; foreach( $sales as $s ) : ?>
 
 			<?php $details = $interface->getSaleDetail($s->id_sale, $id_employee); ?>
 			<tr>
@@ -41,7 +41,6 @@
 				<td>C$<?php echo number_format($details['realProfit'],2); ?></td>
 				<?php
 					$com_total += $details['commission'];
-					$com_total_usd += $details['commissionUsd'];
 					/*if(!$s->pos_paid)
 						$com_sale = $s->sale_total * 2.5 / 100;
 					else
@@ -56,7 +55,7 @@
 		<tfoot>
 			<tr>
 				<td colspan="6" class="text-right bg-success">
-				Comisión total: $<?php echo number_format($com_total_usd,2) . ' | C$' . number_format($com_total,2); ?>
+				Comisión total: C$<?php echo number_format($com_total,2); ?>
 				</td>
 			</tr>
 		</tfoot>

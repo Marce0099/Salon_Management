@@ -90,7 +90,7 @@ class Ingredients_mdl extends CI_Model{
 		}
 
 		if( $total_cost !== NULL && $total_cost > 0 && $qty_base > 0 ){
-			$this->db->where('id_ingredient', (int) $ing->id_ingredient)->update('ingredients', array('cost_unit' => round($total_cost / $qty_base, 6)));
+			$this->db->where('id_ingredient', (int) $ing->id_ingredient)->update('ingredients', array('cost_unit' => round($total_cost / $qty_base, 4)));
 		}
 
 		return TRUE;
@@ -219,7 +219,7 @@ class Ingredients_mdl extends CI_Model{
 	/**
 	 * Saves a purchase receipt: every line adds stock and a 'receive' movement, the cost per base unit becomes the weighted average
 	 * of the existing stock and the purchase, all in ONE transaction (rows locked in ascending id, like the kitchen).
-	 * $lines = array(array(id_ingredient, pack_name|NULL, pack_qty, base_qty, line_cost|NULL)); $header = array(id_provider|NULL, note, purchased_at).
+	 * $lines = array(array(id_ingredient, pack_name|NULL, pack_qty, base_qty, line_cost_cor|NULL)); $header = array(id_provider|NULL, note, purchased_at).
 	 * Returns array(ok, message, id_purchase).
 	 */
 	public function receivePurchase($lines, $header, $id_admin){
@@ -239,21 +239,18 @@ class Ingredients_mdl extends CI_Model{
 			$state = array();
 			foreach( $rows as $r ){ $state[(int) $r->id_ingredient] = $r; }
 
-			$total = 0;
 			$total_cor = 0;
 			foreach( $lines as $l ){
 				$s = isset($state[(int) $l['id_ingredient']]) ? $state[(int) $l['id_ingredient']] : NULL;
 				if( !$s || !$s->active ){ return array(FALSE, 'Un ingrediente de la compra ya no está disponible'); }
 				if( $s->batch_yield !== NULL ){ return array(FALSE, $s->name.' se prepara en la cocina: use "Preparar lote"'); }
-				if( $l['line_cost'] !== NULL ){ $total += $l['line_cost']; $total_cor += $l['line_cost_cor']; }
+				if( $l['line_cost_cor'] !== NULL ){ $total_cor += $l['line_cost_cor']; }
 			}
 
 			$self->db->insert('ingredient_purchases', array(
 				'id_provider'  => $header['id_provider'],
 				'note'         => $header['note'],
 				'purchased_at' => $header['purchased_at'],
-				'total_cost'   => round($total, 4),
-				'dollar_ex_sell' => $header['dollar_ex_sell'],
 				'total_cost_cor' => round($total_cor, 2),
 				'id_admin'     => $id_admin ? (int) $id_admin : NULL,
 			));
@@ -265,7 +262,7 @@ class Ingredients_mdl extends CI_Model{
 				$id   = (int) $l['id_ingredient'];
 				$s    = $state[$id];
 				$base = (float) $l['base_qty'];
-				$cost = $l['line_cost'];
+				$cost = $l['line_cost_cor'];
 				$new_cost = $s->cost_unit;
 
 				if( $cost !== NULL && $cost > 0 && $base > 0 ){
@@ -273,7 +270,7 @@ class Ingredients_mdl extends CI_Model{
 					$new_cost = ($s->cost_unit === NULL || (float) $s->stock <= 0)
 						? $unit_now
 						: ((float) $s->stock * (float) $s->cost_unit + $cost) / ((float) $s->stock + $base);
-					$new_cost = round($new_cost, 6);
+					$new_cost = round($new_cost, 4);
 				}
 
 				$audit_lines[] = array('id_ingredient' => $id, 'base_qty' => $base, 'pack' => $l['pack_name'], 'pack_qty' => $l['pack_qty'], 'line_cost_cor' => $l['line_cost_cor'],
@@ -291,7 +288,6 @@ class Ingredients_mdl extends CI_Model{
 					'pack_name'     => $l['pack_name'],
 					'pack_qty'      => $l['pack_qty'],
 					'base_qty'      => $base,
-					'line_cost'     => $cost,
 					'line_cost_cor' => $l['line_cost_cor'],
 				));
 			}

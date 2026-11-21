@@ -34,22 +34,22 @@
 		</tr>
 	</thead>
 	<tbody>
-		<?php $total = 0; $total_cor = 0; foreach( $invoice->products as $p ) : ?>
+		<?php $total_cor = 0; foreach( $invoice->products as $p ) : ?>
 		<tr>
 			<td><?php echo $p->barcode; ?></td>
 			<td><?php echo $p->name; ?></td>
 			<td><?php echo $p->quantity; ?><?php if( !empty($p->pack_name) ): ?> <small class="text-muted">(<?php echo (int)$p->pack_qty; ?> &times; <?php echo htmlspecialchars($p->pack_name); ?> de <?php echo (int)$p->pack_units; ?> u)</small><?php endif; ?></td>
-			<td><?php echo fmt_cor_usd($p->price_cost_cor, $p->price_cost); ?></td>
-			<td><?php echo fmt_cor_usd($p->price_sell_cor, $p->price_sell); ?></td>
-			<?php $subtotal = $p->quantity * $p->price_cost; $subtotal_cor = $p->price_cost_cor !== NULL ? $p->quantity * $p->price_cost_cor : NULL; ?>
-			<td><?php echo fmt_cor_usd($subtotal_cor, $subtotal); ?></td>
-			<?php $total += $subtotal; $total_cor = ($subtotal_cor !== NULL && $total_cor !== NULL) ? $total_cor + $subtotal_cor : NULL; ?>
+			<td><?php echo fmt_cor_unit($p->price_cost_cor); ?></td>
+			<td><?php echo fmt_cor_pair($p->price_sell_cor); ?></td>
+			<?php $subtotal_cor = $p->price_cost_cor !== NULL ? round($p->quantity * $p->price_cost_cor, 2) : NULL; ?>
+			<td><?php echo fmt_cor_pair($subtotal_cor); ?></td>
+			<?php $total_cor = ($subtotal_cor !== NULL && $total_cor !== NULL) ? $total_cor + $subtotal_cor : NULL; ?>
 		</tr>
 		<?php endforeach; ?>
 	</tbody>
 	<tfoot>
 			<tr><td colspan="6" class="text-right">
-			<strong>Total: <?php echo fmt_cor_usd($total_cor, $total); ?></strong>
+			<strong>Total: <?php echo fmt_cor_pair($total_cor); ?></strong>
 		</td></tr>
 		</tfoot>
 </table>

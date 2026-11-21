@@ -13,17 +13,12 @@
 			return ( $v === NULL || $v === '' || !is_numeric($v) ) ? NULL : round((float)$v, 4);
 		}
 
-		/** Dollar amount -> C$ at the live rate, snapped to the cent when it is only rounding noise. */
-		private function cor( $usd, $decimals = 4 ){
+		private function cents( $v ){
 
-			if( $usd === NULL ){ return NULL; }
-
-			$c = round($usd * fx_rate(), $decimals);
-
-			return abs($c - round($c, 2)) < 0.002 ? round($c, 2) : $c;
+			return ( $v === NULL || $v === '' || !is_numeric($v) ) ? NULL : round((float)$v, 2);
 		}
 
-		/** Inserts one row; call it inside the caller's transaction. Costs are per base unit in dollars. */
+		/** Inserts one row; call it inside the caller's transaction. Costs are per base unit in cordobas (4 decimals), sell prices in cordobas (2). */
 		public function log( $id_product, $source, $old_cost, $new_cost, $extra = array() ){
 
 			$new = $this->dec($new_cost);
@@ -39,15 +34,11 @@
 				'id_invoice' => isset($extra['id_invoice']) ? $extra['id_invoice'] : NULL,
 				'id_invoice_product' => isset($extra['id_invoice_product']) ? $extra['id_invoice_product'] : NULL,
 				'id_provider' => isset($extra['id_provider']) ? $extra['id_provider'] : NULL,
-				'old_cost' => $this->dec($old_cost),
-				'new_cost' => $new,
 				'quantity' => isset($extra['quantity']) ? (int)$extra['quantity'] : NULL,
-				'old_sell' => isset($extra['old_sell']) ? $this->dec($extra['old_sell']) : NULL,
-				'new_sell' => isset($extra['new_sell']) ? $this->dec($extra['new_sell']) : NULL,
-				'old_cost_cor' => $this->cor($this->dec($old_cost)),
-				'new_cost_cor' => $this->cor($new),
-				'old_sell_cor' => isset($extra['old_sell']) ? $this->cor($this->dec($extra['old_sell']), 2) : NULL,
-				'new_sell_cor' => isset($extra['new_sell']) ? $this->cor($this->dec($extra['new_sell']), 2) : NULL,
+				'old_cost_cor' => $this->dec($old_cost),
+				'new_cost_cor' => $new,
+				'old_sell_cor' => isset($extra['old_sell']) ? $this->cents($extra['old_sell']) : NULL,
+				'new_sell_cor' => isset($extra['new_sell']) ? $this->cents($extra['new_sell']) : NULL,
 				'id_admin' => $this->session->userdata('id_admin') ? (int)$this->session->userdata('id_admin') : NULL,
 				'created_at' => !empty($extra['created_at']) ? $extra['created_at'] : date('Y-m-d H:i:s')
 			);
@@ -65,7 +56,7 @@
 			if( !empty($f['source']) && in_array($f['source'], array('purchase','manual','import'), TRUE) ){ $sql .= ' and H.source = ?'; $b[] = $f['source']; }
 			if( !empty($f['from']) ){ $sql .= ' and H.created_at >= ?'; $b[] = $f['from'].' 00:00:00'; }
 			if( !empty($f['to']) ){ $sql .= ' and H.created_at <= ?'; $b[] = $f['to'].' 23:59:59'; }
-			if( !empty($f['only_changes']) ){ $sql .= ' and (H.old_cost is null or H.old_cost <> H.new_cost)'; }
+			if( !empty($f['only_changes']) ){ $sql .= ' and (H.old_cost_cor is null or H.old_cost_cor <> H.new_cost_cor)'; }
 
 			return array($sql, $b);
 		}

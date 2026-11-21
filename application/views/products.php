@@ -129,8 +129,8 @@
 			<td class="text-center">
 			<?php echo $p->stock; ?>
 			</td>
-			<td class="text-center"><?php echo fmt_money_pair($p->price_cost); ?></td>
-			<td class="text-center"><?php echo fmt_money_pair($p->price_sell); ?></td>
+			<td class="text-center"><?php echo fmt_cor_unit($p->price_cost_cor); ?></td>
+			<td class="text-center"><?php echo fmt_cor_pair($p->price_sell_cor); ?></td>
 			<td class="text-center">
 				<div class="btn-group">
 					<a href="#" data-toggle="dropdown" class="dropdown-toggle"><i class="fa fa-cog"></i></a>

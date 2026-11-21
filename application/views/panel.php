@@ -38,8 +38,7 @@
               <div class="kpi-value text-success">Abierta</div>
               <div class="kpi-sub">
                 Ventas hoy: <?php echo $cash_movements['sales_num_total']; ?>
-                (C$<?php echo number_format($cash_movements['sales_total_cordobas'],2); ?> |
-                 $<?php echo number_format($cash_movements['sales_total_dollar'],2); ?>)
+                (C$<?php echo number_format($cash_movements['sales_total_cordobas'],2); ?>)
               </div>
             <?php else : ?>
               <div class="kpi-value text-danger">Cerrada</div>

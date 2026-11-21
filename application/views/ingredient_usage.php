@@ -26,9 +26,9 @@ foreach( $rows as $r ){
 <p class="alert alert-info">Sin movimientos de ingredientes en el período.</p>
 <?php else : ?>
 <div class="row" style="margin-bottom:10px;">
-	<div class="col-xs-12 col-sm-4"><div class="alert alert-info" style="margin-bottom:6px;">Costo del consumo teórico: <strong><?php echo fmt_money_pair($tot_cost); ?></strong></div></div>
-	<div class="col-xs-12 col-sm-4"><div class="alert alert-warning" style="margin-bottom:6px;">Costo de mermas: <strong><?php echo fmt_money_pair($tot_waste_cost); ?></strong></div></div>
-	<div class="col-xs-12 col-sm-4"><div class="alert <?php echo $tot_count_cost < 0 ? 'alert-danger' : 'alert-success'; ?>" style="margin-bottom:6px;">Diferencia de conteo: <strong><?php echo ($tot_count_cost < 0 ? '-' : '').fmt_money_pair(abs($tot_count_cost)); ?></strong></div></div>
+	<div class="col-xs-12 col-sm-4"><div class="alert alert-info" style="margin-bottom:6px;">Costo del consumo teórico: <strong><?php echo fmt_cor_pair(round($tot_cost, 2)); ?></strong></div></div>
+	<div class="col-xs-12 col-sm-4"><div class="alert alert-warning" style="margin-bottom:6px;">Costo de mermas: <strong><?php echo fmt_cor_pair(round($tot_waste_cost, 2)); ?></strong></div></div>
+	<div class="col-xs-12 col-sm-4"><div class="alert <?php echo $tot_count_cost < 0 ? 'alert-danger' : 'alert-success'; ?>" style="margin-bottom:6px;">Diferencia de conteo: <strong><?php echo ($tot_count_cost < 0 ? '-' : '').fmt_cor_pair(round(abs($tot_count_cost), 2)); ?></strong></div></div>
 </div>
 <div class="table-responsive">
 <table class="table table-striped jambo_table">
@@ -39,7 +39,7 @@ foreach( $rows as $r ){
 			<td><?php echo $i + 1; ?></td>
 			<td><a href="<?php echo base_url('ingredients/movements/'.$r->id_ingredient); ?>"><?php echo htmlspecialchars($r->name); ?></a></td>
 			<td class="text-right"><strong><?php echo $n($r->consumed).' '.$r->unit; ?></strong></td>
-			<td class="text-right"><?php echo $r->cost_unit === NULL ? '<span class="text-muted">—</span>' : fmt_money_pair($r->consumed * $r->cost_unit); ?></td>
+			<td class="text-right"><?php echo $r->cost_unit === NULL ? '<span class="text-muted">—</span>' : fmt_cor_pair(round($r->consumed * $r->cost_unit, 2)); ?></td>
 			<td class="text-right <?php echo $r->waste > 0 ? 'text-warning' : ''; ?>"><?php echo $n($r->waste).' '.$r->unit; ?></td>
 			<td class="text-right <?php echo $r->counted < 0 ? 'text-danger' : ( $r->counted > 0 ? 'text-success' : '' ); ?>"><?php echo ($r->counted > 0 ? '+' : '').$n($r->counted).' '.$r->unit; ?></td>
 			<td class="text-right"><?php echo $n($r->used_in_batches).' '.$r->unit; ?></td>

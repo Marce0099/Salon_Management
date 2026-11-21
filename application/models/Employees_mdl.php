@@ -104,7 +104,6 @@ class Employees_mdl extends CI_Model{
 		$data = array(
 			'totalSale' => 0,
 			'commission' => 0,
-			'commissionUsd' => 0,
 			'realProfit' => 0
 		);
 
@@ -145,7 +144,7 @@ class Employees_mdl extends CI_Model{
 		// receipts), not today's live dollar_exchange rate
 		$sell_rate = $sale_row ? floatval($sale_row->dollar_ex_sell) : 0;
 
-		$gross_cordobas = $total_usd * $sell_rate;
+		$gross_cordobas = round($total_usd, 2); // prices are C$
 
 		// commission is paid on real profit (net of POS bank-commission / coupon-discount
 		// absorption), not the raw gross invoice value — mirrors Cash_mdl::getCashMovements()
@@ -154,8 +153,7 @@ class Employees_mdl extends CI_Model{
 
 		$data['totalSale'] = round( $gross_cordobas, 2 );
 		$data['realProfit'] = round( $gross_cordobas * $real_profit_ratio, 2 );
-		$data['commissionUsd'] = round( $commission_gross_usd * $real_profit_ratio, 2 );
-		$data['commission'] = round( $commission_gross_usd * $sell_rate * $real_profit_ratio, 2 );
+		$data['commission'] = round( $commission_gross_usd * $real_profit_ratio, 2 );
 
 		return $data;
 	}

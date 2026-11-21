@@ -1,5 +1,4 @@
 <?php
-function rp_usd($n){ return '$'.number_format((float) $n, 2); } // secondary info only
 function rp_cor($n){ return 'C$&nbsp;'.number_format((float) $n, 2); }
 $print_labels = array('printed' => array('Impresa', 'success'), 'failed' => array('No impresa', 'danger'), 'skipped' => array('Sin cocina', 'default'), 'pending' => array('Pendiente', 'warning'));
 
@@ -35,19 +34,19 @@ function rp_table($title, $rows, $first){ ?>
 
 <div class="row" id="rp-summary">
 	<?php foreach( array(
-		array('Ventas', rp_cor($summary['ventas_cor']), rp_usd($summary['ventas_usd'])),
-		array('Propinas', rp_cor($summary['tip_cor']), rp_usd($summary['tip_usd'])),
-		array('IVA', rp_cor($summary['iva_cor']), rp_usd($summary['iva_usd'])),
-		array('Total cobrado', rp_cor($summary['total_cor']), rp_usd($summary['total_usd'])),
+		array('Ventas', rp_cor($summary['ventas_cor'])),
+		array('Propinas', rp_cor($summary['tip_cor'])),
+		array('IVA', rp_cor($summary['iva_cor'])),
+		array('Total cobrado', rp_cor($summary['total_cor'])),
 	) as $t ) : ?>
 	<div class="col-md-3 col-sm-6"><div class="panel panel-default kpi-tile"><div class="panel-heading"><?php echo $t[0]; ?></div>
-		<div class="panel-body"><div class="kpi-value" style="font-size:24px;"><?php echo $t[1]; ?></div><div class="kpi-sub"><?php echo $t[2]; ?></div></div></div></div>
+		<div class="panel-body"><div class="kpi-value" style="font-size:24px;"><?php echo $t[1]; ?></div></div></div></div>
 	<?php endforeach; ?>
 </div>
 <p class="text-muted">
 	<?php echo (int) $summary['sales']; ?> cuenta(s) cobradas
 	<?php if( $summary['sales'] > 0 ) : ?> · ticket promedio <?php echo rp_cor($summary['total_cor'] / $summary['sales']); ?><?php endif; ?>
-	· Productos anulados: <?php echo (int) $voided->n; ?> (<?php echo rp_usd($voided->usd); ?>)
+	· Productos anulados: <?php echo (int) $voided->n; ?> (<?php echo rp_cor($voided->cor); ?>)
 </p>
 
 <div class="row">

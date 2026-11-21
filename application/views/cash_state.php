@@ -24,7 +24,7 @@
 				<tbody>
 					<?php foreach($sales as $s) : ?>
 						<?php 
-							$_total_sale = $s->sale_total * $s->dollar_ex_sell;
+							$_total_sale = $s->sale_total; // C$
 							$total_cordobas = $_total_sale;
 							$sales_global_total += $_total_sale;
 

@@ -15,10 +15,10 @@
 			<td><?php echo htmlspecialchars($l->name); ?></td>
 			<td class="text-right"><?php echo $n($l->pack_qty).' '.htmlspecialchars($l->pack_name !== NULL ? $l->pack_name : $l->unit); ?></td>
 			<td class="text-right"><?php echo $n($l->base_qty).' '.$l->unit; ?></td>
-			<td class="text-right"><?php echo $l->line_cost !== NULL ? 'C$ '.number_format((float) $l->line_cost_cor, 2).' <small class="text-muted">($ '.number_format((float) $l->line_cost, 2).')</small>' : '—'; ?></td>
+			<td class="text-right"><?php echo $l->line_cost_cor !== NULL ? 'C$ '.number_format((float) $l->line_cost_cor, 2) : '—'; ?></td>
 		</tr>
 	<?php endforeach; ?>
 	</tbody>
-	<tfoot><tr><th colspan="3" class="text-right">Total</th><th class="text-right">C$ <?php echo number_format((float) $purchase->total_cost_cor, 2); ?><br><small>$ <?php echo number_format((float) $purchase->total_cost, 2); ?> · TC <?php echo number_format((float) $purchase->dollar_ex_sell, 2); ?></small></th></tr></tfoot>
+	<tfoot><tr><th colspan="3" class="text-right">Total</th><th class="text-right">C$ <?php echo number_format((float) $purchase->total_cost_cor, 2); ?></th></tr></tfoot>
 </table>
 </div>

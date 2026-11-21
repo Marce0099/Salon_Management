@@ -28,8 +28,8 @@ class Products extends Admin_Controller{
 			'barcode' => array( 'column' => 'barcode', 'type' => 'string' ),
 			'provider' => array( 'column' => 'providers.id_provider', 'type' => 'numeric' ),
 			'stock' => array( 'column' => 'stock', 'type' => 'numeric'),
-			'price_cost' => array( 'column' => 'price_cost', 'type' => 'numeric' ),
-			'price_sell' => array( 'column' => 'price_sell', 'type' => 'numeric' )
+			'price_cost' => array( 'column' => 'price_cost_cor', 'type' => 'numeric' ),
+			'price_sell' => array( 'column' => 'price_sell_cor', 'type' => 'numeric' )
 		);
 
 		$this->easysearch->setInitialWhere('products.active=1 and products.is_service=0');
@@ -204,7 +204,6 @@ class Products extends Admin_Controller{
 					'name' => $d['pack_name'],
 					'units' => $pack_units,
 					'barcode' => $d['pack_barcode'] !== '' ? $d['pack_barcode'] : NULL,
-					'price_cost' => $pack_cost !== NULL ? cor_to_usd($pack_cost, NULL, 2) : NULL,
 					'price_cost_cor' => $pack_cost !== NULL ? round($pack_cost, 2) : NULL,
 				)) : array();
 
@@ -258,8 +257,6 @@ class Products extends Admin_Controller{
 					$db->insert('products', array(
 						'barcode' => $d['barcode'] !== '' ? $d['barcode'] : NULL,
 						'name' => $d['name'],
-						'price_cost' => (string)cor_to_usd($d['_cost'], NULL, 6),
-						'price_sell' => (string)cor_to_usd($d['_sell'], NULL, 6),
 						'price_cost_cor' => round($d['_cost'], 4),
 						'price_sell_cor' => round($d['_sell'], 2),
 						'stock' => $d['_stock'],
@@ -273,7 +270,7 @@ class Products extends Admin_Controller{
 
 					if( $d['_cost'] > 0 ){
 						$self->load->model('cost_history_mdl');
-						$self->cost_history_mdl->log( $id_product, 'import', NULL, cor_to_usd($d['_cost'], NULL, 6), array( 'new_sell' => cor_to_usd($d['_sell'], NULL, 6) ) );
+						$self->cost_history_mdl->log( $id_product, 'import', NULL, round($d['_cost'], 4), array( 'new_sell' => round($d['_sell'], 2) ) );
 					}
 
 					foreach( $d['_packs'] as $pk ){
@@ -409,7 +406,6 @@ class Products extends Admin_Controller{
 				'name' => $name,
 				'units' => (int)$u,
 				'barcode' => $bc === '' ? NULL : $bc,
-				'price_cost' => $cost === '' ? NULL : cor_to_usd((float)$cost, NULL, 2),
 				'price_cost_cor' => $cost === '' ? NULL : round((float)$cost, 2)
 			);
 		}
@@ -865,11 +861,10 @@ class Products extends Admin_Controller{
 
 		foreach( $data['internal_uses'] as $iu ){
 
-			$sql = 'select sum(IUP.quantity * IUP.price_cost) as total_cost, sum(IUP.quantity * IFNULL(IUP.price_cost_cor, IUP.price_cost * '.fx_rate().')) as total_cost_cor from internal_use_products IUP
+			$sql = 'select sum(IUP.quantity * IUP.price_cost_cor) as total_cost_cor from internal_use_products IUP
 			where IUP.id_internal_use = '.$iu->id_internal_use;
 
 			$tc = $this->db->query($sql)->row();
-			$iu->total_cost = $tc->total_cost;
 			$iu->total_cost_cor = $tc->total_cost_cor;
 		}
 

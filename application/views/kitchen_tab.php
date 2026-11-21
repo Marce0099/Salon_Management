@@ -32,7 +32,7 @@
 
 		<div class="x_panel">
 			<div class="x_title"><h2 style="font-size:16px;">Consumo de la mesa</h2>
-				<span class="pull-right" style="font-size:16px;"><strong id="tab-total">C$&nbsp;<?php echo number_format($total * $rate, 2); ?></strong></span><div class="clearfix"></div></div>
+				<span class="pull-right" style="font-size:16px;"><strong id="tab-total">C$&nbsp;<?php echo number_format($total, 2); ?></strong></span><div class="clearfix"></div></div>
 			<?php if( empty($orders) ) : ?>
 			<p class="text-muted">Aún no se ha enviado nada a cocina.</p>
 			<?php endif; ?>
@@ -53,7 +53,7 @@
 				<?php foreach( $o->items as $i ) : ?>
 					<li class="<?php echo $i->status === 'void' ? 'item-void' : ''; ?>">
 						<?php echo (int) $i->quantity; ?> × <?php echo htmlspecialchars($i->product_name); ?>
-						<span class="text-muted">C$&nbsp;<?php echo number_format($i->quantity * $i->unit_price * $rate, 2); ?></span>
+						<span class="text-muted">C$&nbsp;<?php echo number_format($i->quantity * $i->unit_price, 2); ?></span>
 						<?php if( $i->course > 1 ) : ?><span class="label label-info">T<?php echo (int) $i->course; ?></span><?php endif; ?>
 						<?php foreach( $i->mods as $mod_text ) : ?><br><small class="text-info"><i class="fa fa-asterisk"></i> <?php echo htmlspecialchars($mod_text); ?></small><?php endforeach; ?>
 						<?php if( $i->notes ) : ?><br><small class="text-muted"><i class="fa fa-comment-o"></i> <?php echo htmlspecialchars($i->notes); ?></small><?php endif; ?>
@@ -108,8 +108,7 @@
 
 	function notify(type, text){ new PNotify({ title: 'Notificación', text: text, type: type, styling: 'bootstrap3', delay: 3000 }); }
 	function esc(s){ return $('<div>').text(s == null ? '' : s).html(); }
-	var RATE = <?php echo json_encode((float) $rate); ?>;
-	function money(n){ return 'C$ ' + (Math.round(n * RATE * 100) / 100).toFixed(2); }
+	function money(n){ return 'C$ ' + (Math.round(n * 100) / 100).toFixed(2); }
 
 	/* ---- menu ---- */
 	function renderCats(){

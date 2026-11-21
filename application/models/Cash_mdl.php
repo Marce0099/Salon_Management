@@ -85,20 +85,20 @@ class Cash_mdl extends CI_Model{
 					if( $sp->discount )
 						$subtotal -= $subtotal * $sp->discount / 100;
 
-					$sale_total += $subtotal;
+					$sale_total += round($subtotal, 2);
 				}
 
-				// tip and IVA are charged on top of the lines (dollars, same unit as the lines), so the real invoice total includes them
+				// tip and IVA are charged on top of the lines (all C$), so the real invoice total includes them
 				$sale_total += floatval($s->tip ?? 0) + floatval($s->iva ?? 0);
 
-				$s->sale_total = $sale_total;
+				$s->sale_total = round($sale_total, 2); // C$
 
 				$sql = "SELECT SPA.* FROM sale_payments SPA WHERE id_sale=";
 				$sql .= "'" . $s->id_sale . "'";
 
 				$sales_payment = $this->db->query($sql)->result();
 
-				$_sale_total = $sale_total * $s->dollar_ex_sell; //C$
+				$_sale_total = round($sale_total, 2); // C$ (prices are stored in C$)
 
 				$cash_cordoba = 0;
 				$cash_dolar = 0;

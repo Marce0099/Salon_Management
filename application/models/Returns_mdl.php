@@ -22,11 +22,11 @@ class Returns_mdl extends CI_Model{
 
         if( $get ){
 
-            return $this->db->query("select sum(T.quantity * T.price_cost) as total_cost, sum(T.quantity * IFNULL(T.price_cost_cor, T.price_cost * ".fx_rate().")) as total_cost_cor from ($query) as T")->row();
+            return $this->db->query("select sum(T.quantity * T.price_cost_cor) as total_cost_cor from ($query) as T")->row();
         }
         else{
 
-            return $this->db->query("select sum(quantity * price_cost) as total_cost, sum(quantity * IFNULL(price_cost_cor, price_cost * ".fx_rate().")) as total_cost_cor from returns_products")->row();
+            return $this->db->query("select sum(quantity * price_cost_cor) as total_cost_cor from returns_products")->row();
         }
     }
 
@@ -185,8 +185,6 @@ class Returns_mdl extends CI_Model{
     			'pack_qty'           => $e['pack'] ? $e['qty'] : NULL,
     			'pack_units'         => $e['pack'] ? (int)$e['pack']->units : $line->pack_units,
     			'quantity'           => $e['units'],
-    			'price_cost'         => $line->price_cost,
-    			'price_sell'         => $line->price_sell,
     			'price_cost_cor'     => $line->price_cost_cor,
     			'price_sell_cor'     => $line->price_sell_cor,
     		);
@@ -197,7 +195,7 @@ class Returns_mdl extends CI_Model{
     	$audit_lines = array();
     	foreach( $data as $d ){
     		$st = $this->db->select('name, stock')->where('id_product', $d['id_product'])->get('products')->row();
-    		$audit_lines[] = array('id_product' => $d['id_product'], 'name' => $st ? $st->name : NULL, 'units' => (int) $d['quantity'], 'pack' => $d['pack_name'], 'stock_after' => $st ? (int) $st->stock : NULL, 'price_cost' => $d['price_cost'], 'price_cost_cor' => $d['price_cost_cor']);
+    		$audit_lines[] = array('id_product' => $d['id_product'], 'name' => $st ? $st->name : NULL, 'units' => (int) $d['quantity'], 'pack' => $d['pack_name'], 'stock_after' => $st ? (int) $st->stock : NULL, 'price_cost_cor' => $d['price_cost_cor']);
     	}
     	$this->audit->log('return.create', 'return', $id_return, array(
     		'summary' => 'Devolución a proveedor registrada (factura #'.(int) $id_invoice.', '.count($audit_lines).' linea(s))',
@@ -210,7 +208,7 @@ class Returns_mdl extends CI_Model{
 
     	$rows = $this->db->query(
     		'SELECT IP.id_invoice_product, IP.id_product, P.name, P.barcode, P.stock,
-    		        IP.quantity, IP.id_pack, IP.pack_name, IP.pack_qty, IP.pack_units, IP.price_cost,
+    		        IP.quantity, IP.id_pack, IP.pack_name, IP.pack_qty, IP.pack_units, IP.price_cost_cor,
     		        COALESCE((SELECT SUM(RP.quantity) FROM returns_products RP WHERE RP.id_invoice_product = IP.id_invoice_product), 0) AS returned
     		 FROM invoice_products IP INNER JOIN products P ON IP.id_product = P.id_product
     		 WHERE IP.id_invoice = ? AND P.active = 1 AND P.is_service = 0
@@ -279,7 +277,7 @@ class Returns_mdl extends CI_Model{
 
     public function getProductsByInvoice( $id_invoice ){
 
-    	$sql = 'SELECT P.id_product, P.name, P.barcode, P.stock, IP.price_cost, IP.price_sell
+    	$sql = 'SELECT P.id_product, P.name, P.barcode, P.stock, IP.price_cost_cor, IP.price_sell_cor
     	        FROM invoice_products IP
     	        INNER JOIN products P ON IP.id_product = P.id_product
     	        WHERE IP.id_invoice = ? AND P.active = 1';

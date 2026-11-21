@@ -164,7 +164,7 @@ class Ingredients extends Admin_Controller{
 		if( trim((string) $this->input->post('cost_unit')) !== '' ){
 			$cost = $this->num($this->input->post('cost_unit'), TRUE);
 			if( $cost === NULL ){ $this->fail('El costo es inválido'); }
-			$cost = cor_to_usd((float) str_replace(',', '.', trim((string) $this->input->post('cost_unit'))), NULL, 6); // typed in cordobas
+			$cost = round((float) str_replace(',', '.', trim((string) $this->input->post('cost_unit'))), 4); // typed in cordobas (per-unit cost keeps 4 decimals)
 		}
 
 		// Presentations (several per ingredient): JSON list of {id_pack, name, size}, size in base units.
@@ -311,8 +311,7 @@ class Ingredients extends Admin_Controller{
 		}
 
 		$this->footer_data = load_data($this->session);
-		$this->content_data = array('ingredients' => $list, 'units' => Ingredients_mdl::$units, 'tk' => $this->token(), 'providers' => $this->db->get_where('providers', array('active' => 1))->result(),
-			'rate' => (float) $this->db->query('SELECT sell_price FROM dollar_exchange LIMIT 1')->row('sell_price'));
+		$this->content_data = array('ingredients' => $list, 'units' => Ingredients_mdl::$units, 'tk' => $this->token(), 'providers' => $this->db->get_where('providers', array('active' => 1))->result());
 		$this->renderPanel('form_ingredient_purchase');
 	}
 
@@ -352,9 +351,6 @@ class Ingredients extends Admin_Controller{
 		if( mb_strlen($note, 'UTF-8') > 255 ){ $this->fail('La nota es demasiado larga'); }
 		if( preg_match('/[<>]/', $note) ){ $this->fail('La nota contiene caracteres no permitidos'); }
 
-		$rate = (float) $this->db->query('SELECT sell_price FROM dollar_exchange LIMIT 1')->row('sell_price');
-		if( $rate <= 0 ){ $this->fail('Configure el tipo de cambio antes de registrar compras'); }
-
 		$lines = array();
 		$seen  = array();
 		foreach( $raw as $r ){
@@ -382,12 +378,11 @@ class Ingredients extends Admin_Controller{
 				if( $cost > 99999999 ){ $this->fail('El costo de '.$ing->name.' es inválido'); }
 			}
 
-			// The price is typed in cordobas; dollars (the stored unit) = C$ / sell rate, same rate the whole app uses for C$ conversions.
-			$lines[] = array('id_ingredient' => (int) $ing->id_ingredient, 'pack_name' => $res[1], 'pack_qty' => $res[2], 'base_qty' => $res[0],
-				'line_cost_cor' => $cost, 'line_cost' => $cost !== NULL ? round($cost / $rate, 4) : NULL);
+			// The price is typed and stored in cordobas (2 decimals).
+			$lines[] = array('id_ingredient' => (int) $ing->id_ingredient, 'pack_name' => $res[1], 'pack_qty' => $res[2], 'base_qty' => $res[0], 'line_cost_cor' => $cost);
 		}
 
-		$r = $this->ingredients_mdl->receivePurchase($lines, array('id_provider' => $id_provider, 'note' => $note !== '' ? $note : NULL, 'purchased_at' => $date, 'dollar_ex_sell' => $rate), $this->id_admin);
+		$r = $this->ingredients_mdl->receivePurchase($lines, array('id_provider' => $id_provider, 'note' => $note !== '' ? $note : NULL, 'purchased_at' => $date), $this->id_admin);
 		if( !$r[0] ){ $this->fail($r[1]); }
 
 		$this->ok('Compra #'.$r[2].' registrada ('.count($lines).' ingredientes)', array('id_purchase' => $r[2]));
