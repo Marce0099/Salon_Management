@@ -19,6 +19,7 @@
 			// uniq_invoice_no_provider constraint; on this PHP/PDO version (default
 			// PDO::ERRMODE_EXCEPTION since PHP 8.1) that surfaces as a normal catchable
 			// PDOException, which Invoices_mdl::receive() catches (inside its transaction) and handles
+			if( !isset($data['dollar_ex_sell']) ){ $data['dollar_ex_sell'] = fx_rate(); }
 			$this->db->insert( 'invoices', $data );
 
 			return $this->db->insert_id();
@@ -94,6 +95,8 @@
 							'quantity' => $line['quantity'],
 							'price_cost' => $line['price_cost'],
 							'price_sell' => $line['price_sell'],
+							'price_cost_cor' => isset($line['price_cost_cor']) ? $line['price_cost_cor'] : NULL,
+							'price_sell_cor' => isset($line['price_sell_cor']) ? $line['price_sell_cor'] : NULL,
 							'id_pack' => isset($line['id_pack']) ? $line['id_pack'] : NULL,
 							'pack_name' => isset($line['pack_name']) ? $line['pack_name'] : NULL,
 							'pack_qty' => isset($line['pack_qty']) ? $line['pack_qty'] : NULL,
@@ -130,7 +133,7 @@
 						if( $line['price_cost'] !== '' && $line['price_cost'] !== NULL ){ $prev->price_cost = $line['price_cost']; }
 						$prev->price_sell = $line['price_sell'];
 
-						$changed = $this->updateStockPrice( $line['id_product'], $line['quantity'], $line['price_sell'], $line['price_cost'], $line['is_service'] );
+						$changed = $this->updateStockPrice( $line['id_product'], $line['quantity'], $line['price_sell'], $line['price_cost'], $line['is_service'], isset($line['price_cost_cor']) ? $line['price_cost_cor'] : NULL, isset($line['price_sell_cor']) ? $line['price_sell_cor'] : NULL );
 
 						// a stocked product always changes (stock + qty); services may legitimately keep the same prices
 						if( !$line['is_service'] && $changed < 1 ){
@@ -207,7 +210,7 @@
 
 		// Arguments are validated by Invoices::save(); still bound, never concatenated.
 		// Services carry no stock, so only their prices are updated.
-		public function updateStockPrice( $id_product, $quantity, $price_sell, $price_cost, $is_service = 0 ){
+		public function updateStockPrice( $id_product, $quantity, $price_sell, $price_cost, $is_service = 0, $cost_cor = NULL, $sell_cor = NULL ){
 
 			$set = array();
 			$binds = array();
@@ -221,7 +224,9 @@
 
 				$set[] = 'price_cost = ?';
 				$binds[] = $price_cost;
+				if( $cost_cor !== NULL ){ $set[] = 'price_cost_cor = ?'; $binds[] = $cost_cor; }
 			}
+			if( $sell_cor !== NULL ){ $set[] = 'price_sell_cor = ?'; $binds[] = $sell_cor; }
 			$set[] = 'price_sell = ?';
 			$binds[] = $price_sell;
 			$binds[] = (int)$id_product;

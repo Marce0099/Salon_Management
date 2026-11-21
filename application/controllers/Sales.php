@@ -274,9 +274,9 @@ class Sales extends Admin_Controller{
 
 				$bt = $bill_ctx['totals'];
 				$tip_raw = $this->input->post('tip_amount');
-				$tip_dollar = ( $tip_raw === NULL || $tip_raw === '' ) ? $bt['tip'] : round( floatval(str_replace(',', '', $tip_raw)), 2 );
+				$tip_dollar = ( $tip_raw === NULL || $tip_raw === '' ) ? $bt['tip'] : round( floatval(str_replace(',', '', $tip_raw)) / $exchange->sell_price, 6 ); // typed in cordobas
 
-				if( $tip_dollar < 0 || $tip_dollar > $bt['subtotal'] ){
+				if( $tip_dollar < 0 || $tip_dollar > $bt['subtotal'] + 0.0005 ){
 
 					$response['type'] = 'error';
 					$response['message'] = 'La propina debe estar entre 0 y el subtotal de la cuenta';

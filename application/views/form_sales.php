@@ -39,7 +39,7 @@
 	</table>
 <table class="table bill-extra" style="display:none; max-width:520px; margin-left:auto;" id="bill-extras-table">
 	<tr>
-		<td class="text-right"><label for="tip_amount" style="margin:0;">Propina ($):</label></td>
+		<td class="text-right"><label for="tip_amount" style="margin:0;">Propina (C$):</label></td>
 		<td colspan="2"><input type="number" step="0.01" min="0" name="tip_amount" id="tip_amount" class="form-control"></td>
 	</tr>
 	<tr>
@@ -1408,14 +1408,14 @@
 		});
 
 		function setBillExtras(){
-			var tip = Math.max(0, numeral($('#tip_amount').val()).value() || 0);
+			var tip = Math.max(0, numeral($('#tip_amount').val()).value() || 0) / dollarSellRate; // typed in C$
 			system.extra_cordobas = (tip + billPrefill.iva) * dollarSellRate;
 			$('#iva-cordobas').text(numeral(billPrefill.iva * dollarSellRate).format('0,0.00'));
 			$('#iva-dollar').text(numeral(billPrefill.iva).format('0,0.00'));
 			updateTotal($('#sales-list tr').first());
 		}
 
-		$('#tip_amount').val(Number(billPrefill.tip).toFixed(2)).on('input', setBillExtras);
+		$('#tip_amount').val((Number(billPrefill.tip) * dollarSellRate).toFixed(2)).on('input', setBillExtras);
 		setBillExtras();
 	}
 

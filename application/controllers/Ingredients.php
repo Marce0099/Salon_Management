@@ -164,7 +164,7 @@ class Ingredients extends Admin_Controller{
 		if( trim((string) $this->input->post('cost_unit')) !== '' ){
 			$cost = $this->num($this->input->post('cost_unit'), TRUE);
 			if( $cost === NULL ){ $this->fail('El costo es inválido'); }
-			$cost = (float) str_replace(',', '.', trim((string) $this->input->post('cost_unit')));
+			$cost = cor_to_usd((float) str_replace(',', '.', trim((string) $this->input->post('cost_unit'))), NULL, 6); // typed in cordobas
 		}
 
 		// Presentations (several per ingredient): JSON list of {id_pack, name, size}, size in base units.

@@ -77,3 +77,14 @@ if( !function_exists('fmt_money_pair') ){
 		return fmt_cor($cor, $decimals).' <small class="text-muted">('.fmt_usd($usd, $decimals).')</small>';
 	}
 }
+
+if( !function_exists('fmt_cor_usd') ){
+
+	/** Stored C$ amount (source of truth) with its stored dollar equivalent as secondary info. */
+	function fmt_cor_usd($cor, $usd, $decimals = 2){
+
+		if( $cor === NULL || $cor === '' ){ return fmt_money_pair($usd, NULL, $decimals); }
+
+		return fmt_cor($cor, $decimals).' <small class="text-muted">('.fmt_usd($usd, $decimals).')</small>';
+	}
+}

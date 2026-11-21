@@ -12,7 +12,7 @@
 
 			$this->load->library('easysearch');
 
-			$search['query'] = 'select I.*,count(IP.id_invoice_product) as num_products,sum(IP.quantity * IP.price_cost) as total, P.provider from invoices I
+			$search['query'] = 'select I.*,count(IP.id_invoice_product) as num_products,sum(IP.quantity * IP.price_cost) as total, sum(IP.quantity * IFNULL(IP.price_cost_cor, IP.price_cost * IFNULL(I.dollar_ex_sell, 1))) as total_cor, P.provider from invoices I
 			inner join invoice_products IP on I.id_invoice = IP.id_invoice
 			left outer join providers P on I.id_provider = P.id_provider';
 			$search['order_by'] = array( 'id_invoice' => 'desc' );
@@ -213,11 +213,17 @@
 					$seen[$key] = TRUE;
 				}
 
+				// prices are typed in cordobas: C$ is the source of truth, dollars are derived
+				$cost_cor = $cost === '' ? NULL : round((float)$cost, 4);
+				$sell_cor = round((float)$sell, 2);
+
 				$lines[] = array(
 					'id_product' => (int)$id,
 					'quantity' => (int)$qty * $units,
-					'price_cost' => $cost,
-					'price_sell' => $sell,
+					'price_cost' => $cost_cor === NULL ? '' : (string) cor_to_usd($cost_cor, NULL, 6),
+					'price_sell' => (string) cor_to_usd($sell_cor, NULL, 6),
+					'price_cost_cor' => $cost_cor,
+					'price_sell_cor' => $sell_cor,
 					'is_service' => (int)$product->is_service,
 					'id_pack' => $pack_id,
 					'pack_name' => $pack_name,

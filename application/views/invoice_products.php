@@ -38,17 +38,17 @@
 			<td><?php echo $p->barcode; ?></td>
 			<td><?php echo $p->name; ?></td>
 			<td><?php echo $p->quantity; ?><?php if( !empty($p->pack_name) ): ?> <small class="text-muted">(<?php echo (int)$p->pack_qty; ?> &times; <?php echo htmlspecialchars($p->pack_name); ?> de <?php echo (int)$p->pack_units; ?> u)</small><?php endif; ?></td>
-			<td><?php echo fmt_money_pair($p->price_cost); ?></td>
-			<td><?php echo fmt_money_pair($p->price_sell); ?></td>
-			<?php $subtotal = $p->quantity * $p->price_cost; ?>
-			<td><?php echo fmt_money_pair($subtotal); ?></td>
-			<?php $total += $subtotal; ?>
+			<td><?php echo fmt_cor_usd($p->price_cost_cor, $p->price_cost); ?></td>
+			<td><?php echo fmt_cor_usd($p->price_sell_cor, $p->price_sell); ?></td>
+			<?php $subtotal = $p->quantity * $p->price_cost; $subtotal_cor = $p->price_cost_cor !== NULL ? $p->quantity * $p->price_cost_cor : NULL; ?>
+			<td><?php echo fmt_cor_usd($subtotal_cor, $subtotal); ?></td>
+			<?php $total += $subtotal; $total_cor = isset($total_cor) ? $total_cor : 0; $total_cor = ($subtotal_cor !== NULL && $total_cor !== NULL) ? $total_cor + $subtotal_cor : NULL; ?>
 		</tr>
 		<?php endforeach; ?>
 	</tbody>
 	<tfoot>
 		<td colspan="6" class="text-right">
-			<strong>Total: <?php echo fmt_money_pair($total); ?></strong>
+			<strong>Total: <?php echo fmt_cor_usd($total_cor, $total); ?></strong>
 		</td>
 	</tfoot>
 </table>

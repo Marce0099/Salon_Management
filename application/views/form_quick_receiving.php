@@ -36,7 +36,7 @@
 	<div id="qr-lines"></div>
 
 	<div class="clearfix">
-		<span id="qr-total">Total: $0.00</span>
+		<span id="qr-total">Total: C$ 0.00</span>
 		<button type="button" id="qr-save" class="btn btn-success btn-lg pull-right"><i class="fa fa-check"></i> Guardar recepción</button>
 	</div>
 </form>
@@ -137,18 +137,22 @@
 		});
 	}
 
+	// product prices arrive in C$ (*_cor) or, as a fallback, in dollars converted at the live rate
+	function cc(p){ return p.price_cost_cor != null ? parseFloat(p.price_cost_cor) : Math.round(FX.toCor(p.price_cost) * 10000) / 10000; }
+	function sc(p){ return p.price_sell_cor != null ? parseFloat(p.price_sell_cor) : Math.round(FX.toCor(p.price_sell) * 100) / 100; }
+
 	function addLine(p, prePack, preQty){
 
 		var $c = $(
-			'<div class="qr-card" data-id="' + parseInt(p.id_product, 10) + '" data-pack="' + (prePack || '') + '" data-prev-cost="' + esc(p.price_cost) + '" data-prev-sell="' + esc(p.price_sell) + '">' +
+			'<div class="qr-card" data-id="' + parseInt(p.id_product, 10) + '" data-pack="' + (prePack || '') + '" data-prev-cost="' + esc(fmt4(cc(p))) + '" data-prev-sell="' + esc(sc(p).toFixed(2)) + '">' +
 				'<span class="qr-remove"><i class="fa fa-times"></i></span>' +
 				'<div class="qr-name">' + esc(p.name) + '</div>' +
 				'<div class="row">' +
 					'<div class="col-xs-6 qr-pack-wrap" style="display:none;"><label>Presentación</label><select class="form-control qr-pack"><option value="" data-units="1">Unidad</option></select></div>' +
 					'<div class="col-xs-6"><label>Cantidad</label><input type="number" inputmode="numeric" min="1" step="1" class="form-control qr-qty" value="1"></div>' +
-					'<div class="col-xs-6 qr-packcost-wrap" style="display:none;"><label>Costo de la presentación ($)</label><input type="text" inputmode="decimal" class="form-control qr-packcost" value=""></div>' +
-					'<div class="col-xs-6"><label class="qr-cost-label">Costo por unidad ($)</label><input type="text" inputmode="decimal" class="form-control qr-cost" value="' + esc(p.price_cost) + '"></div>' +
-					'<div class="col-xs-6"><label>Precio venta ($)</label><input type="text" inputmode="decimal" class="form-control qr-sell" value="' + esc(p.price_sell) + '"></div>' +
+					'<div class="col-xs-6 qr-packcost-wrap" style="display:none;"><label>Costo de la presentación (C$)</label><input type="text" inputmode="decimal" class="form-control qr-packcost" value=""></div>' +
+					'<div class="col-xs-6"><label class="qr-cost-label">Costo por unidad (C$)</label><input type="text" inputmode="decimal" class="form-control qr-cost" value="' + esc(fmt4(cc(p))) + '"></div>' +
+					'<div class="col-xs-6"><label>Precio venta (C$)</label><input type="text" inputmode="decimal" class="form-control qr-sell" value="' + esc(sc(p).toFixed(2)) + '"></div>' +
 				'</div>' +
 				'<div class="small qr-warn" style="margin-top:4px;"></div>' +
 					'<div class="small qr-pricechg" style="margin-top:4px;"></div>' +
@@ -165,7 +169,7 @@
 				var $sel = $c.find('.qr-pack');
 
 				$.each(packs, function(i, pk){
-					$('<option>').val(pk.id_pack).attr('data-units', pk.units).attr('data-cost', pk.price_cost === null ? '' : pk.price_cost)
+					$('<option>').val(pk.id_pack).attr('data-units', pk.units).attr('data-cost', pk.price_cost_cor != null ? pk.price_cost_cor : (pk.price_cost === null ? '' : Math.round(FX.toCor(pk.price_cost) * 100) / 100))
 						.text(pk.name + ' (x' + pk.units + ')').appendTo($sel);
 				});
 
@@ -232,7 +236,7 @@
 			var jump = (cost - prev) / prev * 100;
 
 			if( Math.abs(jump) >= 20 ){
-				msgs.push('<span class="text-warning"><i class="fa fa-exclamation-triangle"></i> Costo ' + (jump > 0 ? 'subió ' : 'bajó ') + Math.abs(jump).toFixed(0) + '% (antes $' + prev.toFixed(2) + ')</span>');
+				msgs.push('<span class="text-warning"><i class="fa fa-exclamation-triangle"></i> Costo ' + (jump > 0 ? 'subió ' : 'bajó ') + Math.abs(jump).toFixed(0) + '% (antes C$' + prev.toFixed(2) + ')</span>');
 			}
 		}
 
@@ -263,11 +267,11 @@
 			total += $c.hasClass('qr-packmode') ? q * num($c.find('.qr-packcost').val()) : u * num($c.find('.qr-cost').val());
 			$c.find('.qr-units').text(u + ' unidades');
 			var ps = num($c.attr('data-prev-sell')), ns = num($c.find('.qr-sell').val());
-			$c.find('.qr-pricechg').html( Math.abs(ns - ps) >= 0.005 ? '<span class="text-danger"><i class="fa fa-tag"></i> <strong>Precio de venta cambia: $' + ps.toFixed(2) + ' → $' + ns.toFixed(2) + '</strong></span>' : '' );
+			$c.find('.qr-pricechg').html( Math.abs(ns - ps) >= 0.005 ? '<span class="text-danger"><i class="fa fa-tag"></i> <strong>Precio de venta cambia: C$' + ps.toFixed(2) + ' → C$' + ns.toFixed(2) + '</strong></span>' : '' );
 			$c.find('.qr-warn').html( costWarning(num($c.find('.qr-cost').val()), num($c.find('.qr-sell').val()), num($c.attr('data-prev-cost'))) );
 		});
 
-		$('#qr-total').text('Total: $' + total.toFixed(2));
+		$('#qr-total').text('Total: C$ ' + total.toFixed(2) + ' ($' + FX.toUsd(total).toFixed(2) + ')');
 	}
 
 	$(document).on('input', '.qr-qty, .qr-cost, .qr-sell', recalc);
@@ -318,7 +322,7 @@
 			$c.find('.qr-packcost-wrap').show();
 			$c.find('.qr-packcost').val(fmt4(pc));
 			$c.find('.qr-cost').prop('readonly', true);
-			$c.find('.qr-cost-label').text('Costo por unidad ($) calculado');
+			$c.find('.qr-cost-label').text('Costo por unidad (C$) calculado');
 			syncPackCost($c);
 		}
 		else{
@@ -329,7 +333,7 @@
 			$c.removeClass('qr-packmode');
 			$c.find('.qr-packcost-wrap').hide();
 			$c.find('.qr-cost').prop('readonly', false);
-			$c.find('.qr-cost-label').text('Costo por unidad ($)');
+			$c.find('.qr-cost-label').text('Costo por unidad (C$)');
 
 			if( wasPack ){ $c.find('.qr-cost').val($c.attr('data-prev-cost')); }
 		}
@@ -387,8 +391,8 @@
 			if( $c.find('.qr-warn .text-warning, .qr-warn .text-danger').length ){ alerts++; }
 
 			var ps = num($c.attr('data-prev-sell')), ns = num($c.find('.qr-sell').val());
-			var chg = Math.abs(ns - ps) >= 0.005 ? '<br><small class="text-danger"><i class="fa fa-tag"></i> Precio venta $' + ps.toFixed(2) + ' → $' + ns.toFixed(2) + '</small>' : '';
-			rows += '<tr><td>' + esc($c.find('.qr-name').text()) + chg + '</td><td class="text-right">' + q + label + '<br><small class="text-muted">' + (q * units($c)) + ' unid.' + ($c.hasClass('qr-packmode') ? ' · $' + fmt4(packUnitCost($c)) + ' c/u' : '') + '</small></td></tr>';
+			var chg = Math.abs(ns - ps) >= 0.005 ? '<br><small class="text-danger"><i class="fa fa-tag"></i> Precio venta C$' + ps.toFixed(2) + ' → C$' + ns.toFixed(2) + '</small>' : '';
+			rows += '<tr><td>' + esc($c.find('.qr-name').text()) + chg + '</td><td class="text-right">' + q + label + '<br><small class="text-muted">' + (q * units($c)) + ' unid.' + ($c.hasClass('qr-packmode') ? ' · C$' + fmt4(packUnitCost($c)) + ' c/u' : '') + '</small></td></tr>';
 		});
 
 		var provider = $('#qr-provider').val() ? esc($('#qr-provider_name').val()) : '<em>Sin proveedor</em>';
