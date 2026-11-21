@@ -3,6 +3,7 @@
 <?php if( $this->controller->is_admin() ) : ?>
 <a href="<?php echo base_url('returns/register?invoice='.(int)$invoice->id_invoice); ?>" class="btn btn-warning pull-right"><i class="fa fa-undo"></i> Devolver</a>
 <?php endif; ?>
+<div class="clearfix"></div>
 
 <table class="table-sale-detail table">
 	<thead>
@@ -24,16 +25,16 @@
 <table class="table table-hover table-striped jambo_table table-bordered">
 	<thead>
 		<tr>
-			<th width="20%">Código de barra</th>
-			<th width="40%">Nombre</th>
-			<th width="10%">Cantidad</th>
-			<th width="10%">Precio costo</th>
-			<th width="10%">Precio venta</th>
-			<th width="10%">Valor</th>
+			<th width="14%">Código de barra</th>
+			<th width="28%">Nombre</th>
+			<th width="14%">Cantidad</th>
+			<th width="15%">Precio costo</th>
+			<th width="15%">Precio venta</th>
+			<th width="14%">Valor</th>
 		</tr>
 	</thead>
 	<tbody>
-		<?php $total = 0; foreach( $invoice->products as $p ) : ?>
+		<?php $total = 0; $total_cor = 0; foreach( $invoice->products as $p ) : ?>
 		<tr>
 			<td><?php echo $p->barcode; ?></td>
 			<td><?php echo $p->name; ?></td>
@@ -42,13 +43,13 @@
 			<td><?php echo fmt_cor_usd($p->price_sell_cor, $p->price_sell); ?></td>
 			<?php $subtotal = $p->quantity * $p->price_cost; $subtotal_cor = $p->price_cost_cor !== NULL ? $p->quantity * $p->price_cost_cor : NULL; ?>
 			<td><?php echo fmt_cor_usd($subtotal_cor, $subtotal); ?></td>
-			<?php $total += $subtotal; $total_cor = isset($total_cor) ? $total_cor : 0; $total_cor = ($subtotal_cor !== NULL && $total_cor !== NULL) ? $total_cor + $subtotal_cor : NULL; ?>
+			<?php $total += $subtotal; $total_cor = ($subtotal_cor !== NULL && $total_cor !== NULL) ? $total_cor + $subtotal_cor : NULL; ?>
 		</tr>
 		<?php endforeach; ?>
 	</tbody>
 	<tfoot>
-		<td colspan="6" class="text-right">
+			<tr><td colspan="6" class="text-right">
 			<strong>Total: <?php echo fmt_cor_usd($total_cor, $total); ?></strong>
-		</td>
-	</tfoot>
+		</td></tr>
+		</tfoot>
 </table>

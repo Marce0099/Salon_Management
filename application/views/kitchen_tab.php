@@ -32,28 +32,28 @@
 
 		<div class="x_panel">
 			<div class="x_title"><h2 style="font-size:16px;">Consumo de la mesa</h2>
-				<span class="pull-right" style="font-size:16px;"><strong id="tab-total">C$<?php echo number_format($total * $rate, 2); ?></strong></span><div class="clearfix"></div></div>
+				<span class="pull-right" style="font-size:16px;"><strong id="tab-total">C$&nbsp;<?php echo number_format($total * $rate, 2); ?></strong></span><div class="clearfix"></div></div>
 			<?php if( empty($orders) ) : ?>
 			<p class="text-muted">Aún no se ha enviado nada a cocina.</p>
 			<?php endif; ?>
 			<?php foreach( $orders as $o ) : ?>
 			<div class="order-block">
 				<div class="order-head">
+					<span class="pull-right">
+						<a href="<?php echo base_url('kitchen/ticket/'.(int) $o->id_order); ?>" class="btn btn-xs btn-default" target="_blank"><i class="fa fa-file-text-o"></i></a>
+						<button type="button" class="btn btn-xs btn-default js-reprint" data-id="<?php echo (int) $o->id_order; ?>"><i class="fa fa-print"></i> Reimprimir</button>
+					</span>
 					<strong>Pedido #<?php echo (int) $o->id_order; ?></strong>
 					<span class="text-muted"><?php echo date('h:i A', strtotime($o->created_at)); ?></span>
 					<?php if( $o->print_status === 'printed' ) : ?><span class="label label-success">Impreso</span>
 					<?php elseif( $o->print_status === 'failed' ) : ?><span class="label label-danger" title="<?php echo htmlspecialchars((string) $o->print_error); ?>">No impreso</span>
 					<?php elseif( $o->print_status === 'skipped' ) : ?><span class="label label-default">Sin cocina</span><?php endif; ?>
-					<span class="pull-right">
-						<a href="<?php echo base_url('kitchen/ticket/'.(int) $o->id_order); ?>" class="btn btn-xs btn-default" target="_blank"><i class="fa fa-file-text-o"></i></a>
-						<button type="button" class="btn btn-xs btn-default js-reprint" data-id="<?php echo (int) $o->id_order; ?>"><i class="fa fa-print"></i> Reimprimir</button>
-					</span>
 				</div>
 				<ul class="list-unstyled">
 				<?php foreach( $o->items as $i ) : ?>
 					<li class="<?php echo $i->status === 'void' ? 'item-void' : ''; ?>">
 						<?php echo (int) $i->quantity; ?> × <?php echo htmlspecialchars($i->product_name); ?>
-						<span class="text-muted">C$<?php echo number_format($i->quantity * $i->unit_price * $rate, 2); ?></span>
+						<span class="text-muted">C$&nbsp;<?php echo number_format($i->quantity * $i->unit_price * $rate, 2); ?></span>
 						<?php if( $i->course > 1 ) : ?><span class="label label-info">T<?php echo (int) $i->course; ?></span><?php endif; ?>
 						<?php foreach( $i->mods as $mod_text ) : ?><br><small class="text-info"><i class="fa fa-asterisk"></i> <?php echo htmlspecialchars($mod_text); ?></small><?php endforeach; ?>
 						<?php if( $i->notes ) : ?><br><small class="text-muted"><i class="fa fa-comment-o"></i> <?php echo htmlspecialchars($i->notes); ?></small><?php endif; ?>
@@ -81,7 +81,7 @@
 	.menu-item .mi-stock{ font-size:11px; color:#999; }
 	.cart-line{ border-bottom:1px solid #eee; padding:8px 0; }
 	.cart-line .qty{ display:inline-flex; align-items:center; gap:6px; }
-	.cart-line .qty button{ width:34px; height:34px; }
+	.cart-line .qty button{ width:40px; height:40px; min-height:0; padding:0; }
 	.order-block{ border-top:1px solid #eee; padding:8px 0; }
 	.item-void{ text-decoration:line-through; opacity:.6; }
 	.item-void small{ text-decoration:none; display:inline-block; }
@@ -91,7 +91,7 @@
 	.swap-modal .sw-grid{ max-height:42vh; overflow-y:auto; -webkit-overflow-scrolling:touch; }
 	.swap-modal .sw-foot{ margin-top:10px; border-top:1px solid #eee; padding-top:8px; }
 	.swap-modal .sw-step{ display:inline-flex; align-items:center; gap:6px; margin:0 14px 6px 0; }
-	.swap-modal .sw-step button{ width:36px; height:36px; }
+	.swap-modal .sw-step button{ width:40px; height:40px; min-height:0; padding:0; }
 	.swap-modal .sw-step b{ min-width:24px; text-align:center; }
 </style>
 
@@ -109,7 +109,7 @@
 	function notify(type, text){ new PNotify({ title: 'Notificación', text: text, type: type, styling: 'bootstrap3', delay: 3000 }); }
 	function esc(s){ return $('<div>').text(s == null ? '' : s).html(); }
 	var RATE = <?php echo json_encode((float) $rate); ?>;
-	function money(n){ return 'C$' + (Math.round(n * RATE * 100) / 100).toFixed(2); }
+	function money(n){ return 'C$ ' + (Math.round(n * RATE * 100) / 100).toFixed(2); }
 
 	/* ---- menu ---- */
 	function renderCats(){

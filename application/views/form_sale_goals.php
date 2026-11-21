@@ -26,11 +26,13 @@
     <div class="form-group">
         <label for="" class="control-label col-md-3 col-sm-3 col-xs-12">Meta (C$)</label>
         <div class="col-md-6 col-sm-6 col-xs-12">
-            <input type="number" name="goal" class="form-control" placeholder="Ingrese meta"">
+            <input type="number" name="goal" class="form-control" placeholder="Ingrese meta" min="0" step="0.01" inputmode="decimal" required>
         </div>
     </div>
 
-    <div class="col-md-offset-3 col-sm-offset-3 col-md-3 col-sm-3">
-        <button class="btn btn-success" id="btn-submit" type="submit">Registrar Meta</button>
+    <div class="form-group">
+        <div class="col-md-offset-3 col-sm-offset-3 col-md-3 col-sm-3 col-xs-12">
+            <button class="btn btn-success" id="btn-submit" type="submit">Registrar Meta</button>
+        </div>
     </div>
 </form>

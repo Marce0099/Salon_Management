@@ -30,7 +30,8 @@
 			</div>
 		</div>
 	</div>
-	<table class="table table-bordered" id="invoice-table" style="table-layout: fixed;">
+	<div class="table-responsive">
+		<table class="table table-bordered" id="invoice-table" style="table-layout: fixed; min-width:600px;">
 		<thead>
 			<tr>
 				<th width="4%"></th>
@@ -42,10 +43,10 @@
 		</thead>
 		<tbody id="products-list">
 		</tbody>
-	</table>
+	</table></div>
 	<div class="form-group">
-		<a href="javascript:;" class="btn btn-primary" id="add-entry"><i class="fa fa-plus"></i> Agregar producto</a>
-		<button class="btn btn-success" id="btn-submit" type="submit">Registrar devolución</button>
+		<a href="javascript:;" class="btn btn-primary" id="add-entry" style="margin-bottom:8px;"><i class="fa fa-plus"></i> Agregar producto</a>
+		<button class="btn btn-success" id="btn-submit" type="submit" style="margin-bottom:8px;">Registrar devolución</button>
 	</div>
 </form>
 
@@ -78,6 +79,7 @@
 </table>
 
 <style>
+	#invoice-table > thead > tr > th, #invoice-table > tbody > tr > td { white-space: normal; word-wrap: break-word; }
 	.ret-qty-row { display: flex; gap: 6px; align-items: center; }
 	/* admin.css makes every #invoice-table input absolutely positioned and full-cell: undo it for this pair */
 	#invoice-table tbody td .ret-qty-row input.p-q-return { position: static; flex: 0 0 80px; width: 80px; height: 34px; border: 1px solid #ccc; }

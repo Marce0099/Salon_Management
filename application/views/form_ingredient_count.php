@@ -18,7 +18,7 @@
 	.ct-row .ct-diff { font-size:12px; min-height:16px; margin-top:2px; }
 	#ct-bar { position:sticky; bottom:0; background:#fff; border-top:1px solid #ddd; padding:10px 0; margin-top:10px; z-index:5; }
 	#ip-form .form-control, #ct-form .form-control { width:100%; display:block; }
-	@media (max-width:991px){ #ip-bar, #ct-bar { bottom:62px; } }
+	@media (max-width:991px){ #ip-bar, #ct-bar { bottom:calc(60px + env(safe-area-inset-bottom)); } }
 </style>
 
 <form id="ct-form" autocomplete="off" onsubmit="return false;">

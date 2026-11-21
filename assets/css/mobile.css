@@ -25,7 +25,9 @@
 	.x_panel, .x_content{ padding-left:8px; padding-right:8px; }
 
 	/* wide tables scroll sideways instead of breaking the layout */
-	.right_col table.table:not(#products-sale):not(#invoice-table):not(#tbl):not(#bill-extras-table){ display:block; overflow-x:auto; -webkit-overflow-scrolling:touch; }
+	.right_col table.table{ display:block; overflow-x:auto; -webkit-overflow-scrolling:touch; }
+	/* fixed-layout / already-responsive tables keep real table layout */
+	.right_col table.table#invoice-table, .right_col table.table#tbl, .right_col table.table#bill-extras-table{ display:table; overflow-x:visible; }
 	.right_col table.table td.text-nowrap, .right_col table.table th.text-nowrap{ white-space:nowrap; }
 
 	/* forms: stack labels above inputs */

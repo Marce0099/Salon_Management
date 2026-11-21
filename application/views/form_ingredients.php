@@ -45,12 +45,12 @@ $e = function($f) use ($ingredient){ return isset($ingredient->$f) && $ingredien
 			<div id="prep-box" style="display:none;">
 				<p class="text-muted" style="font-size:12px;">Los platillos descuentan la existencia de este ingrediente. Al "Preparar lote" se descuentan los componentes y se suma el rendimiento. Los componentes deben ser ingredientes simples.</p>
 				<div class="form-group"><label>Rendimiento de un lote (en unidad base)</label><input type="text" inputmode="decimal" name="batch_yield" id="batch_yield" class="form-control" value="<?php echo $is_prepared ? $num($ingredient->batch_yield) : ''; ?>"></div>
-				<div class="table-responsive" style="overflow-x:auto; width:100%; border:0;"><table class="table table-condensed" id="comp-table" style="min-width:380px; margin-bottom:5px;">
-					<thead><tr><th>Componente</th><th style="width:100px;">Cant. por lote</th><th style="width:45px;">Unid.</th><th class="text-right" style="width:75px;">Costo</th><th style="width:40px;"></th></tr></thead>
+				<div class="table-responsive" style="overflow-x:auto; width:100%; border:0;"><table class="table table-condensed" id="comp-table" style="min-width:470px; margin-bottom:5px;">
+					<thead><tr><th>Componente</th><th style="width:100px;">Cant. por lote</th><th style="width:45px;">Unid.</th><th class="text-right" style="width:110px;">Costo</th><th style="width:40px;"></th></tr></thead>
 					<tbody></tbody>
 					<tfoot>
-						<tr><td colspan="3" class="text-right"><strong>Costo por lote</strong></td><td class="text-right"><strong id="batch-cost">C$ 0.00</strong></td><td></td></tr>
-						<tr><td colspan="3" class="text-right"><strong>Costo por unidad base</strong></td><td class="text-right"><strong id="unit-cost">—</strong></td><td></td></tr>
+						<tr><td colspan="2" class="text-right"><strong>Costo por lote</strong></td><td colspan="3" class="text-nowrap"><strong id="batch-cost">C$ 0.00</strong></td></tr>
+						<tr><td colspan="2" class="text-right"><strong>Costo por unidad base</strong></td><td colspan="3" class="text-nowrap"><strong id="unit-cost">—</strong></td></tr>
 					</tfoot>
 				</table></div>
 				<p id="comp-warn" class="text-warning" style="display:none;"><i class="fa fa-exclamation-triangle"></i> Algún componente no tiene costo: el costo es parcial.</p>
@@ -73,7 +73,7 @@ $e = function($f) use ($ingredient){ return isset($ingredient->$f) && $ingredien
 	function addComp(id, qty){
 		var opts = '<option value="">— elegir —</option>';
 		RAW.forEach(function(i){ opts += '<option value="' + i.id + '"' + (i.id == id ? ' selected' : '') + '>' + esc(i.name) + '</option>'; });
-		$('#comp-table tbody').append('<tr><td><select class="form-control c-ing" style="min-width:150px;">' + opts + '</select></td><td><input type="text" inputmode="decimal" class="form-control c-qty" value="' + (qty || '') + '"></td><td class="c-unit"></td><td class="text-right c-cost"></td><td><button type="button" class="btn btn-danger btn-xs c-del">&times;</button></td></tr>');
+		$('#comp-table tbody').append('<tr><td><select class="form-control c-ing" style="min-width:150px;">' + opts + '</select></td><td><input type="text" inputmode="decimal" class="form-control c-qty" value="' + (qty || '') + '"></td><td class="c-unit"></td><td class="text-right c-cost text-nowrap"></td><td><button type="button" class="btn btn-danger btn-xs c-del">&times;</button></td></tr>');
 		recalcComp();
 	}
 	function recalcComp(){
@@ -83,19 +83,19 @@ $e = function($f) use ($ingredient){ return isset($ingredient->$f) && $ingredien
 			tr.find('.c-unit').text(ing ? ing.unit : '');
 			if( ing ){
 				var cost = COSTS[id];
-				if( cost === null || cost === undefined ){ missing = true; tr.find('.c-cost').text('—'); } else { total += cost * q; tr.find('.c-cost').text('C$ ' + (FX.toCor(cost * q)).toFixed(2)); }
+				if( cost === null || cost === undefined ){ missing = true; tr.find('.c-cost').text('—'); } else { total += cost * q; tr.find('.c-cost').text(FX.cor(FX.toCor(cost * q))); }
 				list.push({ id_ingredient: id, quantity: tr.find('.c-qty').val() });
 			} else { tr.find('.c-cost').text(''); }
 		});
 		$('#components').val(JSON.stringify(list));
-		$('#batch-cost').text('C$ ' + FX.toCor(total).toFixed(2));
+		$('#batch-cost').text(FX.cor(FX.toCor(total)));
 		var y = parseFloat(String($('#batch_yield').val()).replace(',', '.')) || 0;
-		$('#unit-cost').text(y > 0 && total > 0 ? 'C$ ' + FX.toCor(total / y).toFixed(4).replace(/0+$/, '') : '—');
+		$('#unit-cost').text(y > 0 && total > 0 ? FX.cor(FX.toCor(total / y), Math.abs(FX.toCor(total / y) * 100 - Math.round(FX.toCor(total / y) * 100)) < 1e-6 ? 2 : 4) : '—');
 		$('#comp-warn').toggle(missing);
 	}
 	var PACKS = <?php echo json_encode($packs_json); ?>;
 	function addPack(id, name, size){
-		$('#pack-list').append('<div class="row pack-row" style="margin-bottom:6px;" data-id="' + (id || 0) + '"><div class="col-xs-6"><input type="text" class="form-control p-name" maxlength="60" placeholder="Nombre (ej. Saco 25 lb)" value="' + esc(name || '').replace(/"/g, '&quot;') + '"></div><div class="col-xs-4"><input type="text" inputmode="decimal" class="form-control p-size" placeholder="Contiene" value="' + esc(size || '').replace(/"/g, '&quot;') + '"></div><div class="col-xs-2"><button type="button" class="btn btn-danger btn-sm p-del" aria-label="Quitar">&times;</button></div></div>');
+		$('#pack-list').append('<div class="row pack-row" style="margin-bottom:6px;" data-id="' + (id || 0) + '"><div class="col-xs-5"><input type="text" class="form-control p-name" maxlength="60" placeholder="Nombre" title="Nombre de la presentación (ej. Saco 25 lb)" value="' + esc(name || '').replace(/"/g, '&quot;') + '"></div><div class="col-xs-5"><input type="text" inputmode="decimal" class="form-control p-size" placeholder="Contiene" title="Cantidad en unidad base que contiene" value="' + esc(size || '').replace(/"/g, '&quot;') + '"></div><div class="col-xs-2"><button type="button" class="btn btn-danger btn-sm p-del" style="padding-left:0;padding-right:0;width:100%;" aria-label="Quitar">&times;</button></div></div>');
 	}
 	function syncPacks(){
 		var list = [];

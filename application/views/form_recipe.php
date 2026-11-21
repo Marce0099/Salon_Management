@@ -15,12 +15,12 @@ foreach( $recipe as $r ){ $rec_json[] = array('id' => (int) $r->id_ingredient, '
 <p class="text-muted">Cantidad de cada ingrediente que consume <strong>una porción</strong>. Al enviar el platillo a cocina se descuenta del inventario; si no alcanza, el platillo aparece "Agotado".</p>
 
 <div class="table-responsive">
-<table class="table table-striped" id="recipe-table" style="max-width:720px;">
-	<thead><tr><th>Ingrediente</th><th style="width:160px;">Cantidad por porción</th><th style="width:60px;">Unid.</th><th class="text-right" style="width:100px;">Costo</th><th style="width:50px;"></th></tr></thead>
+<table class="table table-striped" id="recipe-table" style="max-width:760px;min-width:560px;">
+	<thead><tr><th style="min-width:170px;">Ingrediente</th><th style="width:150px;">Cantidad por porción</th><th style="width:60px;">Unid.</th><th class="text-right" style="width:120px;">Costo</th><th style="width:50px;"></th></tr></thead>
 	<tbody></tbody>
 	<tfoot>
-		<tr><td colspan="3" class="text-right"><strong>Costo por porción</strong></td><td class="text-right"><strong id="total-cost">C$ 0.00</strong></td><td></td></tr>
-		<tr><td colspan="3" class="text-right"><strong>Margen</strong></td><td class="text-right"><strong id="margin">—</strong></td><td></td></tr>
+		<tr><td colspan="2" class="text-right"><strong>Costo por porción</strong></td><td colspan="3"><strong id="total-cost">C$ 0.00</strong></td></tr>
+		<tr><td colspan="2" class="text-right"><strong>Margen</strong></td><td colspan="3"><strong id="margin">—</strong></td></tr>
 	</tfoot>
 </table>
 </div>
@@ -40,7 +40,7 @@ foreach( $recipe as $r ){ $rec_json[] = array('id' => (int) $r->id_ingredient, '
 	function addRow(id, qty){
 		var opts = '<option value="">— elegir —</option>';
 		ING.forEach(function(i){ opts += '<option value="' + i.id + '"' + (i.id == id ? ' selected' : '') + '>' + esc(i.name) + '</option>'; });
-		var tr = $('<tr><td><select class="form-control r-ing">' + opts + '</select></td><td><input type="text" inputmode="decimal" class="form-control r-qty" value="' + (qty || '') + '"></td><td class="r-unit"></td><td class="text-right r-cost"></td><td><button type="button" class="btn btn-danger btn-xs r-del">&times;</button></td></tr>');
+		var tr = $('<tr><td><select class="form-control r-ing">' + opts + '</select></td><td><input type="text" inputmode="decimal" class="form-control r-qty" value="' + (qty || '') + '"></td><td class="r-unit"></td><td class="text-right r-cost text-nowrap"></td><td><button type="button" class="btn btn-danger btn-xs r-del">&times;</button></td></tr>');
 		$('#recipe-table tbody').append(tr);
 		recalc();
 	}
@@ -50,12 +50,12 @@ foreach( $recipe as $r ){ $rec_json[] = array('id' => (int) $r->id_ingredient, '
 			var tr = $(this), ing = byId(tr.find('.r-ing').val()), q = parseFloat(String(tr.find('.r-qty').val()).replace(',', '.')) || 0;
 			tr.find('.r-unit').text(ing ? ing.unit : '');
 			if( ing && ing.cost === null ){ missing = true; tr.find('.r-cost').text('—'); }
-			else if( ing ){ var c = ing.cost * q; total += c; tr.find('.r-cost').text('C$ ' + FX.toCor(c).toFixed(2)); }
+			else if( ing ){ var c = ing.cost * q; total += c; tr.find('.r-cost').text(FX.cor(FX.toCor(c))); }
 			else { tr.find('.r-cost').text(''); }
 		});
-		$('#total-cost').text('C$ ' + FX.toCor(total).toFixed(2) + ' ($' + total.toFixed(2) + ')');
+		$('#total-cost').text(FX.pair(total));
 		$('#cost-warn').toggle(missing);
-		$('#margin').text(PRICE > 0 && total > 0 ? ((PRICE - total) / PRICE * 100).toFixed(1) + ' %  (C$ ' + FX.toCor(PRICE - total).toFixed(2) + ')' : '—');
+		$('#margin').text(PRICE > 0 && total > 0 ? ((PRICE - total) / PRICE * 100).toFixed(1) + ' %  (' + FX.cor(FX.toCor(PRICE - total)) + ')' : '—');
 	}
 	$('#add-row').on('click', function(){ addRow('', ''); });
 	$('#recipe-table').on('change keyup', '.r-ing, .r-qty', recalc).on('click', '.r-del', function(){ $(this).closest('tr').remove(); recalc(); });
