@@ -15,7 +15,7 @@
 						title="Al marcar esta casilla se desactivan los descuentos automáticos (VIP, cumpleaños, categoría) y podrá escribir el descuento manualmente en cada producto o servicio. No se podrá usar cupón mientras esté activa.">
 				</th>
 				<th width="30%">Producto</th>
-				<th>Precio</th>
+				<th>Precio ($)</th>
 				<th>Cantidad</th>
 				<th>Descuento</th>
 				<th>Atendido por</th>
@@ -671,7 +671,7 @@
 						$('<tr>').data('product', p)
 							.append($('<td>').text(p.barcode || ''))
 							.append($('<td>').text(p.name))
-							.append($('<td>').text(p.price_sell))
+							.append($('<td>').text(FX.pair(p.price_sell)))
 							.append($('<td>').text(p.is_service == 1 ? 'Platillo' : 'Producto'))
 							.appendTo($tbody);
 					});

@@ -7,7 +7,7 @@ $rec_json = array();
 foreach( $recipe as $r ){ $rec_json[] = array('id' => (int) $r->id_ingredient, 'qty' => $n($r->quantity)); }
 ?>
 <h3 class="section-title">Receta: <?php echo htmlspecialchars($product->name); ?></h3>
-<p>Precio de venta: <strong>$ <?php echo number_format($price, 2); ?></strong> · <a href="<?php echo base_url('services'); ?>">Volver a platillos</a></p>
+<p>Precio de venta: <strong><?php echo fmt_money_pair($price); ?></strong> · <a href="<?php echo base_url('services'); ?>">Volver a platillos</a></p>
 
 <?php if( empty($ingredients) ) : ?>
 <p class="alert alert-info">Primero registre ingredientes en <a href="<?php echo base_url('ingredients/register'); ?>">Ingredientes</a>.</p>

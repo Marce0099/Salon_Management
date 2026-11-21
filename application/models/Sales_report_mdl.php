@@ -95,7 +95,7 @@ class Sales_report_mdl extends CI_Model{
 					'product' => $p->product_name,
 					'is_service' => (bool) $p->is_service,
 					'quantity' => (int) $p->quantity,
-					'price' => round( floatval($p->price), 2 ),
+					'price' => round( floatval($p->price) * $sell_rate, 2 ),
 					'discount' => (int) $p->discount,
 					'employee' => $effective_employee,
 					'venta' => round( $venta, 2 ),

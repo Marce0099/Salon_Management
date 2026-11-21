@@ -101,7 +101,7 @@
         const dato = {
             labels: trailing.map(row => `${getMonthNameFromNumber(row['Mes'])} ${row['Año']}`),
             datasets: [{
-                label: 'Ventas',
+                label: 'Ventas (C$)',
                 data: trailing.map(row => row['Ventas']),
                 borderColor: system.colorPalette[0],
                 backgroundColor: system.colorPalette[0] + '33',
@@ -318,7 +318,7 @@
         const dato = {
             labels: res.map(row => row.name),
             datasets: [{
-                label: 'Ventas',
+                label: 'Ventas (C$)',
                 data: res.map(row => row['Ventas']),
                 backgroundColor: system.colorPalette[0]
             }]

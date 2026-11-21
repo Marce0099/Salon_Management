@@ -62,7 +62,7 @@ class Sales_report extends Admin_Controller{
 
 		$headers = array(
 			'No. Factura', 'Fecha', 'Cliente', 'Producto/Servicio', 'Tipo', 'Cantidad',
-			'Precio unitario', 'Descuento %', 'Atendido por', 'Venta (C$)',
+			'Precio unitario (C$)', 'Descuento %', 'Atendido por', 'Venta (C$)',
 			'Utilidad bruta (C$)', 'Comisión (C$)', 'Ganancia real (C$)'
 		);
 

@@ -78,8 +78,8 @@
             ?>
               <div class="kpi-value <?php echo $pct_class; ?>"><?php echo number_format($pct,1); ?>%</div>
               <div class="kpi-sub">
-                $<?php echo number_format($goal_progress['sales'],2); ?> de
-                $<?php echo number_format($goal_progress['amount'],2); ?>
+                <?php echo fmt_money_pair($goal_progress['sales']); ?> de
+                <?php echo fmt_money_pair($goal_progress['amount']); ?>
               </div>
             <?php endif; ?>
           </div>
@@ -93,7 +93,7 @@
   <div class="row">
     <div class="col-md-6">
       <div class="graph" id="showSalesGraph">
-        <h3 class="graph_tittle">Tendencia de ventas ($)</h3>
+        <h3 class="graph_tittle">Tendencia de ventas (C$)</h3>
         <canvas></canvas>
       </div> <!-- .graph -->
     </div>
@@ -116,7 +116,7 @@
     </div>
     <div class="col-md-6">
       <div class="graph" id="showSalesByEmployeeGraph">
-        <h3 class="graph_tittle">Ventas por mesero</h3>
+        <h3 class="graph_tittle">Ventas por mesero (C$)</h3>
         <canvas></canvas>
       </div> <!-- .graph -->
     </div>
