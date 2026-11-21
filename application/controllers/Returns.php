@@ -35,10 +35,12 @@ class Returns extends Admin_Controller{
 
         foreach( $data['returns'] as $r ){
 
-            $sql = 'select sum(RP.quantity * RP.price_cost) as total_cost from returns_products RP inner join returns R
+            $sql = 'select sum(RP.quantity * RP.price_cost) as total_cost, sum(RP.quantity * IFNULL(RP.price_cost_cor, RP.price_cost * '.fx_rate().')) as total_cost_cor from returns_products RP inner join returns R
             on RP.id_return = R.id_return where RP.id_return = '.$r->id_return;
 
-            $r->total_cost = $this->db->query($sql)->row('total_cost');
+            $tc = $this->db->query($sql)->row();
+            $r->total_cost = $tc->total_cost;
+            $r->total_cost_cor = $tc->total_cost_cor;
         }
 
         $data['totals'] = $this->returns_mdl->getTotalReturns(array_filter($_GET),$data['query_no_limit']);

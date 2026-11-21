@@ -31,7 +31,7 @@ $e = function($f) use ($ingredient){ return isset($ingredient->$f) && $ingredien
 		<p class="text-muted">La existencia se cambia con "Recibir" o "Merma / conteo" para dejar historial.</p>
 		<?php endif; ?>
 		<div class="form-group"><label>Alerta de existencia baja (opcional)</label><input type="text" inputmode="decimal" name="alert_threshold" class="form-control" value="<?php echo $is_edit && $ingredient->alert_threshold > 0 ? $num($ingredient->alert_threshold) : ''; ?>"></div>
-		<div class="form-group"><label>Costo por unidad base (C$, opcional)</label><input type="text" inputmode="decimal" name="cost_unit" class="form-control" value="<?php echo $is_edit && $ingredient->cost_unit !== NULL ? $num(usd_to_cor($ingredient->cost_unit)) : ''; ?>"><small class="text-muted">Se actualiza solo al recibir con costo total.</small></div>
+		<div class="form-group"><label>Costo por unidad base (C$, opcional)</label><input type="text" inputmode="decimal" name="cost_unit" class="form-control" value="<?php echo $is_edit && $ingredient->cost_unit !== NULL ? $num((float) $ingredient->cost_unit * fx_rate()) : ''; ?>"><small class="text-muted">Se actualiza solo al recibir con costo total.</small></div>
 		<fieldset style="border:1px solid #ddd; padding:10px; margin-bottom:15px;">
 			<legend style="font-size:14px; width:auto; border:0; margin:0;">Presentaciones de compra (opcional)</legend>
 			<p class="text-muted" style="font-size:12px;">Cada forma en que lo compra: ej. "Saco 25 lb" = 11340, "Bolsa 1 lb" = 454 (tamaño en unidad base). Se usan al registrar compras.</p>

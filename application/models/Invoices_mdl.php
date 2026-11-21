@@ -114,7 +114,7 @@
 						$audit_lines[] = array(
 							'id_product' => (int) $line['id_product'], 'name' => $prev->name, 'units' => (int) $line['quantity'],
 							'pack' => isset($line['pack_name']) ? $line['pack_name'] : NULL, 'pack_qty' => isset($line['pack_qty']) ? $line['pack_qty'] : NULL,
-							'cost_old' => $prev->price_cost, 'cost_new' => $line['price_cost'], 'sell_old' => $prev->price_sell, 'sell_new' => $line['price_sell'],
+							'cost_old' => $prev->price_cost, 'cost_new' => $line['price_cost'], 'cost_new_cor' => isset($line['price_cost_cor']) ? $line['price_cost_cor'] : NULL, 'sell_new_cor' => isset($line['price_sell_cor']) ? $line['price_sell_cor'] : NULL, 'sell_old' => $prev->price_sell, 'sell_new' => $line['price_sell'],
 							'stock_before' => $line['is_service'] ? NULL : (int) $prev->stock, 'stock_after' => $line['is_service'] ? NULL : (int) $prev->stock + (int) $line['quantity']
 						);
 						if( !$line['is_service'] ){ $prev->stock = (int) $prev->stock + (int) $line['quantity']; }

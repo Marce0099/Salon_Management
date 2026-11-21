@@ -235,7 +235,7 @@ class Products extends Admin_Controller{
 				}
 				return $keys;
 			},
-			'insert' => function($rows) use ($db){
+			'insert' => function($rows) use ($db, $self){
 
 				$categories = array();
 				foreach( $db->get('service_category')->result_array() as $c ){
@@ -865,10 +865,12 @@ class Products extends Admin_Controller{
 
 		foreach( $data['internal_uses'] as $iu ){
 
-			$sql = 'select sum(IUP.quantity * IUP.price_cost) as total_cost from internal_use_products IUP
+			$sql = 'select sum(IUP.quantity * IUP.price_cost) as total_cost, sum(IUP.quantity * IFNULL(IUP.price_cost_cor, IUP.price_cost * '.fx_rate().')) as total_cost_cor from internal_use_products IUP
 			where IUP.id_internal_use = '.$iu->id_internal_use;
 
-			$iu->total_cost = $this->db->query($sql)->row('total_cost');
+			$tc = $this->db->query($sql)->row();
+			$iu->total_cost = $tc->total_cost;
+			$iu->total_cost_cor = $tc->total_cost_cor;
 		}
 
 		$data['totals'] = $this->internal_use_mdl->getTotalInternalUse(array_filter($_GET),$data['query_no_limit']);
