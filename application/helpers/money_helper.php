@@ -51,7 +51,7 @@ if( !function_exists('fmt_cor') ){
 	/** "C$ 1,234.50" */
 	function fmt_cor($cor, $decimals = 2){
 
-		return 'C$ '.number_format((float) $cor, $decimals);
+		return 'C$&nbsp;'.number_format((float) $cor, $decimals);
 	}
 }
 
@@ -74,7 +74,7 @@ if( !function_exists('fmt_money_pair') ){
 
 		$cor = usd_to_cor($usd, $rate);
 
-		return fmt_cor($cor, $decimals).' <small class="text-muted">('.fmt_usd($usd, $decimals).')</small>';
+		return fmt_cor($cor, $decimals).' <small class="money-usd">('.fmt_usd($usd, $decimals).')</small>';
 	}
 }
 
@@ -85,7 +85,7 @@ if( !function_exists('fmt_cor_usd') ){
 
 		if( $cor === NULL || $cor === '' ){ return fmt_money_pair($usd, NULL, $decimals); }
 
-		return fmt_cor($cor, $decimals).' <small class="text-muted">('.fmt_usd($usd, $decimals).')</small>';
+		return fmt_cor($cor, $decimals).' <small class="money-usd">('.fmt_usd($usd, $decimals).')</small>';
 	}
 }
 
@@ -96,6 +96,21 @@ if( !function_exists('fmt_cor_pair') ){
 
 		if( $cor === NULL || $cor === '' ){ return '—'; }
 
-		return fmt_cor($cor, $decimals).' <small class="text-muted">('.fmt_usd(cor_to_usd($cor), $decimals).')</small>';
+		return fmt_cor($cor, $decimals).' <small class="money-usd">('.fmt_usd(cor_to_usd($cor), $decimals).')</small>';
+	}
+}
+
+if( !function_exists('fmt_plain') ){
+
+	/** Plain number for an <input value>: at least $min decimals, up to $max, no thousands separator ("185.5000" -> "185.50"). */
+	function fmt_plain($n, $min = 2, $max = 4){
+
+		$s = number_format((float) $n, $max, '.', '');
+		$s = rtrim($s, '0');
+		$dot = strpos($s, '.');
+		$have = ($dot === false) ? 0 : strlen($s) - $dot - 1;
+		if( $have < $min ){ $s = ($dot === false ? $s.'.' : $s).str_repeat('0', $min - $have); }
+
+		return $s;
 	}
 }

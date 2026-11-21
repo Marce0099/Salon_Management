@@ -34,6 +34,13 @@ No build step. Start Apache + MySQL from XAMPP, open `http://localhost/`. Defaul
 - UI text is Spanish; backend strings/log messages stay English (JSON `message` shown to users is Spanish).
 - Files mostly use CRLF line endings; edit with tools that preserve them.
 
+## UI/CSS gotchas
+
+- Gentelella floats EVERY `.col-*` (even with no width at that breakpoint). `mobile.css` re-stacks columns that only declare `col-sm-*`/`col-md-*` on phones; still add `col-xs-12` where a field must be full width.
+- `mobile.css` turns every `.right_col table.table` into a horizontally scrolling block (so `table-layout:fixed` is ignored). Tables that need real layout are opted out by id at the top of that rule (`#invoice-table`, `#tbl`, `#bill-extras-table`, `.bill-card`); do NOT use `:not(#id)` for that (it raises specificity and defeats the opt-outs).
+- Money pairs: `fmt_cor*`/`fmt_money_pair` and `FX.cor/pair` use a non-breaking space after `C$` and wrap the dollar part in `<small class="money-usd">` (nowrap, muted). C$ amounts in `<input>` use an `input-group` with a `C$` addon (not `has-feedback-left`) and `fmt_plain()` for the value.
+- Never write `*/` inside a CSS comment (a stray `col-sm-*/col-md-*` silently dropped the rules after it).
+
 ## Roles
 
 `admins.role`: `super` > `administrador` > `trabajador` (waiter). `is_admin()` = super or administrador (admin-only: settings, reports, product/menu management, meseros, clients, providers); `is_super()` = only `super` (admin accounts). Waiters see a reduced menu and are blocked server-side from clients/providers/menu-categories/reports/admin pages.

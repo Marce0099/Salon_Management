@@ -11,6 +11,11 @@
 	overflow:hidden; line-height:1.15; cursor:pointer; font-size:clamp(10px,2.2vw,16px);
 }
 .floor-table.round{ border-radius:50%; }
+@media (max-width:480px){
+	/* tiny canvas: keep the two text lines inside small tables */
+	.floor-table{ border-width:1px; font-size:9px; line-height:1; flex-direction:row; flex-wrap:wrap; column-gap:3px; padding:0 1px; }
+	.floor-table.round .t-sub{ display:none; }
+}
 .floor-table .t-label{ font-weight:700; font-size:1.15em; }
 .floor-table .t-sub{ font-size:.8em; opacity:.95; }
 .floor-table.free{ background:#1ABB9C; }
@@ -25,5 +30,6 @@
 .area-tabs{ margin-bottom:10px; display:flex; flex-wrap:wrap; gap:6px; }
 .area-tabs .btn.active{ background:#2A3F54; color:#fff; border-color:#2A3F54; }
 .page-title{ height:auto !important; min-height:0; }
+.page-title::after{ content:""; display:table; clear:both; }
 
 .right_col .bill-card table.table{ display:table; width:100%; white-space:normal; }

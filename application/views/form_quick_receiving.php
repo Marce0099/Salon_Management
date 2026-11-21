@@ -8,6 +8,8 @@
 	.qr-card label { font-size:12px; margin-bottom:2px; color:#666; }
 	#qr-results .list-group-item { padding:12px; cursor:pointer; }
 	#qr-total { font-size:18px; font-weight:bold; }
+	.qr-card .qr-remove { padding:6px 8px; top:2px; right:4px; }
+	@media (max-width: 767px) { #qr-total { display:block; margin-bottom:8px; } #qr-save { float:none !important; width:100%; } }
 	@media (min-width: 992px) { #qr-lines { column-count:2; column-gap:12px; } .qr-card { break-inside:avoid; } }
 </style>
 

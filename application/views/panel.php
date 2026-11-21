@@ -17,7 +17,7 @@
         <div class="panel panel-default kpi-tile">
           <div class="panel-heading"><i class="fa fa-cutlery"></i> Consumo abierto</div>
           <div class="panel-body">
-            <div class="kpi-value">C$<?php echo number_format($live['consumption_cor'], 2); ?></div>
+            <div class="kpi-value">C$&nbsp;<?php echo number_format($live['consumption_cor'], 2); ?></div>
             <div class="kpi-sub">En mesas aún sin cobrar</div>
           </div>
         </div>

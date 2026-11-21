@@ -13,7 +13,7 @@
 	#ip-bar { position:sticky; bottom:0; background:#fff; border-top:1px solid #ddd; padding:10px 0; margin-top:10px; z-index:5; }
 	#ip-total { font-size:18px; font-weight:bold; }
 	#ip-form .form-control, #ct-form .form-control { width:100%; display:block; }
-	@media (max-width:991px){ #ip-bar, #ct-bar { bottom:62px; } }
+	@media (max-width:991px){ #ip-bar, #ct-bar { bottom:calc(60px + env(safe-area-inset-bottom)); } }
 </style>
 
 <form id="ip-form" autocomplete="off" onsubmit="return false;">

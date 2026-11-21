@@ -1,6 +1,6 @@
 <?php
 function rp_usd($n){ return '$'.number_format((float) $n, 2); } // secondary info only
-function rp_cor($n){ return 'C$'.number_format((float) $n, 2); }
+function rp_cor($n){ return 'C$&nbsp;'.number_format((float) $n, 2); }
 $print_labels = array('printed' => array('Impresa', 'success'), 'failed' => array('No impresa', 'danger'), 'skipped' => array('Sin cocina', 'default'), 'pending' => array('Pendiente', 'warning'));
 
 /** One breakdown table: rows keyed by name with the blank() money columns. */
@@ -8,16 +8,16 @@ function rp_table($title, $rows, $first){ ?>
 	<div class="x_panel">
 		<div class="x_title"><h2 style="font-size:16px;"><?php echo $title; ?></h2><div class="clearfix"></div></div>
 		<?php if( empty($rows) ) : ?><p class="text-muted">Sin ventas en el período.</p><?php else : ?>
-		<table class="table table-striped table-condensed">
-			<thead><tr><th><?php echo $first; ?></th><th class="text-right">Ventas</th><th class="text-right">Cuentas</th><th class="text-right">Ventas C$</th><th class="text-right">Propina C$</th><th class="text-right">IVA C$</th><th class="text-right">Total C$</th></tr></thead>
+		<div class="table-responsive"><table class="table table-striped table-condensed">
+			<thead><tr><th><?php echo $first; ?></th><th class="text-right">Cuentas</th><th class="text-right">Ventas C$</th><th class="text-right">Propina C$</th><th class="text-right">IVA C$</th><th class="text-right">Total C$</th><th class="text-right">Ventas $</th></tr></thead>
 			<tbody>
 			<?php foreach( $rows as $name => $r ) : ?>
-				<tr><td><?php echo htmlspecialchars($name); ?></td><td class="text-right"><?php echo rp_usd($r['ventas_usd']); ?></td><td class="text-right"><?php echo (int) $r['sales']; ?></td>
+				<tr><td><?php echo htmlspecialchars($name); ?></td><td class="text-right"><?php echo (int) $r['sales']; ?></td>
 					<td class="text-right"><?php echo rp_cor($r['ventas_cor']); ?></td><td class="text-right"><?php echo rp_cor($r['tip_cor']); ?></td>
-					<td class="text-right"><?php echo rp_cor($r['iva_cor']); ?></td><td class="text-right"><strong><?php echo rp_cor($r['total_cor']); ?></strong></td></tr>
+					<td class="text-right"><?php echo rp_cor($r['iva_cor']); ?></td><td class="text-right"><strong><?php echo rp_cor($r['total_cor']); ?></strong></td><td class="text-right"><?php echo rp_usd($r['ventas_usd']); ?></td></tr>
 			<?php endforeach; ?>
 			</tbody>
-		</table>
+		</table></div>
 		<?php endif; ?>
 	</div>
 <?php } ?>
@@ -60,12 +60,12 @@ function rp_table($title, $rows, $first){ ?>
 		<div class="x_panel">
 			<div class="x_title"><h2 style="font-size:16px;">Ventas por categoría</h2><div class="clearfix"></div></div>
 			<?php if( empty($categories) ) : ?><p class="text-muted">Sin ventas en el período.</p><?php else : ?>
-			<table class="table table-striped table-condensed">
-				<thead><tr><th>Categoría</th><th class="text-right">Unidades</th><th class="text-right">Ventas $</th><th class="text-right">Ventas C$</th></tr></thead>
+			<div class="table-responsive"><table class="table table-striped table-condensed">
+				<thead><tr><th>Categoría</th><th class="text-right">Unidades</th><th class="text-right">Ventas C$</th><th class="text-right">Ventas $</th></tr></thead>
 				<tbody><?php foreach( $categories as $c ) : ?>
-					<tr><td><?php echo htmlspecialchars($c->cat_name); ?></td><td class="text-right"><?php echo (int) $c->qty; ?></td><td class="text-right"><?php echo rp_usd($c->usd); ?></td><td class="text-right"><?php echo rp_cor($c->cor); ?></td></tr>
+					<tr><td><?php echo htmlspecialchars($c->cat_name); ?></td><td class="text-right"><?php echo (int) $c->qty; ?></td><td class="text-right"><?php echo rp_cor($c->cor); ?></td><td class="text-right"><?php echo rp_usd($c->usd); ?></td></tr>
 				<?php endforeach; ?></tbody>
-			</table>
+			</table></div>
 			<?php endif; ?>
 		</div>
 	</div>

@@ -44,12 +44,12 @@
 	</tr>
 	<tr>
 		<td class="text-right">IVA:</td>
-		<td>C$<span id="iva-cordobas">0.00</span></td>
+		<td>C$&nbsp;<span id="iva-cordobas">0.00</span></td>
 		<td>$<span id="iva-dollar">0.00</span></td>
 	</tr>
 	<tr>
 		<td class="text-right"><strong>Total a cobrar:</strong></td>
-		<td><strong>C$<span id="grand-cordobas">0.00</span></strong></td>
+		<td><strong>C$&nbsp;<span id="grand-cordobas">0.00</span></strong></td>
 		<td><strong>$<span id="grand-dollar">0.00</span></strong></td>
 	</tr>
 </table>
