@@ -78,8 +78,8 @@
             ?>
               <div class="kpi-value <?php echo $pct_class; ?>"><?php echo number_format($pct,1); ?>%</div>
               <div class="kpi-sub">
-                <?php echo fmt_money_pair($goal_progress['sales']); ?> de
-                <?php echo fmt_money_pair($goal_progress['amount']); ?>
+                <?php echo fmt_cor_pair($goal_progress['sales']); ?> de
+                <?php echo fmt_cor_pair($goal_progress['amount']); ?>
               </div>
             <?php endif; ?>
           </div>
@@ -108,7 +108,7 @@
     <?php if( $is_admin ) : ?>
     <div class="col-md-6">
       <div class="graph" id="showGoalsGraph">
-        <h3 class="graph_tittle">Meta vs. ventas reales</h3>
+        <h3 class="graph_tittle">Meta vs. ventas reales (C$)</h3>
         <canvas></canvas>
         <select></select>
         <div class="graph_legend"></div>

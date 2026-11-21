@@ -48,7 +48,7 @@ class Statistics_mdl extends CI_Model{
 		FROM goals g
 		LEFT JOIN (
 			SELECT YEAR(S.date_time) AS Año, MONTH(S.date_time) AS Mes,
-			SUM(ROUND(SP.quantity * (SP.price - (SP.price * (SP.discount / 100))),2)) AS Ventas
+			SUM(ROUND(SP.quantity * (SP.price - (SP.price * (SP.discount / 100))) * S.dollar_ex_sell,2)) AS Ventas
 			FROM sales as S
 			INNER JOIN sale_products as SP on S.id_sale = SP.id_sale
 			GROUP BY Año, Mes
@@ -131,7 +131,7 @@ class Statistics_mdl extends CI_Model{
 		LEFT JOIN goals g ON g.month_goal = cur.Mes AND g.year_goal = cur.Año
 		LEFT JOIN (
 			SELECT YEAR(S.date_time) AS Año, MONTH(S.date_time) AS Mes,
-			SUM(ROUND(SP.quantity * (SP.price - (SP.price * (SP.discount / 100))),2)) AS Ventas
+			SUM(ROUND(SP.quantity * (SP.price - (SP.price * (SP.discount / 100))) * S.dollar_ex_sell,2)) AS Ventas
 			FROM sales as S
 			INNER JOIN sale_products as SP on S.id_sale = SP.id_sale
 			WHERE YEAR(S.date_time) = YEAR(CURRENT_DATE()) AND MONTH(S.date_time) = MONTH(CURRENT_DATE())
