@@ -9,12 +9,12 @@ function rp_table($title, $rows, $first){ ?>
 		<div class="x_title"><h2 style="font-size:16px;"><?php echo $title; ?></h2><div class="clearfix"></div></div>
 		<?php if( empty($rows) ) : ?><p class="text-muted">Sin ventas en el período.</p><?php else : ?>
 		<div class="table-responsive"><table class="table table-striped table-condensed">
-			<thead><tr><th><?php echo $first; ?></th><th class="text-right">Cuentas</th><th class="text-right">Ventas C$</th><th class="text-right">Propina C$</th><th class="text-right">IVA C$</th><th class="text-right">Total C$</th><th class="text-right">Ventas $</th></tr></thead>
+			<thead><tr><th><?php echo $first; ?></th><th class="text-right">Cuentas</th><th class="text-right">Ventas C$</th><th class="text-right">Propina C$</th><th class="text-right">IVA C$</th><th class="text-right">Total C$</th></tr></thead>
 			<tbody>
 			<?php foreach( $rows as $name => $r ) : ?>
 				<tr><td><?php echo htmlspecialchars($name); ?></td><td class="text-right"><?php echo (int) $r['sales']; ?></td>
 					<td class="text-right"><?php echo rp_cor($r['ventas_cor']); ?></td><td class="text-right"><?php echo rp_cor($r['tip_cor']); ?></td>
-					<td class="text-right"><?php echo rp_cor($r['iva_cor']); ?></td><td class="text-right"><strong><?php echo rp_cor($r['total_cor']); ?></strong></td><td class="text-right"><?php echo rp_usd($r['ventas_usd']); ?></td></tr>
+					<td class="text-right"><?php echo rp_cor($r['iva_cor']); ?></td><td class="text-right"><strong><?php echo rp_cor($r['total_cor']); ?></strong></td></tr>
 			<?php endforeach; ?>
 			</tbody>
 		</table></div>
@@ -61,9 +61,9 @@ function rp_table($title, $rows, $first){ ?>
 			<div class="x_title"><h2 style="font-size:16px;">Ventas por categoría</h2><div class="clearfix"></div></div>
 			<?php if( empty($categories) ) : ?><p class="text-muted">Sin ventas en el período.</p><?php else : ?>
 			<div class="table-responsive"><table class="table table-striped table-condensed">
-				<thead><tr><th>Categoría</th><th class="text-right">Unidades</th><th class="text-right">Ventas C$</th><th class="text-right">Ventas $</th></tr></thead>
+				<thead><tr><th>Categoría</th><th class="text-right">Unidades</th><th class="text-right">Ventas C$</th></tr></thead>
 				<tbody><?php foreach( $categories as $c ) : ?>
-					<tr><td><?php echo htmlspecialchars($c->cat_name); ?></td><td class="text-right"><?php echo (int) $c->qty; ?></td><td class="text-right"><?php echo rp_cor($c->cor); ?></td><td class="text-right"><?php echo rp_usd($c->usd); ?></td></tr>
+					<tr><td><?php echo htmlspecialchars($c->cat_name); ?></td><td class="text-right"><?php echo (int) $c->qty; ?></td><td class="text-right"><?php echo rp_cor($c->cor); ?></td></tr>
 				<?php endforeach; ?></tbody>
 			</table></div>
 			<?php endif; ?>
