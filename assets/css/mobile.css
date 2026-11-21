@@ -20,17 +20,20 @@
 	.nav_menu .toggle a, .nav_menu .navbar-nav > li > a{ min-width:44px; min-height:44px; }
 
 	/* content breathing room + room for the bottom bar */
-	.right_col{ padding:10px 10px 80px 10px !important; margin-left:0 !important; }
+	.right_col{ padding:10px 10px calc(80px + env(safe-area-inset-bottom)) 10px !important; margin-left:0 !important; }
+	.right_col .form-group{ margin-bottom:12px !important; }
 	.x_panel, .x_content{ padding-left:8px; padding-right:8px; }
 
 	/* wide tables scroll sideways instead of breaking the layout */
-	.right_col table.table{ display:block; overflow-x:auto; -webkit-overflow-scrolling:touch; white-space:nowrap; }
+	.right_col table.table:not(#products-sale):not(#invoice-table):not(#tbl):not(#bill-extras-table){ display:block; overflow-x:auto; -webkit-overflow-scrolling:touch; }
+	.right_col table.table td.text-nowrap, .right_col table.table th.text-nowrap{ white-space:nowrap; }
 
 	/* forms: stack labels above inputs */
 	.form-horizontal .control-label{ text-align:left !important; padding-bottom:4px; }
 
 	/* modals use the full width */
 	.modal-dialog{ margin:10px; width:auto; }
+	.modal-body{ max-height:calc(100vh - 140px); overflow-y:auto; }
 
 	/* PNotify toasts must not overflow */
 	.ui-pnotify{ left:10px !important; right:10px !important; width:auto !important; }
@@ -55,19 +58,32 @@
 	/* must out-rank Gentelella's `.nav-md .container.body .col-md-3.left_col` (z-index:1), else the overlay covers the drawer */
 	body.drawer-open .container.body .col-md-3.left_col{
 		display:block !important; position:fixed !important; top:0; bottom:0; left:0;
-		width:80% !important; max-width:300px; z-index:1050 !important; overflow-y:auto;
+		width:80% !important; max-width:300px; z-index:1060 !important; overflow-y:auto;
 	}
 	body.drawer-open .left_col .scroll-view{ width:100% !important; }
-	.drawer-overlay{ display:none; position:fixed; inset:0; background:rgba(0,0,0,.45); z-index:1045; }
+	.drawer-overlay{ display:none; position:fixed; inset:0; background:rgba(0,0,0,.45); z-index:1055; }
 	body.drawer-open .drawer-overlay{ display:block; }
 	.sidebar-scroll-arrow{ display:none !important; }
 	.nav_menu .navbar-right .user-profile{ font-size:0; }
 	.nav_menu .navbar-right .user-profile i{ font-size:18px; }
 }
 
+/* Gentelella floats EVERY .col-* (even with no width at that breakpoint), so a column that
+   only declares a col-sm or col-md class shrink-wraps its content on phones. Give it the Bootstrap
+   "stack full width below the breakpoint" behaviour back. */
+@media (max-width: 767px){
+	.right_col [class*="col-sm-"]:not([class*="col-xs-"]),
+	.right_col [class*="col-md-"]:not([class*="col-xs-"]):not([class*="col-sm-"]),
+	.right_col [class*="col-lg-"]:not([class*="col-xs-"]):not([class*="col-sm-"]):not([class*="col-md-"]){ width:100%; }
+}
+@media (min-width: 768px) and (max-width: 991px){
+	.right_col [class*="col-md-"]:not([class*="col-xs-"]):not([class*="col-sm-"]),
+	.right_col [class*="col-lg-"]:not([class*="col-xs-"]):not([class*="col-sm-"]):not([class*="col-md-"]){ width:100%; }
+}
+
 @media (max-width: 480px){
 	.tile_count .tile_stats_count{ width:100%; }
-	.right_col .row > [class*=col-md-]{ width:100%; }
+	.nav_menu .toggle{ width:50px; }
 	h3, .page-title h3{ font-size:20px; }
 }
 

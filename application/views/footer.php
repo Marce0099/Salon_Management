@@ -19,11 +19,11 @@
     <script src="<?php echo base_url("assets/gentelella/vendors/Chart.js/dist/Chart.min.js"); ?>"></script>
 
     <!-- PanelChart.js -->
-    <?php if($_SERVER["PATH_INFO"] === "/panel"){ ?>
+    <?php if((isset($_SERVER["PATH_INFO"]) ? rtrim($_SERVER["PATH_INFO"], "/") : "") === "/panel"){ ?>
       <script src="<?php echo base_url("assets/js/PanelChart.js"); ?>"></script>
     <?php } ?>
     <!-- SalesReport.js -->
-    <?php if($_SERVER["PATH_INFO"] === "/sales_report"){ ?>
+    <?php if((isset($_SERVER["PATH_INFO"]) ? rtrim($_SERVER["PATH_INFO"], "/") : "") === "/sales_report"){ ?>
       <script src="<?php echo base_url("assets/js/SalesReport.js"); ?>"></script>
     <?php } ?>
     <!-- gauge.js -->

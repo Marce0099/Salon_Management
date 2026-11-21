@@ -13,8 +13,11 @@
 
     FX.toCor = function (usd) { return (parseFloat(usd) || 0) * FX.rate; };
     FX.toUsd = function (cor) { return FX.rate > 0 ? (parseFloat(cor) || 0) / FX.rate : 0; };
-    FX.cor = function (cor, d) { return 'C$ ' + fmt(cor, d === undefined ? 2 : d); };
-    FX.usd = function (usd, d) { return '$' + fmt(usd, d === undefined ? 2 : d); };
+    FX.cor = function (cor, d) { return 'C$ ' + fmt(cor, d === undefined ? 2 : d); };
+    FX.usd = function (usd, d) {
+        var n = parseFloat(usd) || 0;
+        return (n < 0 ? '-' : '') + '$' + fmt(Math.abs(n), d === undefined ? 2 : d);
+    };
     // amount given in dollars -> "C$ x ($y)"
     FX.pair = function (usd, d) { return FX.cor(FX.toCor(usd), d) + ' (' + FX.usd(usd, d) + ')'; };
     // amount given in cordobas -> "C$ x ($y)"

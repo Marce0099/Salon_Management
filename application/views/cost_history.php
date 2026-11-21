@@ -1,6 +1,6 @@
 <?php
 	$money = function($v){ return fmt_cor_pair(($v === NULL || $v === '') ? NULL : (float)$v); }; // values are C$
-	$money4 = function($v){ return fmt_cor_pair(($v === NULL || $v === '') ? NULL : (float)$v); };
+	$money4 = function($v){ if( $v === NULL || $v === '' ){ return fmt_cor_pair(NULL); } $v = (float)$v; return fmt_cor_pair($v, round($v, 2) == round($v, 4) ? 2 : 4); }; // unit costs keep up to 4 decimals
 	$labels = array('purchase' => 'Compra', 'manual' => 'Edición manual', 'import' => 'Importación');
 	$qs = function($extra) use ($f){ return base_url('cost_history').'?'.http_build_query(array_merge(array('id_provider' => $f['id_provider'] ?: '', 'source' => $f['source'], 'from' => $f['from'], 'to' => $f['to'], 'only_changes' => $f['only_changes'] ?: ''), $extra)); };
 ?>
@@ -65,13 +65,14 @@
 		$cur = (float)$product->price_cost_cor; $sell = (float)$product->price_sell_cor;
 		$margin = function($cost) use ($sell){ return ($sell > 0 && $cost !== NULL) ? number_format(($sell - $cost) / $sell * 100, 0).'%' : '—'; };
 	?>
+	<style>.cost-well{min-height:96px;} .cost-well h4{font-size:15px;margin:6px 0 2px;}</style>
 	<div class="row">
-		<div class="col-md-2 col-xs-6"><div class="well well-sm text-center"><small>Costo actual</small><h4><?php echo $money4($cur); ?></h4></div></div>
-		<div class="col-md-2 col-xs-6"><div class="well well-sm text-center"><small>Promedio ponderado</small><h4><?php echo $money4($stats->avg_cost); ?></h4><small>margen <?php echo $margin($stats->avg_cost); ?></small></div></div>
-		<div class="col-md-2 col-xs-6"><div class="well well-sm text-center"><small>Más alto</small><h4><?php echo $money4($stats->max_cost); ?></h4><small>margen <?php echo $margin($stats->max_cost); ?></small></div></div>
-		<div class="col-md-2 col-xs-6"><div class="well well-sm text-center"><small>Más bajo</small><h4><?php echo $money4($stats->min_cost); ?></h4></div></div>
-		<div class="col-md-2 col-xs-6"><div class="well well-sm text-center"><small>Precio de venta</small><h4><?php echo $money($sell); ?></h4></div></div>
-		<div class="col-md-2 col-xs-6"><div class="well well-sm text-center"><small>Registros</small><h4><?php echo (int)$stats->n; ?></h4></div></div>
+		<div class="col-md-2 col-xs-6"><div class="well well-sm text-center cost-well"><small>Costo actual</small><h4><?php echo $money4($cur); ?></h4></div></div>
+		<div class="col-md-2 col-xs-6"><div class="well well-sm text-center cost-well"><small>Promedio ponderado</small><h4><?php echo $money4($stats->avg_cost); ?></h4><small>margen <?php echo $margin($stats->avg_cost); ?></small></div></div>
+		<div class="col-md-2 col-xs-6"><div class="well well-sm text-center cost-well"><small>Más alto</small><h4><?php echo $money4($stats->max_cost); ?></h4><small>margen <?php echo $margin($stats->max_cost); ?></small></div></div>
+		<div class="col-md-2 col-xs-6"><div class="well well-sm text-center cost-well"><small>Más bajo</small><h4><?php echo $money4($stats->min_cost); ?></h4></div></div>
+		<div class="col-md-2 col-xs-6"><div class="well well-sm text-center cost-well"><small>Precio de venta</small><h4><?php echo $money($sell); ?></h4></div></div>
+		<div class="col-md-2 col-xs-6"><div class="well well-sm text-center cost-well"><small>Registros</small><h4><?php echo (int)$stats->n; ?></h4></div></div>
 	</div>
 
 	<div class="table-responsive">

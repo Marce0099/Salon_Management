@@ -97,6 +97,7 @@ ul.side-menu ul.display_block{
 .logo-panel{
 
 	width: 400px;
+	max-width: 100%;
 	height: auto;
 }
 
@@ -338,7 +339,7 @@ input.readonly{
 	line-height: 24px;
 	text-align: center;
 	cursor: pointer;
-	z-index: 10000;
+	z-index: 10;
 	background: #2A3F54;
 	color: #C4CFDA;
 }
@@ -372,3 +373,7 @@ input.readonly{
 	font-size: 14px;
 	color: inherit;
 }
+/* Cordoba-first money: the dollar equivalent is secondary and never wraps mid-amount */
+.money-usd{ font-size:.85em; color:#777; font-weight:400; white-space:nowrap; }
+.alert .money-usd, .btn .money-usd, [class*=bg-] .money-usd, .label .money-usd{ color:inherit; opacity:.8; }
+.text-nowrap{ white-space:nowrap; }

@@ -58,7 +58,8 @@
             z-index: 2;
         }
     </style>
-    <?php if($_SERVER["PATH_INFO"] == "/panel" || $_SERVER["PATH_INFO"] == "/sales_report") { ?>
+    <?php $hdr_path = isset($_SERVER["PATH_INFO"]) ? rtrim($_SERVER["PATH_INFO"], "/") : ""; ?>
+    <?php if(in_array($hdr_path, array("/panel", "/sales_report", "/reports"), true)) { ?>
     <link href="<?php echo base_url('assets/css/chart.css'); ?>" rel="stylesheet">
     <?php } ?>
     <!-- jQuery -->
