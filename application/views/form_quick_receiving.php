@@ -139,9 +139,9 @@
 		});
 	}
 
-	// product prices arrive in C$ (*_cor) or, as a fallback, in dollars converted at the live rate
-	function cc(p){ return p.price_cost_cor != null ? parseFloat(p.price_cost_cor) : Math.round(FX.toCor(p.price_cost) * 10000) / 10000; }
-	function sc(p){ return p.price_sell_cor != null ? parseFloat(p.price_sell_cor) : Math.round(FX.toCor(p.price_sell) * 100) / 100; }
+	// product prices arrive in C$ (*_cor)
+	function cc(p){ return p.price_cost_cor != null ? parseFloat(p.price_cost_cor) : 0; }
+	function sc(p){ return p.price_sell_cor != null ? parseFloat(p.price_sell_cor) : 0; }
 
 	function addLine(p, prePack, preQty){
 
@@ -171,7 +171,7 @@
 				var $sel = $c.find('.qr-pack');
 
 				$.each(packs, function(i, pk){
-					$('<option>').val(pk.id_pack).attr('data-units', pk.units).attr('data-cost', pk.price_cost_cor != null ? pk.price_cost_cor : (pk.price_cost === null ? '' : Math.round(FX.toCor(pk.price_cost) * 100) / 100))
+					$('<option>').val(pk.id_pack).attr('data-units', pk.units).attr('data-cost', pk.price_cost_cor != null ? pk.price_cost_cor : '')
 						.text(pk.name + ' (x' + pk.units + ')').appendTo($sel);
 				});
 
@@ -273,7 +273,7 @@
 			$c.find('.qr-warn').html( costWarning(num($c.find('.qr-cost').val()), num($c.find('.qr-sell').val()), num($c.attr('data-prev-cost'))) );
 		});
 
-		$('#qr-total').text('Total: C$ ' + total.toFixed(2) + ' ($' + FX.toUsd(total).toFixed(2) + ')');
+		$('#qr-total').text('Total: C$ ' + total.toFixed(2));
 	}
 
 	$(document).on('input', '.qr-qty, .qr-cost, .qr-sell', recalc);

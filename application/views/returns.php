@@ -57,7 +57,7 @@
 		<tr>
 			<th colspan="4">
 				Total de devoluciones: <?php echo $no_limit_count; ?> | 
-				Total costo: <?php echo fmt_cor_usd($totals->total_cost_cor, $totals->total_cost); ?>
+				Total costo: <?php echo fmt_cor_pair($totals->total_cost_cor); ?>
 			</th>
 		</tr>
 		<tr>
@@ -74,7 +74,7 @@
 		<tr>
 			<td><?php echo date('d/m/Y', strtotime($r->date_time)); ?></td>
 			<td><?php echo $r->provider; ?></td>
-			<td><?php echo fmt_cor_usd($r->total_cost_cor, $r->total_cost); ?></td>
+			<td><?php echo fmt_cor_pair($r->total_cost_cor); ?></td>
 			<td>
 			<a href="<?php echo base_url("returns/details/{$r->id_return}"); ?>"><i class="fa fa-table"></i> Detalles</a>
 			</td>

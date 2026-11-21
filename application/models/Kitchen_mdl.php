@@ -26,7 +26,7 @@ class Kitchen_mdl extends CI_Model{
 	/** Orderable menu: active products; stocked ones carry their current stock (it already drops when an order is sent). */
 	public function menu(){
 
-		$sql = 'SELECT p.id_product AS id, p.name, p.price_sell, p.is_service, p.stock, p.prints_kitchen,
+		$sql = 'SELECT p.id_product AS id, p.name, p.price_sell_cor, p.is_service, p.stock, p.prints_kitchen,
 					IFNULL(p.id_service_category, 0) AS cat
 				FROM products p WHERE p.active = 1 AND (p.barcode IS NULL OR p.barcode <> "SPLIT-CONSUMO") ORDER BY p.name';
 
@@ -39,7 +39,7 @@ class Kitchen_mdl extends CI_Model{
 
 		foreach( $rows as $r ){
 			$r->id    = (int) $r->id;
-			$r->price = (float) $r->price_sell;
+			$r->price = (float) $r->price_sell_cor;
 			$r->stocked = !$r->is_service;
 			$r->available = $r->stocked ? max(0, (int) $r->stock) : NULL;
 			$r->base = $r->available; // product stock only (NULL for dishes); the recipe part is in rec
@@ -54,7 +54,7 @@ class Kitchen_mdl extends CI_Model{
 				$r->available = $r->available === NULL ? $portions : min($r->available, $portions);
 			}
 
-			unset($r->price_sell, $r->stock, $r->is_service);
+			unset($r->price_sell_cor, $r->stock, $r->is_service);
 		}
 
 		return $rows;
@@ -516,7 +516,7 @@ class Kitchen_mdl extends CI_Model{
 
 			$old = $v[2];
 			$line = array(
-				'id_product' => (int) $new->id_product, 'name' => $new->name, 'quantity' => (int) $new_qty, 'price' => (float) $new->price_sell,
+				'id_product' => (int) $new->id_product, 'name' => $new->name, 'quantity' => (int) $new_qty, 'price' => (float) $new->price_sell_cor,
 				'notes' => (string) $notes, 'course' => (int) $old->course, 'prints_kitchen' => (int) $new->prints_kitchen, 'modifiers' => $mods,
 			);
 

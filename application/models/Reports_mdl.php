@@ -1,42 +1,36 @@
 <?php if( !defined('BASEPATH') ){ exit(); }
 
 /**
- * Restaurant reports. Product prices and tip/IVA are stored in dollars; each sale keeps its own sell rate, so every
- * figure is reported both in $ and in C$ (C$ = $ x the sale's rate, summed per sale).
+ * Restaurant reports. Prices, tip and IVA are stored in C$ (2 decimals), so every figure is plain C$.
  * "Ventas" = sale lines only; propina and IVA are shown separately; "total" = ventas + propina + IVA.
  */
 class Reports_mdl extends CI_Model{
 
 	private function money(){
 
-		return array('usd' => 0.0, 'cor' => 0.0);
+		return array('cor' => 0.0);
 	}
 
 	private function blank(){
 
-		return array('sales' => 0, 'ventas_usd' => 0.0, 'ventas_cor' => 0.0, 'tip_usd' => 0.0, 'tip_cor' => 0.0, 'iva_usd' => 0.0, 'iva_cor' => 0.0, 'total_usd' => 0.0, 'total_cor' => 0.0);
+		return array('sales' => 0, 'ventas_cor' => 0.0, 'tip_cor' => 0.0, 'iva_cor' => 0.0, 'total_cor' => 0.0);
 	}
 
 	private function add(&$acc, $s){
 
-		$r = (float) $s->r;
 		$acc['sales']++;
-		$acc['ventas_usd'] += $s->lines_total;
-		$acc['ventas_cor'] += $s->lines_total * $r;
-		$acc['tip_usd']    += $s->tip;
-		$acc['tip_cor']    += $s->tip * $r;
-		$acc['iva_usd']    += $s->iva;
-		$acc['iva_cor']    += $s->iva * $r;
-		$acc['total_usd']  += $s->lines_total + $s->tip + $s->iva;
-		$acc['total_cor']  += ($s->lines_total + $s->tip + $s->iva) * $r;
+		$acc['ventas_cor'] += $s->lines_total;
+		$acc['tip_cor']    += $s->tip;
+		$acc['iva_cor']    += $s->iva;
+		$acc['total_cor']  += $s->lines_total + $s->tip + $s->iva;
 	}
 
 	/** One row per sale in the range, with waiter and table names. */
 	private function sales($from, $to){
 
-		$sql = 'SELECT s.id_sale, s.date_time, s.dollar_ex_sell AS r, s.tip, s.iva, s.id_bill, s.id_employee,
+		$sql = 'SELECT s.id_sale, s.date_time, s.tip, s.iva, s.id_bill, s.id_employee,
 				e.name AS waiter, d.label AS table_label,
-				IFNULL((SELECT SUM(sp.quantity * sp.price * (1 - sp.discount / 100)) FROM sale_products sp WHERE sp.id_sale = s.id_sale), 0) AS lines_total
+				IFNULL((SELECT ROUND(SUM(sp.quantity * sp.price * (1 - sp.discount / 100)), 2) FROM sale_products sp WHERE sp.id_sale = s.id_sale), 0) AS lines_total
 			FROM sales s
 			LEFT JOIN employees e ON e.id_employee = s.id_employee
 			LEFT JOIN bills b ON b.id_bill = s.id_bill
@@ -90,8 +84,7 @@ class Reports_mdl extends CI_Model{
 		uasort($tables, $cmp);
 
 		$categories = $this->db->query('SELECT IFNULL(c.name_category, "Sin categoría") AS cat_name, SUM(sp.quantity) AS qty,
-				SUM(sp.quantity * sp.price * (1 - sp.discount / 100)) AS usd,
-				SUM(sp.quantity * sp.price * (1 - sp.discount / 100) * s.dollar_ex_sell) AS cor
+				SUM(sp.quantity * sp.price * (1 - sp.discount / 100)) AS cor
 			FROM sale_products sp
 			JOIN sales s ON s.id_sale = sp.id_sale
 			JOIN products p ON p.id_product = sp.id_product
@@ -100,14 +93,14 @@ class Reports_mdl extends CI_Model{
 			GROUP BY cat_name ORDER BY cor DESC', array($from, $to))->result();
 
 		$top = $this->db->query('SELECT p.name, SUM(sp.quantity) AS qty,
-				SUM(sp.quantity * sp.price * (1 - sp.discount / 100) * s.dollar_ex_sell) AS cor
+				SUM(sp.quantity * sp.price * (1 - sp.discount / 100)) AS cor
 			FROM sale_products sp
 			JOIN sales s ON s.id_sale = sp.id_sale
 			JOIN products p ON p.id_product = sp.id_product
 			WHERE DATE(s.date_time) BETWEEN ? AND ? AND IFNULL(p.barcode, "") <> "SPLIT-CONSUMO"
 			GROUP BY p.id_product, p.name ORDER BY qty DESC, cor DESC LIMIT 10', array($from, $to))->result();
 
-		$voided = $this->db->query('SELECT COUNT(*) AS n, IFNULL(SUM(oi.quantity * oi.unit_price), 0) AS usd
+		$voided = $this->db->query('SELECT COUNT(*) AS n, IFNULL(SUM(oi.quantity * oi.unit_price), 0) AS cor
 			FROM order_items oi JOIN orders_kitchen o ON o.id_order = oi.id_order
 			WHERE oi.status = "void" AND DATE(o.created_at) BETWEEN ? AND ?', array($from, $to))->row();
 
@@ -139,11 +132,11 @@ class Reports_mdl extends CI_Model{
 		$tables = (int) $this->db->where('active', 1)->count_all_results('dining_tables');
 		$open   = (int) $this->db->query('SELECT COUNT(DISTINCT t.id_table) AS n FROM tabs t JOIN dining_tables d ON d.id_table = t.id_table AND d.active = 1 WHERE t.status = "open"')->row()->n;
 
-		$consumption = $this->db->query('SELECT IFNULL(SUM(oi.quantity * oi.unit_price), 0) AS usd FROM order_items oi
-			JOIN tabs t ON t.id_tab = oi.id_tab AND t.status = "open" WHERE oi.status = "active"')->row()->usd;
+		$consumption = $this->db->query('SELECT IFNULL(SUM(oi.quantity * oi.unit_price), 0) AS cor FROM order_items oi
+			JOIN tabs t ON t.id_tab = oi.id_tab AND t.status = "open" WHERE oi.status = "active"')->row()->cor;
 
 		$reservations = (int) $this->db->query('SELECT COUNT(*) AS n FROM table_reservations WHERE status = "active" AND DATE(start_at) = CURDATE() AND end_at > NOW()')->row()->n;
 
-		return array('tables' => $tables, 'occupied' => $open, 'consumption_usd' => (float) $consumption, 'consumption_cor' => (float) $consumption * (float) $this->db->get('dollar_exchange')->row()->sell_price, 'reservations' => $reservations);
+		return array('tables' => $tables, 'occupied' => $open, 'consumption_cor' => round((float) $consumption, 2), 'reservations' => $reservations);
 	}
 }

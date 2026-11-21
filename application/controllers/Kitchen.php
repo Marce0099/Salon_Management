@@ -84,7 +84,6 @@ class Kitchen extends Admin_Controller{
 			'orders'     => $this->kitchen_mdl->tabOrders($id_tab),
 			'total'      => $this->kitchen_mdl->tabTotal($id_tab),
 			'is_admin'   => $this->is_admin(),
-			'rate'       => $this->bills_mdl->sellRate(),
 		));
 
 		$this->renderPanel('kitchen_tab');
@@ -160,7 +159,7 @@ class Kitchen extends Admin_Controller{
 			}
 
 			$lines[] = array(
-				'id_product' => (int) $p->id_product, 'name' => $p->name, 'quantity' => $qty, 'price' => (float) $p->price_sell,
+				'id_product' => (int) $p->id_product, 'name' => $p->name, 'quantity' => $qty, 'price' => (float) $p->price_sell_cor,
 				'notes' => $notes, 'course' => $course, 'prints_kitchen' => (int) $p->prints_kitchen, 'modifiers' => $mods,
 			);
 		}

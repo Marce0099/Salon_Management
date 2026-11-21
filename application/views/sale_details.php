@@ -181,14 +181,13 @@ $(function(){
 			<th>Cantidad</th>
 			<th>Descuento</th>
 			<th>Valor C$</th>
-			<th>Valor $</th>
 		</tr>
 	</thead>
 	<tbody>
 		<?php foreach( $details as $d ) : ?>
 		<tr>
 			<td><?php echo $d->barcode .' : '. $d->name; ?><?php if( !empty($d->mods_text) ) : ?><br><small class="text-muted"><i class="fa fa-asterisk"></i> <?php echo htmlspecialchars($d->mods_text); ?></small><?php endif; ?></td>
-			<td>$<?php echo number_format($d->price_sell,2); ?></td>
+			<td>C$<?php echo number_format($d->price,2); ?></td>
 			<td><?php echo $d->quantity; ?></td>
 			<td><?php echo $d->discount; ?></td>
 			<?php
@@ -197,30 +196,25 @@ $(function(){
 				if( $d->discount )
 					$subtotal -= $subtotal * $d->discount / 100;
 
-				$total_dollar += $subtotal;
-				$subtotal_cordobas = $subtotal*$sale->dollar_ex_sell;
+				$subtotal_cordobas = round($subtotal, 2); // prices are stored in C$
 				$total_cordobas += $subtotal_cordobas;
 				$_total_cordobas = $total_cordobas;
 				//$total += $subtotal;
 
 			?>
 			<td><?php echo number_format($subtotal_cordobas,2); ?></td>
-			<td><?php echo number_format($subtotal,2); ?></td>
 		</tr>
 		<?php endforeach; ?>
 		<?php
-			// restaurant checkout: tip and IVA are charged on top of the lines (stored in dollars on the sale)
-			foreach( array('Propina' => (float) $sale->tip, 'IVA' => (float) $sale->iva) as $extra_label => $extra_dollar ) :
-				if( $extra_dollar <= 0 ){ continue; }
-				$extra_cordobas = $extra_dollar * $sale->dollar_ex_sell;
-				$total_dollar += $extra_dollar;
+			// restaurant checkout: tip and IVA are charged on top of the lines (stored in C$ on the sale)
+			foreach( array('Propina' => (float) $sale->tip, 'IVA' => (float) $sale->iva) as $extra_label => $extra_cordobas ) :
+				if( $extra_cordobas <= 0 ){ continue; }
 				$total_cordobas += $extra_cordobas;
 				$_total_cordobas = $total_cordobas;
 		?>
 		<tr>
 			<td colspan="4" class="text-right"><?php echo $extra_label; ?></td>
 			<td><?php echo number_format($extra_cordobas,2); ?></td>
-			<td><?php echo number_format($extra_dollar,2); ?></td>
 		</tr>
 		<?php endforeach; ?>
 	</tbody>
@@ -230,13 +224,11 @@ $(function(){
 	<thead>
 		<tr>
 			<th>Total en Córdobas</th>
-			<th>Total en Dólares</th>
 		</tr>
 	</thead>
 	<tbody>
 		<tr>
 			<td>C$<?php echo number_format($total_cordobas,2); ?></td>
-			<td>$<?php echo number_format($total_dollar,2); ?></td>
 		</tr>
 	</tbody>
 </table>

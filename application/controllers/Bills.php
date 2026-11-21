@@ -67,7 +67,7 @@ class Bills extends Admin_Controller{
 		}
 
 		$this->content_data = array_merge($this->content_data, array(
-			'tk' => $tk, 'tab' => $tab, 'bills' => $tops, 'kids' => $kids, 'rates' => $rates, 'rate' => $this->bills_mdl->sellRate(),
+			'tk' => $tk, 'tab' => $tab, 'bills' => $tops, 'kids' => $kids, 'rates' => $rates,
 		));
 
 		$this->renderPanel('bills');

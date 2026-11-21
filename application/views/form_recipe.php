@@ -1,5 +1,5 @@
 <?php
-$price = (float) $product->price_sell;
+$price = (float) $product->price_sell_cor;
 $n = function($x){ return rtrim(rtrim(number_format((float) $x, 3, '.', ''), '0'), '.'); };
 $ing_json = array();
 foreach( $ingredients as $i ){ $ing_json[] = array('id' => (int) $i->id_ingredient, 'name' => $i->name, 'unit' => $i->unit, 'cost' => $i->eff_cost !== NULL ? (float) $i->eff_cost : NULL); }
@@ -7,7 +7,7 @@ $rec_json = array();
 foreach( $recipe as $r ){ $rec_json[] = array('id' => (int) $r->id_ingredient, 'qty' => $n($r->quantity)); }
 ?>
 <h3 class="section-title">Receta: <?php echo htmlspecialchars($product->name); ?></h3>
-<p>Precio de venta: <strong><?php echo fmt_money_pair($price); ?></strong> · <a href="<?php echo base_url('services'); ?>">Volver a platillos</a></p>
+<p>Precio de venta: <strong><?php echo fmt_cor_pair($price); ?></strong> · <a href="<?php echo base_url('services'); ?>">Volver a platillos</a></p>
 
 <?php if( empty($ingredients) ) : ?>
 <p class="alert alert-info">Primero registre ingredientes en <a href="<?php echo base_url('ingredients/register'); ?>">Ingredientes</a>.</p>
@@ -50,12 +50,12 @@ foreach( $recipe as $r ){ $rec_json[] = array('id' => (int) $r->id_ingredient, '
 			var tr = $(this), ing = byId(tr.find('.r-ing').val()), q = parseFloat(String(tr.find('.r-qty').val()).replace(',', '.')) || 0;
 			tr.find('.r-unit').text(ing ? ing.unit : '');
 			if( ing && ing.cost === null ){ missing = true; tr.find('.r-cost').text('—'); }
-			else if( ing ){ var c = ing.cost * q; total += c; tr.find('.r-cost').text(FX.cor(FX.toCor(c))); }
+			else if( ing ){ var c = ing.cost * q; total += c; tr.find('.r-cost').text(FX.cor(c)); }
 			else { tr.find('.r-cost').text(''); }
 		});
 		$('#total-cost').text(FX.pair(total));
 		$('#cost-warn').toggle(missing);
-		$('#margin').text(PRICE > 0 && total > 0 ? ((PRICE - total) / PRICE * 100).toFixed(1) + ' %  (' + FX.cor(FX.toCor(PRICE - total)) + ')' : '—');
+		$('#margin').text(PRICE > 0 && total > 0 ? ((PRICE - total) / PRICE * 100).toFixed(1) + ' %  (' + FX.cor(PRICE - total) + ')' : '—');
 	}
 	$('#add-row').on('click', function(){ addRow('', ''); });
 	$('#recipe-table').on('change keyup', '.r-ing, .r-qty', recalc).on('click', '.r-del', function(){ $(this).closest('tr').remove(); recalc(); });

@@ -34,7 +34,7 @@
 		<div class="col-md-3 col-sm-4 col-xs-12">
             <div class="input-group">
                 <span class="input-group-addon">C$</span>
-                <input type="text" inputmode="decimal" data-parsley-type="number" name="price_cost" id="price_cost" class="form-control" required="true" value="<?php if($product){ echo fmt_plain($product->price_cost_cor !== NULL ? $product->price_cost_cor : usd_to_cor($product->price_cost), 2, 4); } ?>">
+                <input type="text" inputmode="decimal" data-parsley-type="number" name="price_cost" id="price_cost" class="form-control" required="true" value="<?php if($product){ echo fmt_plain($product->price_cost_cor, 2, 4); } ?>">
             </div>
         </div>
 	</div>
@@ -44,7 +44,7 @@
 		<div class="col-md-3 col-sm-4 col-xs-12">
             <div class="input-group">
                 <span class="input-group-addon">C$</span>
-                <input type="text" inputmode="decimal" data-parsley-type="number" name="price_sell" id="price_sell" class="form-control" required="true" value="<?php if($product){ echo fmt_plain($product->price_sell_cor !== NULL ? $product->price_sell_cor : usd_to_cor($product->price_sell), 2, 2); } ?>">
+                <input type="text" inputmode="decimal" data-parsley-type="number" name="price_sell" id="price_sell" class="form-control" required="true" value="<?php if($product){ echo fmt_plain($product->price_sell_cor, 2, 2); } ?>">
             </div>
         </div>
 	</div>
@@ -124,7 +124,7 @@
 					<input type="hidden" name="pack_ids[]" value="<?php echo (int)$pk->id_pack; ?>">
 					<div class="col-xs-6 col-sm-3"><input type="text" name="pack_names[]" class="form-control" placeholder="Nombre" maxlength="60" value="<?php echo htmlspecialchars($pk->name); ?>"></div>
 					<div class="col-xs-6 col-sm-2"><input type="text" name="pack_units[]" class="form-control" placeholder="Unidades" title="Unidades por presentación (2 o más)" data-parsley-type="integer" data-parsley-min="2" data-parsley-max="100000" value="<?php echo (int)$pk->units; ?>"></div>
-					<div class="col-xs-5 col-sm-2"><input type="text" name="pack_costs[]" class="form-control" placeholder="Costo C$" inputmode="decimal" data-parsley-type="number" value="<?php echo $pk->price_cost_cor !== NULL ? fmt_plain($pk->price_cost_cor, 2, 4) : ($pk->price_cost !== NULL ? fmt_plain(usd_to_cor($pk->price_cost), 2, 4) : ''); ?>"></div>
+					<div class="col-xs-5 col-sm-2"><input type="text" name="pack_costs[]" class="form-control" placeholder="Costo C$" inputmode="decimal" data-parsley-type="number" value="<?php echo $pk->price_cost_cor !== NULL ? fmt_plain($pk->price_cost_cor, 2, 2) : ''; ?>"></div>
 					<div class="col-xs-5 col-sm-3"><input type="text" name="pack_barcodes[]" class="form-control" placeholder="Código barra" maxlength="20" value="<?php echo htmlspecialchars((string)$pk->barcode); ?>"></div>
 					<div class="col-xs-2 col-sm-1 text-center"><a href="javascript:;" class="btn btn-link text-danger remove-pack" style="padding-left:0;padding-right:0;" title="Quitar presentación"><i class="fa fa-times"></i></a></div>
 				</div>

@@ -33,7 +33,7 @@
 	<p id="ip-empty" class="text-muted text-center" style="padding:20px 0;">Busque y agregue cada ingrediente de la compra. Al terminar, guarde todo junto.</p>
 
 	<div id="ip-bar" class="clearfix">
-		<span id="ip-total">0 ingredientes · $0.00</span>
+		<span id="ip-total">0 ingredientes · C$ 0.00</span>
 		<button type="button" id="ip-save" class="btn btn-success btn-lg pull-right"><i class="fa fa-check"></i> Guardar compra</button>
 	</div>
 </form>
@@ -58,9 +58,7 @@
 (function(){
 	var ING = <?php echo json_encode($ingredients); ?>;
 	var UNITS = <?php echo json_encode($units); ?>;
-	var RATE = <?php echo json_encode((float) $rate); ?>; // C$ per US$ (dollar_exchange.sell_price)
 	function cor(n){ return 'C$ ' + n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
-	function usd(n){ return '$' + n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
 	function esc(t){ return $('<div>').text(t == null ? '' : t).html(); }
 	function attr(t){ return esc(t).replace(/"/g, '&quot;'); }
 	function num(v){ var n = parseFloat(String(v).replace(',', '.')); return isNaN(n) ? 0 : n; }
@@ -96,7 +94,7 @@
 		var opts = '<option value="0">' + esc(UNITS[i.unit] || i.unit) + ' (unidad base)</option>';
 		i.packs.forEach(function(p){ opts += '<option value="' + p.id + '" data-size="' + p.size + '">' + esc(p.name) + ' (' + fmt(p.size) + ' ' + esc(i.unit) + ')</option>'; });
 		var card = $('<div class="ip-card" data-id="' + i.id + '"><span class="ip-remove" title="Quitar">&times;</span>' +
-			'<div class="ip-name">' + esc(i.name) + '</div><div class="ip-stock">Existencia: ' + fmt(i.stock) + ' ' + esc(i.unit) + (i.cost !== null ? ' · costo actual C$ ' + (i.cost * RATE).toFixed(4) + '/' + esc(i.unit) : '') + '</div>' +
+			'<div class="ip-name">' + esc(i.name) + '</div><div class="ip-stock">Existencia: ' + fmt(i.stock) + ' ' + esc(i.unit) + (i.cost !== null ? ' · costo actual C$ ' + i.cost.toFixed(4) + '/' + esc(i.unit) : '') + '</div>' +
 			'<div class="row" style="margin-top:6px;"><div class="col-xs-12 form-group" style="margin-bottom:6px;"><label>Presentación</label><select class="form-control ip-pack">' + opts + '</select></div>' +
 			'<div class="col-xs-5 form-group" style="margin-bottom:0;"><label>Cantidad</label><input type="text" inputmode="decimal" class="form-control ip-qty" placeholder="0"></div>' +
 			'<div class="col-xs-7 form-group" style="margin-bottom:0;"><label>Total pagado C$ (opcional)</label><input type="text" inputmode="decimal" class="form-control ip-cost" placeholder="0.00"></div></div>' +
@@ -117,19 +115,19 @@
 	function recalc(){
 		var total = 0, n = 0, seen = {};
 		$('#ip-lines .ip-card').each(function(){
-			var card = $(this), i = card.data('ing'), base = baseQty(card), costCor = num(card.find('.ip-cost').val()), cost = costCor / RATE, info = '';
+			var card = $(this), i = card.data('ing'), base = baseQty(card), costCor = num(card.find('.ip-cost').val()), cost = costCor, info = '';
 			if( !seen[i.id] ){ seen[i.id] = 1; n++; } total += costCor;
 			if( base > 0 ){
 				info = '= ' + fmt(base) + ' ' + esc(i.unit);
 				if( cost > 0 ){
 					var u = cost / base;
-					info += ' · C$ ' + (u * RATE).toFixed(4) + '/' + esc(i.unit) + ' ($' + u.toFixed(4) + ')';
+					info += ' · C$ ' + u.toFixed(4) + '/' + esc(i.unit);
 					if( i.cost && Math.abs(u - i.cost) / i.cost > 0.3 ){ info += ' <span class="text-warning"><i class="fa fa-exclamation-triangle"></i> ' + (u > i.cost ? 'sube' : 'baja') + ' ' + Math.round(Math.abs(u - i.cost) / i.cost * 100) + '% vs. costo actual</span>'; }
 				}
 			}
 			card.find('.ip-info').html(info);
 		});
-		$('#ip-total').text(n + ' ingrediente' + (n === 1 ? '' : 's') + ' · ' + cor(total) + ' · ' + usd(total / RATE));
+		$('#ip-total').text(n + ' ingrediente' + (n === 1 ? '' : 's') + ' · ' + cor(total));
 		$('#ip-empty').toggle(n === 0);
 	}
 
@@ -183,7 +181,7 @@
 
 		bootbox.confirm({
 			title: 'Confirmar compra', size: 'large',
-			message: '<table class="table table-condensed"><thead><tr><th>Ingrediente</th><th class="text-right">Cantidad</th><th class="text-right">Pagado</th></tr></thead><tbody>' + rows + '</tbody><tfoot><tr><th colspan="2" class="text-right">Total</th><th class="text-right">' + cor(total) + '<br><small>' + usd(total / RATE) + ' (TC ' + RATE.toFixed(2) + ')</small></th></tr></tfoot></table>',
+			message: '<table class="table table-condensed"><thead><tr><th>Ingrediente</th><th class="text-right">Cantidad</th><th class="text-right">Pagado</th></tr></thead><tbody>' + rows + '</tbody><tfoot><tr><th colspan="2" class="text-right">Total</th><th class="text-right">' + cor(total) + '</th></tr></tfoot></table>',
 			buttons: { confirm: { label: 'Guardar compra', className: 'btn-success' }, cancel: { label: 'Revisar', className: 'btn-default' } },
 			callback: function(ok){
 				if( !ok ){ return; }

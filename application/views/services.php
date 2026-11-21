@@ -98,7 +98,7 @@
 			<td><?php echo $s->name; ?></td>
 			<td><?php echo $s->provider; ?></td>
 			<td><?php echo $s->name_category; ?></td>
-			<td class="text-center"><?php echo fmt_money_pair($s->price_sell); ?></td>
+			<td class="text-center"><?php echo fmt_cor_pair($s->price_sell_cor); ?></td>
 			<td class="text-center">
 				<div class="btn-group">
 					<a href="#" data-toggle="dropdown" class="dropdown-toggle"><i class="fa fa-cog"></i></a>

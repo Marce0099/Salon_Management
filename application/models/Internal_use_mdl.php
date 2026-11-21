@@ -21,11 +21,11 @@ class Internal_use_mdl extends CI_Model{
 
         if( $get ){
 
-            return $this->db->query("select sum(IUP.quantity * IUP.price_cost) as total_cost, sum(IUP.quantity * IFNULL(IUP.price_cost_cor, IUP.price_cost * ".fx_rate().")) as total_cost_cor from internal_use_products IUP where IUP.id_internal_use in (select T.id_internal_use from ($query) as T)")->row();
+            return $this->db->query("select sum(IUP.quantity * IUP.price_cost_cor) as total_cost_cor from internal_use_products IUP where IUP.id_internal_use in (select T.id_internal_use from ($query) as T)")->row();
         }
         else{
 
-            return $this->db->query("select sum(quantity * price_cost) as total_cost, sum(quantity * IFNULL(price_cost_cor, price_cost * ".fx_rate().")) as total_cost_cor from internal_use_products")->row();
+            return $this->db->query("select sum(quantity * price_cost_cor) as total_cost_cor from internal_use_products")->row();
         }
     }
 
@@ -48,7 +48,6 @@ class Internal_use_mdl extends CI_Model{
     				'id_internal_use' => $id_internal_use,
     				'id_product'      => $id_products[$i],
     				'quantity'        => $quantities[$i],
-    				'price_cost'      => $product->price_cost,
     				'price_cost_cor'  => $product->price_cost_cor,
     			);
 

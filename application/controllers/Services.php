@@ -28,8 +28,8 @@ class Services extends Admin_Controller{
 			'barcode' => array( 'column' => 'barcode', 'type' => 'string' ),
 			'provider' => array( 'column' => 'providers.id_provider', 'type' => 'numeric' ),
 			'id_service_category' => array( 'column' => 'products.id_service_category', 'type' => 'numeric' ),
-			'price_cost' => array( 'column' => 'price_cost', 'type' => 'numeric' ),
-			'price_sell' => array( 'column' => 'price_sell', 'type' => 'numeric' )
+			'price_cost' => array( 'column' => 'price_cost_cor', 'type' => 'numeric' ),
+			'price_sell' => array( 'column' => 'price_sell_cor', 'type' => 'numeric' )
 		);
 
 		$this->easysearch->setInitialWhere('products.active=1 and products.is_service=1');

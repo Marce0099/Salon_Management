@@ -79,7 +79,7 @@ class Products_mdl extends CI_Model{
 			return NULL;
 		}
 
-		$sql = 'select id_product, barcode, name, price_cost, price_sell, price_cost_cor, price_sell_cor, is_service from products where active = 1 and is_service = 0 and trim(upper(barcode)) = trim(upper(?))';
+		$sql = 'select id_product, barcode, name, price_cost_cor, price_sell_cor, is_service from products where active = 1 and is_service = 0 and trim(upper(barcode)) = trim(upper(?))';
 		$p = $this->db->query( $sql, array( $code ) )->row();
 
 		if( $p ){
@@ -96,7 +96,7 @@ class Products_mdl extends CI_Model{
 		}
 
 		$p = $this->db->query(
-			'select id_product, barcode, name, price_cost, price_sell, price_cost_cor, price_sell_cor, is_service from products where active = 1 and is_service = 0 and id_product = ?',
+			'select id_product, barcode, name, price_cost_cor, price_sell_cor, is_service from products where active = 1 and is_service = 0 and id_product = ?',
 			array( (int)$pk->id_product )
 		)->row();
 
@@ -106,19 +106,19 @@ class Products_mdl extends CI_Model{
 	public function getPacks( $id_product ){
 
 		return $this->db->query(
-			'select id_pack, name, units, barcode, price_cost, price_cost_cor from product_packs where id_product = ? and active = 1 order by units asc, id_pack asc',
+			'select id_pack, name, units, barcode, price_cost_cor from product_packs where id_product = ? and active = 1 order by units asc, id_pack asc',
 			array( (int)$id_product )
 		)->result();
 	}
 
-	// Syncs the product's packs with the given list (rows: [id_pack,] name, units, barcode|NULL, price_cost|NULL).
+	// Syncs the product's packs with the given list (rows: [id_pack,] name, units, barcode|NULL, price_cost_cor|NULL).
 	// Rows carrying the id of one of the product's packs are updated in place so pack ids stay stable;
 	// rows without a (valid) id are inserted; stored packs missing from the list are deleted.
 	public function savePacks( $id_product, $packs ){
 
 		$id_product = (int)$id_product;
 
-		$packs_before = $this->db->select('id_pack, name, units, barcode, price_cost')->where('id_product', $id_product)->get('product_packs')->result_array();
+		$packs_before = $this->db->select('id_pack, name, units, barcode, price_cost_cor')->where('id_product', $id_product)->get('product_packs')->result_array();
 
 		$existing = array();
 		foreach( $this->db->select('id_pack')->get_where('product_packs', array( 'id_product' => $id_product ))->result() as $r ){
@@ -156,7 +156,7 @@ class Products_mdl extends CI_Model{
 			}
 		}
 
-		$packs_after = $this->db->select('id_pack, name, units, barcode, price_cost')->where('id_product', $id_product)->get('product_packs')->result_array();
+		$packs_after = $this->db->select('id_pack, name, units, barcode, price_cost_cor')->where('id_product', $id_product)->get('product_packs')->result_array();
 
 		if( json_encode($packs_before) !== json_encode($packs_after) ){
 
@@ -173,16 +173,16 @@ class Products_mdl extends CI_Model{
 		return $this->db->query( $sql )->row();
 	}
 
-	// Prices arrive typed in cordobas: keep them as *_cor (source of truth) and derive the legacy dollar columns.
+	// Prices arrive typed in cordobas (form fields price_cost / price_sell) and are stored only as *_cor:
+	// cost per unit with 4 decimals (pack costs split into units), sell price to the cent.
 	private function cordobaPrices( &$data ){
 
 		foreach( array('price_cost' => 4, 'price_sell' => 2) as $k => $d ){
 
-			if( isset($data[$k]) && $data[$k] !== '' && is_numeric($data[$k]) ){
+			if( array_key_exists($k, $data) ){
 
-				$cor = round((float)$data[$k], $d);
-				$data[$k.'_cor'] = $cor;
-				$data[$k] = (string) cor_to_usd($cor, NULL, 6);
+				if( $data[$k] !== '' && $data[$k] !== NULL && is_numeric($data[$k]) ){ $data[$k.'_cor'] = round((float)$data[$k], $d); }
+				unset($data[$k]);
 			}
 		}
 	}
@@ -197,10 +197,10 @@ class Products_mdl extends CI_Model{
 		$this->audit->change('product.create', 'product', $id_product, NULL, $data, array('summary' => 'Producto creado: '.(isset($data['name']) ? $data['name'] : $id_product)));
 
 		// initial cost of a new product = first audit row
-		if( $id_product && isset($data['price_cost']) && (float)$data['price_cost'] > 0 ){
+		if( $id_product && isset($data['price_cost_cor']) && (float)$data['price_cost_cor'] > 0 ){
 
 			$this->load->model('cost_history_mdl');
-			$this->cost_history_mdl->log( $id_product, 'manual', NULL, $data['price_cost'], array( 'new_sell' => isset($data['price_sell']) ? $data['price_sell'] : NULL ) );
+			$this->cost_history_mdl->log( $id_product, 'manual', NULL, $data['price_cost_cor'], array( 'new_sell' => isset($data['price_sell_cor']) ? $data['price_sell_cor'] : NULL ) );
 		}
 
 		return $id_product;
@@ -224,16 +224,16 @@ class Products_mdl extends CI_Model{
 
 		$audit_before = $this->db->query('select * from products where id_product = ? for update', array((int)$id_product))->row_array();
 
-		if( isset($data['price_cost']) ){
+		if( isset($data['price_cost_cor']) ){
 
-			$old = $this->db->query('select price_cost, price_sell from products where id_product = ? for update', array((int)$id_product))->row();
+			$old = $this->db->query('select price_cost_cor, price_sell_cor from products where id_product = ? for update', array((int)$id_product))->row();
 
-			if( $old && is_numeric($data['price_cost']) && abs((float)$old->price_cost - (float)$data['price_cost']) >= 0.00005 ){
+			if( $old && is_numeric($data['price_cost_cor']) && abs((float)$old->price_cost_cor - (float)$data['price_cost_cor']) >= 0.00005 ){
 
 				$this->load->model('cost_history_mdl');
-				$this->cost_history_mdl->log( $id_product, 'manual', $old->price_cost, $data['price_cost'], array(
-					'old_sell' => $old->price_sell,
-					'new_sell' => isset($data['price_sell']) ? $data['price_sell'] : $old->price_sell
+				$this->cost_history_mdl->log( $id_product, 'manual', $old->price_cost_cor, $data['price_cost_cor'], array(
+					'old_sell' => $old->price_sell_cor,
+					'new_sell' => isset($data['price_sell_cor']) ? $data['price_sell_cor'] : $old->price_sell_cor
 				));
 			}
 		}
@@ -303,13 +303,13 @@ class Products_mdl extends CI_Model{
 
 		if( $get ){
 
-			return $this->db->query("select sum(T.stock * T.price_cost) as total_cost,
-				sum(T.stock * T.price_sell) as total_sell from ($query) as T where T.is_service = 0")->row();
+			return $this->db->query("select sum(T.stock * T.price_cost_cor) as total_cost,
+				sum(T.stock * T.price_sell_cor) as total_sell from ($query) as T where T.is_service = 0")->row();
 		}
 		else{
 
-			return $this->db->query("select sum(stock * price_cost) as total_cost,
-				sum(stock * price_sell) as total_sell from products where is_service = 0")->row();
+			return $this->db->query("select sum(stock * price_cost_cor) as total_cost,
+				sum(stock * price_sell_cor) as total_sell from products where is_service = 0")->row();
 		}
 	}
 
@@ -340,7 +340,7 @@ class Products_mdl extends CI_Model{
 
 	public function searchAvailable($barcode = '', $name = '', $type = 'all'){
 
-		$sql = 'SELECT products.id_product, products.barcode, products.name, products.price_sell,
+		$sql = 'SELECT products.id_product, products.barcode, products.name, products.price_sell_cor,
 		               products.is_service, products.commisssion_rate, NULL AS category_discount_rate
 		        FROM products
 		        LEFT JOIN service_category USING(id_service_category)
@@ -368,7 +368,7 @@ class Products_mdl extends CI_Model{
 
 	public function searchForInternalUse($search = ''){
 
-		$sql = 'SELECT id_product, barcode, name, stock, price_cost
+		$sql = 'SELECT id_product, barcode, name, stock, price_cost_cor
 		        FROM products WHERE active = 1 AND is_service = 0 AND stock > 0';
 
 		if( !empty($search) ){

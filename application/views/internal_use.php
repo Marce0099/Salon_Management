@@ -46,7 +46,7 @@
 		<tr>
 			<th colspan="5">
 				Total de registros: <?php echo $no_limit_count; ?> |
-				Total costo: <?php echo fmt_cor_usd($totals->total_cost_cor, $totals->total_cost); ?>
+				Total costo: <?php echo fmt_cor_pair($totals->total_cost_cor); ?>
 			</th>
 		</tr>
 		<tr>
@@ -63,7 +63,7 @@
 			<td><?php echo date('d/m/Y H:i', strtotime($iu->date_time)); ?></td>
 			<td><?php echo $iu->admin_name; ?></td>
 			<td><?php echo $iu->reason; ?></td>
-			<td><?php echo fmt_cor_usd($iu->total_cost_cor, $iu->total_cost); ?></td>
+			<td><?php echo fmt_cor_pair($iu->total_cost_cor); ?></td>
 			<td>
 			<a href="<?php echo base_url("products/internal_use_details/{$iu->id_internal_use}"); ?>"><i class="fa fa-table"></i> Detalles</a>
 			</td>

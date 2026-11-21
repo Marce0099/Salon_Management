@@ -60,7 +60,7 @@ class Sales_report_mdl extends CI_Model{
 				$total_usd += $sold - ($sold * ($p->discount/100));
 			}
 
-			$gross_cordobas = $total_usd * $sell_rate;
+			$gross_cordobas = round($total_usd, 2); // prices are C$
 
 			$sale_payments = $this->payments_mdl->getPayment($s->id_sale);
 			$ratio = saleRealProfitRatio( $sale_payments, $sell_rate, $gross_cordobas );
@@ -76,14 +76,14 @@ class Sales_report_mdl extends CI_Model{
 				$effective_employee_id = $p->id_employee ? $p->id_employee : $s->sale_employee;
 				$effective_employee = isset($employees[$effective_employee_id]) ? $employees[$effective_employee_id] : '';
 
-				$venta = $discounted * $sell_rate;
+				$venta = round($discounted, 2);
 				$utilidad_bruta = $venta * $ratio;
 
 				$comision = 0;
 				if( !is_null($p->commission_rate) ){
 					$cr = floatval($p->commission_rate) / 100;
 					if( $cr > 0.5 ) $cr = 0.5;
-					$comision = $discounted * $cr * $sell_rate * $ratio;
+					$comision = $discounted * $cr * $ratio;
 				}
 
 				$ganancia_real = $utilidad_bruta - $comision;
@@ -95,7 +95,7 @@ class Sales_report_mdl extends CI_Model{
 					'product' => $p->product_name,
 					'is_service' => (bool) $p->is_service,
 					'quantity' => (int) $p->quantity,
-					'price' => round( floatval($p->price) * $sell_rate, 2 ),
+					'price' => round( floatval($p->price), 2 ),
 					'discount' => (int) $p->discount,
 					'employee' => $effective_employee,
 					'venta' => round( $venta, 2 ),

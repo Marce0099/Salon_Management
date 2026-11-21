@@ -38,11 +38,25 @@ if( !function_exists('usd_to_cor') ){
 
 if( !function_exists('cor_to_usd') ){
 
-	function cor_to_usd($cor, $rate = null, $decimals = 4){
+	/** C$ -> US$ (2 decimals) at the live rate, or at a document's snapshot rate. Dollars are never stored, only derived. */
+	function cor_to_usd($cor, $rate = null, $decimals = 2){
 
 		$rate = $rate ? (float) $rate : fx_rate();
 
 		return $rate > 0 ? round((float) $cor / $rate, $decimals) : 0.0;
+	}
+}
+
+if( !function_exists('show_usd') ){
+
+	/** Dollars are only visible under /cash/* and /sales/register; everywhere else amounts are C$ only. */
+	function show_usd(){
+
+		$CI =& get_instance();
+		$first = strtolower((string) $CI->uri->segment(1));
+		$second = strtolower((string) $CI->uri->segment(2));
+
+		return $first === 'cash' || ($first === 'sales' && $second === 'register');
 	}
 }
 
@@ -64,46 +78,57 @@ if( !function_exists('fmt_usd') ){
 	}
 }
 
-if( !function_exists('fmt_money_pair') ){
+if( !function_exists('fmt_cor_pair') ){
 
 	/**
-	 * C$ first, dollars as small secondary info.
-	 * $usd = amount in dollars (legacy storage); $rate = snapshot rate or null for live.
+	 * Stored C$ amount; the dollar equivalent (live rate, or $rate for a document snapshot) is appended
+	 * only where dollars are allowed (see show_usd). NULL -> dash.
 	 */
-	function fmt_money_pair($usd, $rate = null, $decimals = 2){
+	function fmt_cor_pair($cor, $decimals = 2, $rate = null){
 
-		$cor = usd_to_cor($usd, $rate);
+		if( $cor === NULL || $cor === '' ){ return '—'; }
 
-		return fmt_cor($cor, $decimals).' <small class="money-usd">('.fmt_usd($usd, $decimals).')</small>';
+		$out = fmt_cor($cor, $decimals);
+
+		if( show_usd() ){ $out .= ' <small class="money-usd">('.fmt_usd(cor_to_usd($cor, $rate), 2).')</small>'; }
+
+		return $out;
+	}
+}
+
+if( !function_exists('fmt_cor_unit') ){
+
+	/** Per-unit cost: C$ to the cent, or up to 4 decimals when the cost really has them (the only money allowed more than 2 decimals). */
+	function fmt_cor_unit($cor){
+
+		if( $cor === NULL || $cor === '' ){ return '—'; }
+
+		return fmt_cor_pair($cor, round((float) $cor, 2) == round((float) $cor, 4) ? 2 : 4);
+	}
+}
+
+if( !function_exists('fmt_money_pair') ){
+
+	/** Same as fmt_cor_pair with the legacy argument order: ($cor, $rate, $decimals). */
+	function fmt_money_pair($cor, $rate = null, $decimals = 2){
+
+		return fmt_cor_pair($cor, $decimals, $rate);
 	}
 }
 
 if( !function_exists('fmt_cor_usd') ){
 
-	/** Stored C$ amount (source of truth) with its stored dollar equivalent as secondary info. */
-	function fmt_cor_usd($cor, $usd, $decimals = 2){
+	/** Legacy two-argument form (the dollar value is no longer stored, so it is ignored). */
+	function fmt_cor_usd($cor, $ignored = NULL, $decimals = 2){
 
-		if( $cor === NULL || $cor === '' ){ return fmt_money_pair($usd, NULL, $decimals); }
-
-		return fmt_cor($cor, $decimals).' <small class="money-usd">('.fmt_usd($usd, $decimals).')</small>';
-	}
-}
-
-if( !function_exists('fmt_cor_pair') ){
-
-	/** Amount already in C$ with its dollar equivalent (live rate) as secondary info. NULL -> dash. */
-	function fmt_cor_pair($cor, $decimals = 2){
-
-		if( $cor === NULL || $cor === '' ){ return '—'; }
-
-		return fmt_cor($cor, $decimals).' <small class="money-usd">('.fmt_usd(cor_to_usd($cor), $decimals).')</small>';
+		return fmt_cor_pair($cor, $decimals);
 	}
 }
 
 if( !function_exists('fmt_plain') ){
 
 	/** Plain number for an <input value>: at least $min decimals, up to $max, no thousands separator ("185.5000" -> "185.50"). */
-	function fmt_plain($n, $min = 2, $max = 4){
+	function fmt_plain($n, $min = 2, $max = 2){
 
 		$s = number_format((float) $n, $max, '.', '');
 		$s = rtrim($s, '0');
