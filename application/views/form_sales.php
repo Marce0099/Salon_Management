@@ -1883,7 +1883,16 @@
 		var paid = 0;
 		$.each(system.payments, function(idx, p){ paid += p.subtotal; });
 
-		var due = numeral(system.total_invoice - paid);
+		var dueRaw = system.total_invoice - paid;
+		var dueDollarRows = 0;
+		$('#payment-blocks .payment_container').each(function(){
+			if( $(this).find('.payment-method-select').val() !== 'cupon' && ( numeral( $(this).find('.dolar-input').val() || 0 ).value() > 0 ) )
+				dueDollarRows++;
+		});
+		// same tolerance the submit check uses: a sub-cent / dollar-rounding leftover is "paid", not "Pendiente C$0.00"
+		if( Math.abs(dueRaw) <= paymentSufficiencyTolerance(dueDollarRows, dollarSellRate) )
+			dueRaw = 0;
+		var due = numeral(dueRaw);
 		var $badge = $('#payment-due-badge');
 		var $overpaymentBadge = $('#payment-overpayment-badge');
 		var $loyaltyBadge = $('#loyalty-applied-badge');
