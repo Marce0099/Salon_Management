@@ -3,7 +3,7 @@
 /** Ingredients, recipes and the stock movement log. Stock is one DECIMAL per ingredient in its base unit (g, ml, u). */
 class Ingredients_mdl extends CI_Model{
 
-	public static $units = array('g' => 'g', 'ml' => 'ml', 'u' => 'unid.');
+	public static $units = array('g' => 'g', 'ml' => 'ml', 'u' => 'unid.', 'mg' => 'mg', 'gota' => 'gota', 'pizca' => 'pizca', 'rebanada' => 'rebanada', 'diente' => 'diente', 'hoja' => 'hoja');
 
 	public function get($id){
 
