@@ -69,12 +69,13 @@
 	<?php endif; ?>
 <?php else : ?>
 
+<?php $see_cost = $this->controller->is_super(); ?>
 <table class="table table-hover table-striped jambo_table table-bordered">
 	<thead>
 		<tr>
-			<th colspan="7">
+			<th colspan="<?php echo $see_cost ? 7 : 6; ?>">
 				Productos: <?php echo $no_limit_count; ?> | 
-				Total costo: <?php echo fmt_money_pair($total_inventory->total_cost); ?> |
+				<?php if( $see_cost ) : ?>Total costo: <?php echo fmt_money_pair($total_inventory->total_cost); ?> |<?php endif; ?>
 				Total venta: <?php echo fmt_money_pair($total_inventory->total_sell); ?> 
 			</th>
 		</tr>
@@ -103,12 +104,12 @@
 					<span class="white-color fa fa-sort-<?php echo $order['mode']; ?>"></span>
 				</a>Stock
 			</th>
-			<th>
+			<?php if( $see_cost ) : ?><th>
 				<?php $order = Easysearch::getFieldOrder('order_price_cost'); ?>
 				<a href="<?php echo $order['link']; ?>">									
 					<span class="white-color fa fa-sort-<?php echo $order['mode']; ?>"></span>
 				</a>P. costo
-			</th>
+			</th><?php endif; ?>
 			<th>
 				<?php $order = Easysearch::getFieldOrder('order_price_sell'); ?>
 				<a href="<?php echo $order['link']; ?>">									
@@ -129,7 +130,7 @@
 			<td class="text-center">
 			<?php echo $p->stock; ?>
 			</td>
-			<td class="text-center"><?php echo fmt_cor_unit($p->price_cost_cor); ?></td>
+			<?php if( $see_cost ) : ?><td class="text-center"><?php echo fmt_cor_unit($p->price_cost_cor); ?></td><?php endif; ?>
 			<td class="text-center"><?php echo fmt_cor_pair($p->price_sell_cor); ?></td>
 			<td class="text-center">
 				<div class="btn-group">
