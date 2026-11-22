@@ -415,7 +415,7 @@ class Products extends Admin_Controller{
 
 	public function register(){
 
-		if( !$this->is_admin() ){
+		if( !$this->is_super() ){
 			echo "No se encontro resultado para esta pagina";
 			exit;
 		}
@@ -484,9 +484,14 @@ class Products extends Admin_Controller{
 
 	public function form_products( $view_data = array() ){
 
+		if( !$this->is_super() ){
+			echo "No se encontro resultado para esta pagina";
+			exit;
+		}
+
 		if( !isset($view_data['product']) ){
 
-			if( !$this->is_admin() ){
+			if( !$this->is_super() ){
 				echo "No se encontro resultado para esta pagina";
 				exit;
 			}
@@ -502,6 +507,11 @@ class Products extends Admin_Controller{
 	}
 
 	public function edit($id_product = 0){
+		if( !$this->is_super() ){
+			echo "No se encontro resultado para esta pagina";
+			exit;
+		}
+
 
 		try{
 
@@ -586,6 +596,11 @@ class Products extends Admin_Controller{
 	}
 
 	public function delete( $id_product = 0 ){
+		if( !$this->is_super() ){
+			echo "No se encontro resultado para esta pagina";
+			exit;
+		}
+
 
 		try{
 

@@ -58,7 +58,7 @@
 <table class="table table-hover table-striped jambo_table table-bordered">
 	<thead>
 		<tr>
-			<th colspan="6">
+			<th colspan="<?php echo $this->controller->is_super() ? 6 : 5; ?>">
 				Platillos: <?php echo $no_limit_count; ?>
 			</th>
 		</tr>
@@ -88,7 +88,7 @@
 					<span class="white-color fa fa-sort-<?php echo $order['mode']; ?>"></span>
 				</a>P. venta
 			</th>
-			<th>Acciones</th>
+			<?php if( $this->controller->is_super() ) : ?><th>Acciones</th><?php endif; ?>
 		</tr>
 	</thead>
 	<tbody>
@@ -99,6 +99,7 @@
 			<td><?php echo $s->provider; ?></td>
 			<td><?php echo $s->name_category; ?></td>
 			<td class="text-center"><?php echo fmt_cor_pair($s->price_sell_cor); ?></td>
+			<?php if( $this->controller->is_super() ) : ?>
 			<td class="text-center">
 				<div class="btn-group">
 					<a href="#" data-toggle="dropdown" class="dropdown-toggle"><i class="fa fa-cog"></i></a>
@@ -116,6 +117,7 @@
 					</ul>
 				</div>
 			</td>
+			<?php endif; ?>
 		</tr>
 		<?php endforeach; ?>
 	</tbody>

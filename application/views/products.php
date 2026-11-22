@@ -73,7 +73,7 @@
 <table class="table table-hover table-striped jambo_table table-bordered">
 	<thead>
 		<tr>
-			<th colspan="<?php echo $see_cost ? 7 : 6; ?>">
+			<th colspan="<?php echo 5 + ($see_cost ? 2 : 0); ?>">
 				Productos: <?php echo $no_limit_count; ?> | 
 				<?php if( $see_cost ) : ?>Total costo: <?php echo fmt_money_pair($total_inventory->total_cost); ?> |<?php endif; ?>
 				Total venta: <?php echo fmt_money_pair($total_inventory->total_sell); ?> 
@@ -116,7 +116,7 @@
 					<span class="white-color fa fa-sort-<?php echo $order['mode']; ?>"></span>
 				</a>P. venta
 			</th>
-			<th>Acciones</th>
+			<?php if( $this->controller->is_super() ) : ?><th>Acciones</th><?php endif; ?>
 		</tr>
 	</thead>
 	<tbody>
@@ -132,6 +132,7 @@
 			</td>
 			<?php if( $see_cost ) : ?><td class="text-center"><?php echo fmt_cor_unit($p->price_cost_cor); ?></td><?php endif; ?>
 			<td class="text-center"><?php echo fmt_cor_pair($p->price_sell_cor); ?></td>
+			<?php if( $this->controller->is_super() ) : ?>
 			<td class="text-center">
 				<div class="btn-group">
 					<a href="#" data-toggle="dropdown" class="dropdown-toggle"><i class="fa fa-cog"></i></a>
@@ -146,6 +147,7 @@
 					</ul>
 				</div>
 			</td>
+			<?php endif; ?>
 		</tr>
 		<?php endforeach; ?>
 	</tbody>
