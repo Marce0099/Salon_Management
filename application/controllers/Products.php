@@ -773,6 +773,8 @@ class Products extends Admin_Controller{
 
 	public function searchForInternalUse(){
 
+		if( !$this->is_admin() ){ echo "No se encontro resultado para esta pagina"; exit; }
+
 		$search = $this->input->post('search');
 
 		$data['products'] = $this->products_mdl->searchForInternalUse($search);
@@ -780,6 +782,8 @@ class Products extends Admin_Controller{
 	}
 
 	public function internalUse(){
+
+		if( !$this->is_admin() ){ echo "No se encontro resultado para esta pagina"; exit; }
 
 		if( formPosted() ){
 
@@ -843,6 +847,8 @@ class Products extends Admin_Controller{
 
 	public function internal_use_list(){
 
+		if( !$this->is_admin() ){ echo "No se encontro resultado para esta pagina"; exit; }
+
 		$this->load->library('easysearch');
 
 		$search['query'] = 'select IU.*, A.name as admin_name from internal_uses IU
@@ -877,6 +883,8 @@ class Products extends Admin_Controller{
 	}
 
 	public function internal_use_details( $id_internal_use = 0 ){
+
+		if( !$this->is_admin() ){ echo "No se encontro resultado para esta pagina"; exit; }
 
 		$data['internal_use'] = $this->internal_use_mdl->getDetails($id_internal_use);
 
