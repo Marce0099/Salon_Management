@@ -58,7 +58,7 @@
 <table class="table table-hover table-striped jambo_table table-bordered">
 	<thead>
 		<tr>
-			<th colspan="<?php echo $this->controller->is_super() ? 6 : 5; ?>">
+			<th colspan="6">
 				Platillos: <?php echo $no_limit_count; ?>
 			</th>
 		</tr>
@@ -88,7 +88,7 @@
 					<span class="white-color fa fa-sort-<?php echo $order['mode']; ?>"></span>
 				</a>P. venta
 			</th>
-			<?php if( $this->controller->is_super() ) : ?><th>Acciones</th><?php endif; ?>
+			<th>Acciones</th>
 		</tr>
 	</thead>
 	<tbody>
@@ -99,25 +99,27 @@
 			<td><?php echo $s->provider; ?></td>
 			<td><?php echo $s->name_category; ?></td>
 			<td class="text-center"><?php echo fmt_cor_pair($s->price_sell_cor); ?></td>
-			<?php if( $this->controller->is_super() ) : ?>
 			<td class="text-center">
 				<div class="btn-group">
 					<a href="#" data-toggle="dropdown" class="dropdown-toggle"><i class="fa fa-cog"></i></a>
 					<ul class="dropdown-menu pull-right text-left">
+						<?php if( $this->controller->is_super() ) : ?>
 						<li>
 							<a href="<?php echo base_url("products/edit/{$s->id_product}"); ?>"><i class="fa fa-pencil"></i> Editar</a>
 						</li>
+						<?php endif; ?>
 						<li>
 							<a href="<?php echo base_url("ingredients/recipe/{$s->id_product}"); ?>"><i class="fa fa-list-alt"></i> Receta</a>
 						</li>
+						<?php if( $this->controller->is_super() ) : ?>
 						<li class="divider"></li>
 						<li>
 							<a class="confirm-action" data-msg="Confirma eliminar el platillo?" href="<?php echo base_url("products/delete/{$s->id_product}"); ?>"><i class="fa fa-times"></i> Eliminar</a>
 						</li>
+						<?php endif; ?>
 					</ul>
 				</div>
 			</td>
-			<?php endif; ?>
 		</tr>
 		<?php endforeach; ?>
 	</tbody>
