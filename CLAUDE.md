@@ -8,7 +8,7 @@ Internal point-of-sale for a restaurant in Nicaragua (originally a salon/cosmeti
 - **Database:** MariaDB/MySQL (XAMPP), DB name `restaurant` (credentials in `application/config/database.php`, `.env` `DB_NAME=restaurant`). Charset of the app connection is 3-byte `utf8`; the mysql CLI needs `--default-character-set=utf8mb4` for accents.
 - **Frontend:** Bootstrap 3 · Gentelella admin theme · jQuery · Chart.js · PNotify · bootbox. Mobile layer: `assets/css/mobile.css` (touch sizes, bottom nav, slide-in drawer) and `assets/css/floor.css` (floor canvas).
 - **Printing:** ESC/POS thermal printers through `mike42/escpos-php` (`print/autoload.php`): receipts → Windows printer `CAJA`; kitchen tickets → printer named in setting `kitchen_printer_name` (default `COCINA`). Neither printer exists on every machine: failures are logged/recorded and never fail a sale or order.
-- **PDF:** ht`unit` g|ml|u|mg|gota|pizca|rebanada|diente|hoja (single base unit; migration 027 — deliberately no larger units like kg/l/lb, model those as packs)2pdf (`includes/html2pdf/`) → `uploads/receipts/` (receipt copy per sale).
+- **PDF:** html2pdf (`includes/html2pdf/`) → `uploads/receipts/` (receipt copy per sale).
 
 ## Key Directories
 
@@ -88,7 +88,7 @@ Availability while ordering = `products.stock` (`Kitchen_mdl::available`), since
 
 | Table | Key columns / rules |
 |---|---|
-| `ingredients` | `name` UNIQUE, `unit` g|ml|u|mg|gota|pizca|rebanada|diente|hoja (single base unit; migration 027 — deliberately no larger units like kg/l/lb, model those as packs)\|ml\|u (single base unit), `stock` DECIMAL(12,3), `alert_threshold` (low-stock banner at `stock <= threshold`, 0 = off), `cost_unit` C$/base unit, 4 decimals (refreshed when receiving with a total cost), optional pack (`pack_name`, `pack_size` base units), `active` soft delete (refused while an active dish recipe uses it) |
+| `ingredients` | `name` UNIQUE, `unit` g\|ml\|u\|oz (single base unit; migration 028 added oz; no kg/l/lb, model those as packs), `stock` DECIMAL(12,3), `alert_threshold` (low-stock banner at `stock <= threshold`, 0 = off), `cost_unit` C$/base unit, 4 decimals (refreshed when receiving with a total cost), optional pack (`pack_name`, `pack_size` base units), `active` soft delete (refused while an active dish recipe uses it) |
 | `recipe_items` | `id_product`->products CASCADE, `id_ingredient`->ingredients CASCADE, `quantity` per portion; UNIQUE(product, ingredient). Edited at `/ingredients/recipe/{id_product}` (admin; link in Platillos menu) with cost/portion and margin |
 | `ingredient_movements` | log: `type` receive\|order\|void\|waste\|adjustment\|prepare_in\|prepare_out, signed `quantity`, `reason`, `id_admin`, `id_order_item` |
 | `ingredient_components` | **Sub-recipes (Block C, migration 012).** An ingredient with `ingredients.batch_yield` NOT NULL is *prepared* (sauce/dough): PK(`id_ingredient` prepared, `id_component` raw), `quantity` of the component per batch. Components must be raw (not prepared, not itself, active): one level, no cycles. Dishes keep deducting the prepared ingredient's own stock; `Ingredients_mdl::prepare()` ("Preparar lote", `/ingredients/prepare`) converts components into it in one transaction (ascending-id row locks, whole batch checked, logs `prepare_out`/`prepare_in`). Cost of a prepared ingredient is the live roll-up `Ingredients_mdl::costSql()` (NULL if a component has no cost). `receive` is refused for prepared ingredients; the usage report keeps batches out of "consumo" (separate columns) to avoid double-counting cost |
