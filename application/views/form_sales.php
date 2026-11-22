@@ -20,7 +20,6 @@
 				<th>Descuento</th>
 				<th>Atendido por</th>
 				<th>Valor C$</th>
-				<th>Valor $</th>
 			</tr>
 		</thead>
 		<tbody id="sales-list">	
@@ -30,9 +29,6 @@
 				<td colspan="6" class="text-right" style="border: none;">Total:</td>
 				<td>
 					C$<span class="blue-2" id="total-cordobas"></span>
-				</td>
-				<td>
-					$<span class="blue-2" id="total-dollar"></span>
 				</td>
 			</tr>
 		</tfoot>
@@ -45,12 +41,10 @@
 	<tr>
 		<td class="text-right">IVA:</td>
 		<td>C$&nbsp;<span id="iva-cordobas">0.00</span></td>
-		<td>$<span id="iva-dollar">0.00</span></td>
 	</tr>
 	<tr>
 		<td class="text-right"><strong>Total a cobrar:</strong></td>
 		<td><strong>C$&nbsp;<span id="grand-cordobas">0.00</span></strong></td>
-		<td><strong>$<span id="grand-dollar">0.00</span></strong></td>
 	</tr>
 </table>
 	<div class="form-group" id="barcode-group">
@@ -289,9 +283,6 @@
 		</td>
 		<td>
 			<span class="subtotal-cordobas"></span>
-		</td>
-		<td>
-			<span class="subtotal-dollar"></span>
 		</td>
 		<input class="form-ids" type="hidden" name="id_products[]" value="">
 		<input class="p-commission_rate" type="hidden" name="commission_rate[]" value="">
@@ -1106,7 +1097,41 @@
 	// (Pass 2 below): those candidates are then weighed as a whole against any coupon payment currently
 	// entered — whichever is worth more in córdobas wins, the other is neutralized (mirrors
 	// resolve_coupon_vs_line_discounts()).
+	// Bill checkout: tip (default) and IVA follow the discounted subtotal. Untouched bill = the bill's own figures;
+	// mirrors Sales::register. A tip the cashier typed by hand is kept (_tipTouched).
+	var _tipTouched = false;
+
+	function refreshBillExtras(){
+
+		if( !billPrefill ) return;
+
+		var sub = 0;
+		$('#sales-list tr').each(function(){
+			var r = $(this);
+			var s = (numeral(r.find('.p-price').val()).value() || 0) * (numeral(r.find('.p-quantity').val()).value() || 0);
+			var d = _manualDiscountMode ? Math.min(100, Math.max(0, numeral(r.find('.p-discount').val()).value() || 0)) : 0;
+			if( d ) s -= s * d / 100;
+			sub += Math.round(s * 100) / 100;
+		});
+		sub = Math.round(sub * 100) / 100;
+
+		var iva = billPrefill.iva, tipDef = billPrefill.tip;
+		if( Math.abs(sub - billPrefill.subtotal) >= 0.005 ){
+			var k = billPrefill.subtotal > 0 ? sub / billPrefill.subtotal : 0;
+			iva = Math.round(billPrefill.iva * k * 100) / 100;
+			tipDef = Math.round(billPrefill.tip * k * 100) / 100;
+		}
+
+		if( !_tipTouched ) $('#tip_amount').val(Number(tipDef).toFixed(2));
+
+		var tip = Math.max(0, numeral($('#tip_amount').val()).value() || 0); // typed in C$
+		system.extra_cordobas = tip + iva;
+		$('#iva-cordobas').text(numeral(iva).format('0,0.00'));
+	}
+
 	function updateTotal( row ){
+
+		refreshBillExtras();
 
 		// Manual-discount mode: skip the whole golden-rule computation below (category/VIP/birthday
 		// competition, coupon-vs-discount neutralization) entirely. Each row's discount is whatever the
@@ -1389,7 +1414,6 @@
 		$('#form').addClass('bill-mode');
 		$('.bill-extra').show();
 		$('#barcode-group').hide();
-		$('#manual-discount-checkbox').prop('disabled', true).hide();
 		$('h4.section-title').text('Cobrar · ' + billPrefill.title);
 
 		if( billPrefill.id_employee ){
@@ -1408,14 +1432,10 @@
 		});
 
 		function setBillExtras(){
-			var tip = Math.max(0, numeral($('#tip_amount').val()).value() || 0); // typed in C$
-			system.extra_cordobas = tip + billPrefill.iva; // iva and tip are C$
-			$('#iva-cordobas').text(numeral(billPrefill.iva).format('0,0.00'));
-			$('#iva-dollar').text(numeral(billPrefill.iva / dollarSellRate).format('0,0.00'));
-			updateTotal($('#sales-list tr').first());
+			updateTotal($('#sales-list tr').first()); // updateTotal() refreshes tip/IVA first (refreshBillExtras)
 		}
 
-		$('#tip_amount').val(Number(billPrefill.tip).toFixed(2)).on('input', setBillExtras);
+		$('#tip_amount').val(Number(billPrefill.tip).toFixed(2)).on('input', function(){ _tipTouched = true; setBillExtras(); });
 		setBillExtras();
 	}
 

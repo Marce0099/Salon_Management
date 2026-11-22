@@ -214,7 +214,7 @@ class Sales extends Admin_Controller{
 			$sale['dollar_ex_sell'] = $exchange->sell_price;
 
 			/* Line discounts are courtesies: only admins may grant them (range-validated 0-100); anyone else always gets 0 */
-			$posted_discounts = $bill_ctx ? array() : ( $this->input->post('discounts') ?: array() );
+			$posted_discounts = $this->input->post('discounts') ?: array();
 			$discounts = array_fill( 0, count($id_products), 0 );
 			$total_cordobas = 0;
 			$sale_products_cache = array();
@@ -273,10 +273,22 @@ class Sales extends Admin_Controller{
 			if( $bill_ctx ){
 
 				$bt = $bill_ctx['totals'];
-				$tip_raw = $this->input->post('tip_amount');
-				$tip_cor = ( $tip_raw === NULL || $tip_raw === '' ) ? $bt['tip'] : round( floatval(str_replace(',', '', $tip_raw)), 2 ); // typed in cordobas
 
-				if( $tip_cor < 0 || $tip_cor > $bt['subtotal'] + 0.005 ){
+				/* line discounts lower the base: default tip and IVA follow the discounted subtotal (untouched bill = exact bill figures) */
+				$disc_sub = round($total_cordobas, 2);
+				$def_tip = $bt['tip'];
+				$iva_cor = $bt['iva'];
+
+				if( abs($disc_sub - $bt['subtotal']) >= 0.005 ){
+					$k = $bt['subtotal'] > 0 ? $disc_sub / $bt['subtotal'] : 0;
+					$def_tip = round($bt['tip'] * $k, 2);
+					$iva_cor = round($bt['iva'] * $k, 2);
+				}
+
+				$tip_raw = $this->input->post('tip_amount');
+				$tip_cor = ( $tip_raw === NULL || $tip_raw === '' ) ? $def_tip : round( floatval(str_replace(',', '', $tip_raw)), 2 ); // typed in cordobas
+
+				if( $tip_cor < 0 || $tip_cor > $disc_sub + 0.005 ){
 
 					$response['type'] = 'error';
 					$response['message'] = 'La propina debe estar entre 0 y el subtotal de la cuenta';
@@ -284,7 +296,6 @@ class Sales extends Admin_Controller{
 					exit();
 				}
 
-				$iva_cor = $bt['iva'];
 				$total_cordobas += $tip_cor + $iva_cor;
 			}
 

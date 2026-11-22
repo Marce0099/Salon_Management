@@ -106,7 +106,7 @@ Availability while ordering = `products.stock` (`Kitchen_mdl::available`), since
 | Table | Key columns / rules |
 |---|---|
 | `sales` | `id_employee` (waiter), `client` (default Consumidor Final when none), `date_time`, `dollar_ex_buy`/`dollar_ex_sell` snapshot, `file` (receipt PDF name in `uploads/receipts/`), `tip`, `iva` (C$, on top of lines), `id_bill` (bill paid; no FK) |
-| `sale_products` | `id_sale`, `id_product`, `quantity`, `price` (DECIMAL 12,2, unit sell price in C$ at sale), `discount` % (admins only; bill checkout forces 0), stock decremented on save unless `is_service=1`. An equal-split share is one line of the placeholder product `barcode='SPLIT-CONSUMO'` (service, hidden from the kitchen menu) |
+| `sale_products` | `id_sale`, `id_product`, `quantity`, `price` (DECIMAL 12,2, unit sell price in C$ at sale), `discount` % (admins only, via the "manual discount" checkbox; also in bill checkout; tip default and IVA are scaled to the discounted subtotal, server and JS alike), stock decremented on save unless `is_service=1`. An equal-split share is one line of the placeholder product `barcode='SPLIT-CONSUMO'` (service, hidden from the kitchen menu) |
 | `sale_payments` | cash\|pos\|transfer\|cupon rows per sale (split payments). `account` -> `bank_account` (transfer amounts stored in the account's currency), coupons (`cupon_code` UNIQUE, `cupon_discount_rate`), `tax_rate` (POS fee), change given (`change_*`). Only cash may overpay; one cash row and one coupon row max |
 | `sale_comments` | append-only chat notes per sale (`Sale_comments` JSON API, utf8mb4) |
 
