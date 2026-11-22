@@ -146,20 +146,14 @@
 		<thead>
 			<tr>
 				<th>Montos ingresados</th>
-				<th>Montos en caja</th>
-				<th>Diferencias</th>
 			</tr>
 		</thead>
 		<tbody>
 			<tr>
 				<td>C$<input type="text" id="monto-ingresado-cordobas" name="user_cordobas" class="no-input" readonly="true" value="0.00"></td>
-				<td>C$<span id="monto-caja-cordobas"><?php echo number_format($cash['sales_total_cordobas'] + $cash['current']->open_quantity-$cash['outcomes_total'],2); ?></span></td>
-				<td>C$<span id="diferencia-cordobas">0.00</span></td>
 			</tr>
 			<tr>
 				<td>$<input type="text" id="monto-ingresado-dolares" name="user_dolares" class="no-input" readonly="true" value="0.00"></td>
-				<td>$<span id="monto-caja-dolares"><?php echo number_format($cash['sales_total_dollar'] + $cash['current']->open_quantity_dollar,2); ?></span></td>
-				<td>$<span id="diferencia-dolares">0.00</span></td>
 			</tr>
 		</tbody>
 	</table>
@@ -223,11 +217,7 @@
 	var cash = {
 
 		ingresado_cordobas : $('#monto-ingresado-cordobas'),
-		ingresado_dolares : $('#monto-ingresado-dolares'),
-		caja_cordobas : $('#monto-caja-cordobas'),
-		caja_dolares : $('#monto-caja-dolares'),
-		diferencia_cordobas : $('#diferencia-cordobas'),
-		diferencia_dolares : $('#diferencia-dolares')
+		ingresado_dolares : $('#monto-ingresado-dolares')
 	};
 	var ok_submit = false;
 
@@ -242,19 +232,6 @@
 
 		cash.ingresado_cordobas.val( numeral(cor).format('0,0.00') );
 
-		var dif = numeral(cor).value() - numeral( cash.caja_cordobas.html() ).value();
-
-		cash.diferencia_cordobas.html( numeral(dif).format('0,0.00') );
-
-		cash.diferencia_cordobas.parents('td').removeClass();
-
-		if( dif == 0 )
-			cash.diferencia_cordobas.parents('td').addClass('equal');
-		else if( dif > 0 )
-			cash.diferencia_cordobas.parents('td').addClass('greater');
-		else
-			cash.diferencia_cordobas.parents('td').addClass('less');
-
 	});
 
 	$('table.currencies-dolares input').on('keyup',function(){
@@ -267,19 +244,6 @@
 		});
 
 		cash.ingresado_dolares.val( numeral(dol).format('0,0.00') );
-
-		var dif = numeral(dol).value() - numeral( cash.caja_dolares.html() ).value();
-
-		cash.diferencia_dolares.html( numeral(dif).format('0,0.00') );
-
-		cash.diferencia_dolares.parents('td').removeClass();
-
-		if( dif == 0 )
-			cash.diferencia_dolares.parents('td').addClass('equal');
-		else if( dif > 0 )
-			cash.diferencia_dolares.parents('td').addClass('greater');
-		else
-			cash.diferencia_dolares.parents('td').addClass('less');
 
 	});
 
