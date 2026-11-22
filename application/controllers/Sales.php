@@ -86,7 +86,7 @@ class Sales extends Admin_Controller{
 
 			$sess_data['status'] = array( 'message' => 'Para registrar ventas debe primero abrir la caja del día', 'class' => 'warning' );
 			$this->session->set_userdata('view_data',$sess_data);
-			redirect('cash/historial');
+			redirect('cash/open');
 			exit();
 		}
 

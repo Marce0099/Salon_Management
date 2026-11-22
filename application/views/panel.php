@@ -30,15 +30,17 @@
 
     <?php if( $this->controller->is_admin() ) : ?>
     <div class="col-md-3">
-      <a href="<?php echo base_url('cash/state'); ?>" style="text-decoration:none; color:inherit;">
+      <a href="<?php echo base_url($this->controller->is_super() ? 'cash/state' : ($open_cash ? 'cash/close' : 'cash/open')); ?>" style="text-decoration:none; color:inherit;">
         <div class="panel panel-default kpi-tile">
           <div class="panel-heading"><i class="fa fa-money"></i> Caja</div>
           <div class="panel-body">
             <?php if( $open_cash ) : ?>
               <div class="kpi-value text-success">Abierta</div>
               <div class="kpi-sub">
+                <?php if( $this->controller->is_super() ) : ?>
                 Ventas hoy: <?php echo $cash_movements['sales_num_total']; ?>
                 (C$<?php echo number_format($cash_movements['sales_total_cordobas'],2); ?>)
+                <?php endif; ?>
               </div>
             <?php else : ?>
               <div class="kpi-value text-danger">Cerrada</div>

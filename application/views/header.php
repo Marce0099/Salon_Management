@@ -154,11 +154,11 @@
                   <?php if($this->controller->is_admin()){ ?>
                   <li><a><i class="fa fa-money"></i> Caja <span class="fa fa-chevron-down"></span></a>
                     <ul class="nav child_menu">
-                      <li><a href="<?php echo base_url('cash/state'); ?>">Estado</a></li>
+                      <?php if($this->controller->is_super()){ ?><li><a href="<?php echo base_url('cash/state'); ?>">Estado</a></li><?php } ?>
                       <li><a href="<?php echo base_url('cash/open'); ?>">Abrir caja</a></li>
                       <li><a href="<?php echo base_url('cash/close'); ?>">Cerrar caja</a></li>
                       <li><a href="<?php echo base_url('cash/register_outcome'); ?>">Registrar egreso</a></li>
-                      <li><a href="<?php echo base_url('cash/historial'); ?>">Historial</a></li>
+                      <?php if($this->controller->is_super()){ ?><li><a href="<?php echo base_url('cash/historial'); ?>">Historial</a></li><?php } ?>
                     </ul>
                   </li>
                   <?php } ?>
@@ -245,7 +245,7 @@
           <a href="<?php echo base_url('sales/historial'); ?>" class="<?php echo strpos($bn_path, '/sales/historial') === 0 ? 'active' : ''; ?>"><i class="fa fa-list"></i>Ventas</a>
           <?php } ?>
           <?php if($this->controller->is_admin()){ ?>
-          <a href="<?php echo base_url('cash/state'); ?>" class="<?php echo strpos($bn_path, '/cash') === 0 ? 'active' : ''; ?>"><i class="fa fa-money"></i>Caja</a>
+          <a href="<?php echo base_url($this->controller->is_super() ? 'cash/state' : 'cash/open'); ?>" class="<?php echo strpos($bn_path, '/cash') === 0 ? 'active' : ''; ?>"><i class="fa fa-money"></i>Caja</a>
           <?php } ?>
           <a href="<?php echo base_url('reservations'); ?>" class="<?php echo strpos($bn_path, '/reservations') === 0 ? 'active' : ''; ?>"><i class="fa fa-calendar"></i>Reservas</a>
           <a href="javascript:;" class="js-drawer-toggle"><i class="fa fa-bars"></i>Menú</a>

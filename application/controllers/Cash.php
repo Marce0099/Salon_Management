@@ -13,6 +13,18 @@ class Cash extends Admin_Controller{
 		}
 
 		$this->load->model('cash_mdl');
+
+		// history, details and state expose expected amounts: super admin only
+		$m = $this->router->fetch_method();
+		if( in_array($m, array('index','historial','details','state')) && !$this->is_super() ){
+			redirect($this->home_url());
+			exit;
+		}
+	}
+
+	// landing page after cash actions: history/state are super-only, others go to the dashboard
+	private function home_url(){
+		return $this->is_super() ? 'cash/historial' : 'panel';
 	}
 
 	public function index(){
@@ -62,7 +74,7 @@ class Cash extends Admin_Controller{
 
 			$sess_data['status'] = array( 'message' => $message, 'class' => 'warning' );
 			$this->session->set_userdata('view_data',$sess_data);
-			redirect('cash/historial');
+			redirect('cash/open');
 			exit();
 		}
 
@@ -86,7 +98,7 @@ class Cash extends Admin_Controller{
 			$sess_data['status'] = array( 'message' => 'Ya existe una caja registrada para el dia actual', 'class' => 'warning' );
 
 			$this->session->set_userdata('view_data',$sess_data);
-			redirect('cash/historial');
+			redirect($this->home_url());
 			exit();
 		}
 
@@ -138,7 +150,7 @@ class Cash extends Admin_Controller{
 				$sess_data['status'] = array( 'message' => 'La caja ha sido abierta con C$'.number_format($data['open_quantity']).' y $'.number_format($data['open_quantity_dollar']), 'class' => 'success' );
 
 				$this->session->set_userdata('view_data',$sess_data);
-				redirect('cash/state');
+				redirect($this->is_super() ? 'cash/state' : 'panel');
 			}
 			else{
 
@@ -163,7 +175,7 @@ class Cash extends Admin_Controller{
 			$sess_data['status'] = array( 'message' => 'No hay caja abierta para el dia actual', 'class' => 'warning' );
 
 			$this->session->set_userdata('view_data',$sess_data);
-			redirect('cash/historial');
+			redirect($this->home_url());
 			exit();
 		}
 
@@ -190,7 +202,7 @@ class Cash extends Admin_Controller{
 				$sess_data['status'] = array( 'message' => 'Registro de egreso registrado', 'class' => 'success' );
 
 				$this->session->set_userdata('view_data',$sess_data);
-				redirect('cash/state');
+				redirect($this->is_super() ? 'cash/state' : 'panel');
 			}
 			else{
 
@@ -215,7 +227,7 @@ class Cash extends Admin_Controller{
 			$sess_data['status'] = array( 'message' => 'No hay caja abierta para el dia actual', 'class' => 'warning' );
 
 			$this->session->set_userdata('view_data',$sess_data);
-			redirect('cash/historial');
+			redirect($this->home_url());
 			exit();
 		}
 
@@ -279,7 +291,7 @@ class Cash extends Admin_Controller{
 				$sess_data['status'] = array( 'message' => 'La caja ha sido cerrada', 'class' => 'success' );
 
 				$this->session->set_userdata('view_data',$sess_data);
-				redirect('cash/historial');
+				redirect($this->home_url());
 			}
 			else{
 
@@ -313,7 +325,7 @@ class Cash extends Admin_Controller{
 			$sess_data['status'] = array( 'message' => 'El registro de caja seleccionado no existe', 'class' => 'error' );
 
 			$this->session->set_userdata('view_data',$sess_data);
-			redirect('cash/historial');
+			redirect($this->home_url());
 			exit();
 		}
 

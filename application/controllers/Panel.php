@@ -19,6 +19,9 @@
 
 		public function form(){
 
+			// flash message left by redirects (e.g. cash/open when a till already exists)
+			$data = load_data($this->session);
+
 			$data['open_cash'] = $this->cash_mdl->getOpenedCash();
 			$data['cash_movements'] = $data['open_cash'] ? $this->cash_mdl->getCashMovements($data['open_cash']) : NULL;
 			$data['live'] = $this->reports_mdl->live();
