@@ -118,7 +118,7 @@
                     <ul class="nav child_menu">
                       <li><a href="<?php echo base_url('products'); ?>">Productos (con inventario)</a></li>
                       <li><a href="<?php echo base_url('services'); ?>">Platillos</a></li>
-                      <?php if($this->controller->is_admin()){ ?>
+                      <?php if($this->controller->is_super()){ ?>
                       <li><a href="<?php echo base_url('products/register'); ?>">Registrar producto</a></li>
                       <li><a href="<?php echo base_url('products/register?is_service=1'); ?>">Registrar platillo</a></li>
                       <?php } ?>
