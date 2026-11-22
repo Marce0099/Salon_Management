@@ -315,7 +315,7 @@ class Products_mdl extends CI_Model{
 
 	public function searchActive($barcode = '', $name = '', $type = 'all'){
 
-		$sql = 'SELECT id_product, barcode, name, price_cost, price_sell, price_cost_cor, price_sell_cor, is_service
+		$sql = 'SELECT id_product, barcode, name, price_cost_cor, price_sell_cor, is_service
 		        FROM products WHERE active = 1';
 
 		if( !empty($barcode) ){
