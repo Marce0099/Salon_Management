@@ -7,7 +7,8 @@ class Ingredients extends Admin_Controller{
 
 		parent::__construct();
 
-		if( !$this->is_admin() ){
+		// Waiters may only open the read-only recipe card (no costs, no editing)
+		if( !$this->is_admin() && $this->router->fetch_method() !== 'recipe' ){
 			echo "No se encontro resultado para esta pagina";
 			exit;
 		}
@@ -587,6 +588,15 @@ class Ingredients extends Admin_Controller{
 		}
 
 		$recipe = $this->ingredients_mdl->recipe($id_product);
+
+		if( !$this->is_admin() ){
+			$mods = array();
+			foreach( $this->modifiers_mdl->all() as $m ){ if( in_array((int) $m->id_modifier, $this->modifiers_mdl->attachedIds($p->id_product), TRUE) ){ $mods[] = $m; } }
+			$this->content_data = array('product' => $p, 'recipe' => $recipe, 'mods' => $mods);
+			$this->renderPanel('recipe_readonly');
+			return;
+		}
+
 		list($cost, $missing) = $this->ingredients_mdl->portionCost($recipe);
 
 		$this->content_data = array(
