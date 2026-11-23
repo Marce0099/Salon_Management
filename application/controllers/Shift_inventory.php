@@ -163,6 +163,7 @@ class Shift_inventory extends Admin_Controller{
 		if( !$empty && !$raw ){ $this->fail('Agregue productos o marque el almacén como vacío'); }
 
 		$lines = array();
+		$merged = array();
 		foreach( $raw as $r ){
 
 			$idp = isset($r['id_product']) ? (string) $r['id_product'] : '';
@@ -176,7 +177,21 @@ class Shift_inventory extends Admin_Controller{
 			$note = $this->cleanText(isset($r['note']) ? $r['note'] : '', 150);
 			if( $note === NULL ){ $this->fail('Una nota es inválida (máx. 150 caracteres, sin símbolos < >)'); }
 
-			$lines[] = array('id_product' => (int) $idp, 'id_pack' => $pack === NULL ? NULL : (int) $pack, 'qty' => (int) $qty, 'note' => $note === '' ? NULL : $note);
+			$line = array('id_product' => (int) $idp, 'id_pack' => $pack === NULL ? NULL : (int) $pack, 'qty' => (int) $qty, 'note' => $note === '' ? NULL : $note);
+
+			// Same product + same presentation, both WITHOUT a note: one line with the quantities added.
+			// A line carrying a note stays on its own (the note says why it is separate); totals still add every line.
+			if( $line['note'] === NULL ){
+				$key = $line['id_product'].'|'.(int) $line['id_pack'];
+				if( isset($merged[$key]) ){
+					$lines[$merged[$key]]['qty'] += $line['qty'];
+					if( $lines[$merged[$key]]['qty'] > 999999 ){ $this->fail('La cantidad total de un producto no puede superar 999999'); }
+					continue;
+				}
+				$merged[$key] = count($lines);
+			}
+
+			$lines[] = $line;
 		}
 
 		$notes = $this->cleanText($this->input->post('notes'), 255);
