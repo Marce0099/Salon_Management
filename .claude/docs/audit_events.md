@@ -29,6 +29,7 @@ Language-neutral: PHP (today) and the Rust/Tauri backend (future) write and read
 | Catalog | `product.create/update/delete/stock_add`, `product_pack.update`, `category.create/update`, `modifier.create/update/restore/deactivate/attach`, `recipe.update` |
 | Purchasing | `invoice.receive` (old/new cost, sell price and stock per line; `cost_new_cor`/`sell_new_cor` = the C$ typed, source of truth since migration 023; `cost_*`/`sell_*` are the derived dollars), `return.create`, `provider.create/update/deactivate`, `internal_use.create` |
 | Ingredients | `ingredient.create/update/deactivate/reactivate/components/packs`, `ingredient.purchase`, `ingredient.receive/waste/adjustment/prepare_in/prepare_out` (per movement) |
+| Shift inventory | `storage.create/update/toggle`, `shift_inv.open/count/edit/close/cancel` (denied: `count` when already counted or shift closed, `edit` by non-super, `open`, `close`, `cancel` by non-super) |
 | People/config | `employee.*`, `client.*`, `admin.create/deactivate` (security: super only), `settings.update` (one row per changed key), `exchange.update` (also re-derives every dollar price from its `*_cor` column, see CLAUDE.md C$-first), `bank_account.create/update/disable`, `goal.create`, `import.<entity>` |
 
 Kitchen `order`/`void` ingredient movements are not duplicated (covered by `order.send` / `order_item.void`).

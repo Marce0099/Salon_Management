@@ -128,6 +128,10 @@
                       <li><a href="<?php echo base_url('ingredients/count'); ?>">Conteo de ingredientes</a></li>
                       <li><a href="<?php echo base_url('ingredients/usage'); ?>">Consumo de ingredientes</a></li>
                       <li><a href="<?php echo base_url('modifiers'); ?>">Modificadores</a></li>
+                      <li><a href="<?php echo base_url('shift_inventory'); ?>">Inventario de turno</a></li>
+                      <?php if($this->controller->is_super()){ ?>
+                      <li><a href="<?php echo base_url('storages'); ?>">Almacenes</a></li>
+                      <?php } ?>
                       <?php } ?>
                       <?php if($this->controller->is_admin()){ ?>
                       <li><a href="<?php echo base_url('products/internalUse'); ?>">Uso interno</a></li>
