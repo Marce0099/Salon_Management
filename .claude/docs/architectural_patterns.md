@@ -80,12 +80,9 @@ if ($this->db->trans_status() === FALSE) { /* handle error */ }
 
 See `application/controllers/Sales.php:188`.
 
-## Thermal Receipt Printing
+## Thermal Printing (print queue)
 
-Sales trigger ESC/POS printing via `mike42/escpos-php` loaded through `print/autoload.php`.
-The printer is addressed by Windows printer name `'CAJA'` using `WindowsPrintConnector`.
-Printing is wrapped in `try/catch`; failure returns `FALSE` but does not abort the sale.
-See `Sales::printInvoice()` at `application/controllers/Sales.php:298`.
+Never talk to a printer from a controller. Render into memory with the `Printing` library (`list($p, $c) = $this->printing->canvas(); ... $bytes = $this->printing->bytes($p, $c);`) and call `$this->printing->send($role, $kind, $ref_type, $ref_id, $title, $bytes, $id_admin)`. The job is stored in `print_jobs`, delivered by the printer's transport (network raw TCP or Windows printer name) and can be retried/reprinted from `/printers/queue`. Failure returns `array('ok' => FALSE, 'error' => ...)` and never aborts the sale/order. See `Kitchen::printTicket()`, `Sales::printInvoice()`, `.claude/docs/printing_plan.md`.
 
 ## Autoloaded Globals
 

@@ -2,7 +2,6 @@
 
 require_once FCPATH.'print/autoload.php';
 use Mike42\Escpos\Printer;
-use Mike42\Escpos\PrintConnectors\WindowsPrintConnector;
 
 /**
  * Ordering on an open tab + kitchen ticket (comanda). Stock leaves when an order is sent and returns when a line is voided/replaced;
@@ -339,7 +338,7 @@ class Kitchen extends Admin_Controller{
 		));
 	}
 
-	/** Sends the ticket to the kitchen printer. Records the outcome on the order; never throws. */
+	/** Renders the comanda and sends it through the print queue (printer of role `kitchen`). Records the outcome on the order; never throws. */
 	private function printTicket($id_order){
 
 		$order = $this->kitchen_mdl->order($id_order);
@@ -351,18 +350,11 @@ class Kitchen extends Admin_Controller{
 			return array('ok' => TRUE, 'error' => '');
 		}
 
-		$name = trim((string) $this->settings_mdl->get('kitchen_printer_name', 'COCINA'));
-		if( $name === '' ){
-			$this->kitchen_mdl->setPrint($id_order, 'failed', 'Impresora de cocina no configurada');
-			return array('ok' => FALSE, 'error' => 'Impresora de cocina no configurada');
-		}
-
-		ob_start(); // the connector emits PHP warnings on failure; they must not leak into the JSON answer
+		$this->load->library('printing');
 
 		try{
 
-			$printer = new Printer(new WindowsPrintConnector($name));
-			$printer->initialize();
+			list($printer, $conn) = $this->printing->canvas();
 
 			$printer->setJustification(Printer::JUSTIFY_CENTER);
 			$printer->setTextSize(2, 2);
@@ -410,18 +402,19 @@ class Kitchen extends Admin_Controller{
 			$printer->text("------------------------------------------\n");
 			$printer->feed(3);
 			$printer->cut();
-			$printer->close();
-			ob_end_clean();
 
-			$this->kitchen_mdl->setPrint($id_order, 'printed');
-			return array('ok' => TRUE, 'error' => '');
+			$bytes = $this->printing->bytes($printer, $conn);
 		}
 		catch( \Throwable $e ){
 
-			ob_end_clean();
 			$this->kitchen_mdl->setPrint($id_order, 'failed', $e->getMessage());
-			log_message('error', 'kitchen ticket print failed: '.$e->getMessage());
+			log_message('error', 'kitchen ticket render failed: '.$e->getMessage());
 			return array('ok' => FALSE, 'error' => $e->getMessage());
 		}
+
+		// the library records printed/failed on the order itself (and keeps the bytes for retry/reprint)
+		$res = $this->printing->send('kitchen', 'comanda', 'order', $order->id_order, 'Comanda #'.$order->id_order.' - Mesa '.$tab->table_label, $bytes, $this->id_admin);
+
+		return array('ok' => $res['ok'], 'error' => $res['error']);
 	}
 }

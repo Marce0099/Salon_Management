@@ -190,6 +190,8 @@
                       <li><a href="<?php echo base_url('dollar_exchange'); ?>">Tipo de cambio</a></li>
                       <li><a href="<?php echo base_url('bank_account'); ?>">Cuentas Bancarias</a></li>
                       <li><a href="<?php echo base_url('settings'); ?>">Configuración general</a></li>
+                      <li><a href="<?php echo base_url('printers'); ?>">Impresoras</a></li>
+                      <li><a href="<?php echo base_url('printers/queue'); ?>">Cola de impresión</a></li>
                       <?php if($this->controller->is_super()){ ?>
                       <li><a href="<?php echo base_url('admins/list'); ?>">Administradores</a></li>
                       <?php } ?>
