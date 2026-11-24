@@ -193,6 +193,11 @@ class Printing{
 		$job = $db->where('id_job', (int) $id_job)->get('print_jobs')->row();
 		$printer = $job->id_printer ? $db->where('id_printer', (int) $job->id_printer)->get('printers')->row() : NULL;
 
+		// a printer plugged into another PC: leave the job for its agent to collect (see agentClaim)
+		if( $printer && $printer->active && $printer->conn_type === 'agent' && $job->payload !== NULL && $job->payload !== '' ){
+			return $this->queueForAgent($job, $printer);
+		}
+
 		if( !$printer ){
 			$error = 'No printer configured for this job';
 		}
@@ -209,6 +214,96 @@ class Printing{
 		$this->finish($job, $error);
 
 		return array($error === '', $error);
+	}
+
+	/* ---------- agents (printers on other PCs) ---------- */
+
+	const AGENT_ONLINE  = 45;  // seconds since the last poll to count a station as online
+	const AGENT_MAX_TRY = 5;   // claims before a job is given up
+
+	public function agentOnline($id_agent){
+
+		$r = $this->CI->db->query('SELECT (last_seen_at >= NOW() - INTERVAL '.self::AGENT_ONLINE.' SECOND) AS online FROM print_agents WHERE id_agent = ?', array((int) $id_agent))->row();
+
+		return $r && (int) $r->online === 1;
+	}
+
+	/** Records that the agent is alive (every poll). */
+	public function agentTouch($id_agent, $ip, $version){
+
+		$this->CI->db->query('UPDATE print_agents SET last_seen_at = NOW(), last_ip = ?, version = ? WHERE id_agent = ?',
+			array(mb_substr((string) $ip, 0, 45), mb_substr(preg_replace('/[^0-9A-Za-z._-]/', '', (string) $version), 0, 20), (int) $id_agent));
+	}
+
+	/** Puts the job back in `pending` so its agent collects it. Returns array(ok, error): ok = the station is online right now. */
+	private function queueForAgent($job, $printer){
+
+		$db = $this->CI->db;
+		$agent = $db->where('id_agent', (int) $printer->id_agent)->get('print_agents')->row();
+
+		if( !$agent || !$agent->active ){
+			$error = 'Print station '.($agent ? '"'.$agent->name.'" ' : '').'is disabled or missing';
+			$this->finish($job, $error);
+			return array(FALSE, $error);
+		}
+
+		$online = $this->agentOnline($agent->id_agent);
+		$note = $online ? NULL : 'Station "'.$agent->name.'" is offline; the ticket stays queued and prints when it reconnects';
+
+		$db->query('UPDATE print_jobs SET status = "pending", claimed_at = NULL, attempts = GREATEST(attempts - 1, 0), last_error = ? WHERE id_job = ?', array($note, (int) $job->id_job));
+
+		if( $job->kind === 'comanda' && $job->ref_type === 'order' && $job->ref_id ){ $this->refreshOrderStatus((int) $job->ref_id); }
+
+		return array($online, (string) $note);
+	}
+
+	/** Hands the agent its waiting jobs (claimed atomically). Returns a list of array(id_job, printer, title, payload(base64)). */
+	public function agentClaim($id_agent, $limit = 10){
+
+		$db = $this->CI->db;
+
+		$ids = $db->query('SELECT j.id_job FROM print_jobs j JOIN printers p ON p.id_printer = j.id_printer
+			WHERE p.id_agent = ? AND p.active = 1 AND p.conn_type = "agent" AND (j.status = "pending" OR (j.status = "printing" AND j.claimed_at < NOW() - INTERVAL '.self::STALE_CLAIM.' SECOND))
+			ORDER BY j.id_job LIMIT '.(int) $limit, array((int) $id_agent))->result();
+
+		$out = array();
+
+		foreach( $ids as $r ){
+
+			$db->query('UPDATE print_jobs SET status = "printing", claimed_at = NOW(), attempts = attempts + 1
+				WHERE id_job = ? AND (status = "pending" OR (status = "printing" AND claimed_at < NOW() - INTERVAL '.self::STALE_CLAIM.' SECOND))', array((int) $r->id_job));
+
+			if( $db->affected_rows() !== 1 ){ continue; }
+
+			$job = $db->where('id_job', (int) $r->id_job)->get('print_jobs')->row();
+
+			if( (int) $job->attempts > self::AGENT_MAX_TRY ){
+				$this->finish($job, 'The station did not confirm the print after '.self::AGENT_MAX_TRY.' attempts');
+				continue;
+			}
+
+			$printer = $db->where('id_printer', (int) $job->id_printer)->get('printers')->row();
+
+			$out[] = array('id_job' => (int) $job->id_job, 'printer' => $printer->address, 'title' => $job->title, 'payload' => base64_encode($job->payload));
+		}
+
+		return $out;
+	}
+
+	/** The agent reports what happened to a job it claimed. Returns array(ok, message). */
+	public function agentResult($id_agent, $id_job, $ok, $error){
+
+		$db = $this->CI->db;
+
+		$job = $db->where('id_job', (int) $id_job)->get('print_jobs')->row();
+		$printer = $job && $job->id_printer ? $db->where('id_printer', (int) $job->id_printer)->get('printers')->row() : NULL;
+
+		if( !$job || !$printer || (int) $printer->id_agent !== (int) $id_agent ){ return array(FALSE, 'Unknown job'); }
+		if( $job->status !== 'printing' ){ return array(FALSE, 'The job is not waiting for a result'); }
+
+		$this->finish($job, $ok ? '' : ($this->clean($error) !== '' ? $this->clean($error) : 'The station reported an error'));
+
+		return array(TRUE, '');
 	}
 
 	/** Clones a job (same bytes) and delivers the copy. Returns array(ok, error, id_job). */

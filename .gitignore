@@ -45,3 +45,5 @@ favicon.ico
 xampp/
 
 tools/fake_printer_out/
+agent/agent.json
+agent/agent.log*
