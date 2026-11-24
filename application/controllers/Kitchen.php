@@ -338,12 +338,15 @@ class Kitchen extends Admin_Controller{
 		));
 	}
 
-	/** Renders the comanda and sends it through the print queue (printer of role `kitchen`). Records the outcome on the order; never throws. */
+	/**
+	 * Renders the comanda(s) and sends them through the print queue. The order is split into ONE ticket per kitchen printer
+	 * (menu category -> printer, default kitchen printer for the rest). Records the outcome on the order; never throws.
+	 */
 	private function printTicket($id_order){
 
 		$order = $this->kitchen_mdl->order($id_order);
 		$tab   = $this->kitchen_mdl->tab($order->id_tab);
-		$items = array_filter($this->kitchen_mdl->orderItems($id_order), function($i){ return $i->prints_kitchen && $i->status === 'active'; });
+		$items = array_values(array_filter($this->kitchen_mdl->orderItems($id_order), function($i){ return $i->prints_kitchen && $i->status === 'active'; }));
 
 		if( !count($items) ){
 			$this->kitchen_mdl->setPrint($id_order, 'skipped');
@@ -352,69 +355,102 @@ class Kitchen extends Admin_Controller{
 
 		$this->load->library('printing');
 
-		try{
+		$route = $this->printing->routeProducts(array_map(function($i){ return (int) $i->id_product; }, $items));
 
-			list($printer, $conn) = $this->printing->canvas();
+		$groups = array();
+		foreach( $items as $i ){
 
-			$printer->setJustification(Printer::JUSTIFY_CENTER);
-			$printer->setTextSize(2, 2);
-			$printer->text("COCINA\n");
-			$printer->setTextSize(1, 1);
-			$printer->text("Pedido #".$order->id_order."\n");
-			$printer->feed(1);
+			$pr = isset($route[(int) $i->id_product]) ? $route[(int) $i->id_product] : NULL;
+			$k  = $pr ? (int) $pr->id_printer : 0;
 
-			$printer->setJustification(Printer::JUSTIFY_LEFT);
-			$printer->setEmphasis(TRUE);
-			$printer->text("Mesa: ".$this->ascii($tab->table_label)." (".$this->ascii($tab->area_name).")\n");
-			$printer->setEmphasis(FALSE);
-			$printer->text("Mesero: ".$this->ascii($tab->waiter)."\n");
-			$printer->text("Hora: ".date('d/m/Y h:i A', strtotime($order->created_at))."\n");
-			$printer->text("------------------------------------------\n");
+			if( !isset($groups[$k]) ){ $groups[$k] = array('printer' => $pr, 'items' => array()); }
+			$groups[$k]['items'][] = $i;
+		}
 
-			$course = NULL;
-			foreach( $items as $i ){
+		$ok = TRUE;
+		$errors = array();
 
-				if( $course !== (int) $i->course ){
-					$course = (int) $i->course;
-					$printer->setEmphasis(TRUE);
-					$printer->text("-- Tiempo ".$course." --\n");
-					$printer->setEmphasis(FALSE);
-				}
+		foreach( $groups as $g ){
 
-				$printer->setTextSize(2, 2);
-				$printer->text($i->quantity." x ".$this->ascii($i->product_name)."\n");
-				$printer->setTextSize(1, 1);
+			$name = $g['printer'] ? $g['printer']->name : 'sin impresora';
 
-				foreach( $i->mods as $mod_text ){
-					// bold, wrapped at 36 chars; continuation lines stay indented so they never look detached from their dish
-					$printer->setEmphasis(TRUE);
-					foreach( explode("\n", wordwrap($this->ascii($mod_text), 36, "\n", TRUE)) as $n => $part ){
-						$printer->text(($n === 0 ? "   ** " : "      ").$part."\n");
-					}
-					$printer->setEmphasis(FALSE);
-				}
+			try{
+				$bytes = $this->renderTicket($order, $tab, $g['items'], $g['printer']);
+			}
+			catch( \Throwable $e ){
 
-				if( $i->notes ){
-					$printer->text("   >> ".$this->ascii($i->notes)."\n");
-				}
+				$ok = FALSE;
+				$errors[] = $name.': '.$e->getMessage();
+				$this->kitchen_mdl->setPrint($id_order, 'failed', implode(' | ', $errors));
+				log_message('error', 'kitchen ticket render failed: '.$e->getMessage());
+				continue;
 			}
 
-			$printer->text("------------------------------------------\n");
-			$printer->feed(3);
-			$printer->cut();
+			// the library records printed/failed on the order itself (and keeps the bytes for retry/reprint)
+			$res = $this->printing->send('kitchen', 'comanda', 'order', $order->id_order,
+				'Comanda #'.$order->id_order.' - Mesa '.$tab->table_label.($g['printer'] ? ' - '.$g['printer']->name : ''), $bytes, $this->id_admin, $g['printer']);
 
-			$bytes = $this->printing->bytes($printer, $conn);
-		}
-		catch( \Throwable $e ){
-
-			$this->kitchen_mdl->setPrint($id_order, 'failed', $e->getMessage());
-			log_message('error', 'kitchen ticket render failed: '.$e->getMessage());
-			return array('ok' => FALSE, 'error' => $e->getMessage());
+			if( !$res['ok'] ){
+				$ok = FALSE;
+				$errors[] = $name.': '.$res['error'];
+			}
 		}
 
-		// the library records printed/failed on the order itself (and keeps the bytes for retry/reprint)
-		$res = $this->printing->send('kitchen', 'comanda', 'order', $order->id_order, 'Comanda #'.$order->id_order.' - Mesa '.$tab->table_label, $bytes, $this->id_admin);
+		return array('ok' => $ok, 'error' => implode(' | ', $errors));
+	}
 
-		return array('ok' => $res['ok'], 'error' => $res['error']);
+	/** ESC/POS bytes of one comanda for one station (kitchen printer row, or NULL when none is configured). */
+	private function renderTicket($order, $tab, $items, $station){
+
+		list($printer, $conn) = $this->printing->canvas();
+
+		$printer->setJustification(Printer::JUSTIFY_CENTER);
+		$printer->setTextSize(2, 2);
+		$printer->text(($station ? strtoupper(mb_substr($this->ascii($station->name), 0, 20, 'UTF-8')) : 'COCINA')."\n");
+		$printer->setTextSize(1, 1);
+		$printer->text("Pedido #".$order->id_order."\n");
+		$printer->feed(1);
+
+		$printer->setJustification(Printer::JUSTIFY_LEFT);
+		$printer->setEmphasis(TRUE);
+		$printer->text("Mesa: ".$this->ascii($tab->table_label)." (".$this->ascii($tab->area_name).")\n");
+		$printer->setEmphasis(FALSE);
+		$printer->text("Mesero: ".$this->ascii($tab->waiter)."\n");
+		$printer->text("Hora: ".date('d/m/Y h:i A', strtotime($order->created_at))."\n");
+		$printer->text("------------------------------------------\n");
+
+		$course = NULL;
+		foreach( $items as $i ){
+
+			if( $course !== (int) $i->course ){
+				$course = (int) $i->course;
+				$printer->setEmphasis(TRUE);
+				$printer->text("-- Tiempo ".$course." --\n");
+				$printer->setEmphasis(FALSE);
+			}
+
+			$printer->setTextSize(2, 2);
+			$printer->text($i->quantity." x ".$this->ascii($i->product_name)."\n");
+			$printer->setTextSize(1, 1);
+
+			foreach( $i->mods as $mod_text ){
+				// bold, wrapped at 36 chars; continuation lines stay indented so they never look detached from their dish
+				$printer->setEmphasis(TRUE);
+				foreach( explode("\n", wordwrap($this->ascii($mod_text), 36, "\n", TRUE)) as $n => $part ){
+					$printer->text(($n === 0 ? "   ** " : "      ").$part."\n");
+				}
+				$printer->setEmphasis(FALSE);
+			}
+
+			if( $i->notes ){
+				$printer->text("   >> ".$this->ascii($i->notes)."\n");
+			}
+		}
+
+		$printer->text("------------------------------------------\n");
+		$printer->feed(3);
+		$printer->cut();
+
+		return $this->printing->bytes($printer, $conn);
 	}
 }

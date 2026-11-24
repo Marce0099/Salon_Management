@@ -7,6 +7,18 @@
 			<label for="name_category">Categoría:</label>
 			<input type="text" name="name_category" id="name_category" required="required" class="form-control" value="<?php echo $is_edit ? $category->name_category : ''; ?>">
 		</div>
+		<?php if( !empty($kitchen_printers) ) : ?>
+		<div class="form-group">
+			<label for="id_printer">Impresora de comandas:</label>
+			<select name="id_printer" id="id_printer" class="form-control">
+				<option value="">Predeterminada (<?php echo htmlspecialchars($kitchen_printers[0]->name); ?>)</option>
+				<?php foreach( $kitchen_printers as $kp ) : ?>
+				<option value="<?php echo (int) $kp->id_printer; ?>" <?php echo $is_edit && (int) $category->id_printer === (int) $kp->id_printer ? 'selected' : ''; ?>><?php echo htmlspecialchars($kp->name); ?></option>
+				<?php endforeach; ?>
+			</select>
+			<small class="text-muted">Los platillos de esta categoría se imprimen en esa impresora (ej. Bebidas en la barra). Configure las impresoras en <a href="<?php echo base_url('printers'); ?>">Impresoras</a>.</small>
+		</div>
+		<?php endif; ?>
 		<input type="hidden" name="tk" value="<?php echo $tk; ?>">
 		<div class="form-group">
 			<button class="btn btn-primary" id="btn-submit">Guardar</button>

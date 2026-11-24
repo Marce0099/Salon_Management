@@ -73,8 +73,29 @@ class Printers extends Admin_Controller{
 			'show_inactive' => $show_inactive,
 			'counts'        => $this->printers_mdl->countByStatus(),
 			'tk'            => $this->token(),
+			'receipt_printers' => $this->printers_mdl->activeByRole('receipt'),
+			'station'       => isset($_COOKIE['pos_receipt_printer']) ? (int) $_COOKIE['pos_receipt_printer'] : 0,
+			'default_kitchen' => ($k = $this->printers_mdl->activeByRole('kitchen')) ? (int) $k[0]->id_printer : 0,
 		);
 		$this->renderPanel('printers');
+	}
+
+	/** This device prints its receipts on the chosen receipt printer (cookie, one year). Empty = the default receipt printer. */
+	public function set_station(){
+
+		$this->requirePost();
+
+		$id = (int) $this->input->post('id_printer');
+		$p = $id ? $this->printers_mdl->get($id) : NULL;
+
+		if( $id && (!$p || $p->role !== 'receipt' || !$p->active) ){ $this->fail('Elija una impresora de recibos activa'); }
+
+		setcookie('pos_receipt_printer', $id ? (string) $id : '', array('expires' => $id ? time() + 365 * 86400 : time() - 3600, 'path' => '/', 'httponly' => TRUE, 'samesite' => 'Lax'));
+
+		$this->audit->log('print.station', 'printer', $id ?: NULL, array('best_effort' => TRUE,
+			'summary' => $id ? 'Esta computadora imprime recibos en '.$p->name : 'Esta computadora usa la impresora de recibos predeterminada'));
+
+		$this->json(array('type' => 'success', 'message' => $id ? 'Esta computadora imprimirá los recibos en '.$p->name : 'Esta computadora usará la impresora de recibos predeterminada'));
 	}
 
 	public function register(){
