@@ -95,10 +95,54 @@ class Printing{
 
 	/* ---------- queue ---------- */
 
-	/** First active printer of a role (routing per station comes in plan step 3). */
+	/** First active printer of a role = the default one of that role. */
 	public function printerFor($role){
 
 		return $this->CI->db->where('role', $role)->where('active', 1)->order_by('id_printer')->limit(1)->get('printers')->row();
+	}
+
+	/**
+	 * Kitchen routing (plan step 3): for each product id, the kitchen printer of its menu category
+	 * (`service_category.id_printer`). No category printer, or one that is inactive / not a kitchen printer,
+	 * falls back to the default kitchen printer so a ticket is never lost. Returns array(id_product => printer row|NULL).
+	 */
+	public function routeProducts($ids){
+
+		$ids = array_values(array_unique(array_map('intval', (array) $ids)));
+		$default = $this->printerFor('kitchen');
+		$out = array();
+
+		if( !$ids ){ return $out; }
+
+		$printers = array();
+		foreach( $this->CI->db->where('role', 'kitchen')->where('active', 1)->get('printers')->result() as $p ){
+			$printers[(int) $p->id_printer] = $p;
+		}
+
+		$sql = 'SELECT p.id_product, c.id_printer FROM products p LEFT JOIN service_category c ON c.id_service_category = p.id_service_category WHERE p.id_product IN ('.implode(',', $ids).')';
+		foreach( $this->CI->db->query($sql)->result() as $r ){
+			$id_printer = (int) $r->id_printer;
+			$out[(int) $r->id_product] = ($id_printer && isset($printers[$id_printer])) ? $printers[$id_printer] : $default;
+		}
+
+		foreach( $ids as $id ){
+			if( !isset($out[$id]) ){ $out[$id] = $default; } // product no longer in the catalog
+		}
+
+		return $out;
+	}
+
+	/** Receipt printer for THIS device: the one chosen in /printers (cookie `pos_receipt_printer`), else the default receipt printer. */
+	public function receiptPrinter(){
+
+		$id = isset($_COOKIE['pos_receipt_printer']) ? (int) $_COOKIE['pos_receipt_printer'] : 0;
+
+		if( $id ){
+			$p = $this->CI->db->where('id_printer', $id)->where('role', 'receipt')->where('active', 1)->get('printers')->row();
+			if( $p ){ return $p; }
+		}
+
+		return $this->printerFor('receipt');
 	}
 
 	/** Stores a job (status pending). `$printer` = row, or NULL to pick the role's printer. Returns the job id. */
@@ -194,15 +238,39 @@ class Printing{
 
 		// the kitchen screen reads the outcome from the order itself
 		if( $job->kind === 'comanda' && $job->ref_type === 'order' && $job->ref_id ){
-
-			$data = array('print_status' => $error === '' ? 'printed' : 'failed', 'print_error' => $error === '' ? NULL : mb_substr($error, 0, 255, 'UTF-8'));
-			if( $error === '' ){ $data['printed_at'] = date('Y-m-d H:i:s'); }
-			$db->where('id_order', (int) $job->ref_id)->update('orders_kitchen', $data);
+			$this->refreshOrderStatus((int) $job->ref_id);
 		}
 
 		if( $error !== '' ){
 			log_message('error', 'print job #'.$job->id_job.' ('.$job->title.') failed: '.$error);
 		}
+	}
+
+	/**
+	 * An order can have one comanda per printer (kitchen, bar...). Its print status summarises the LATEST job of each printer:
+	 * any failed = failed (error names the printer), any waiting = pending, else printed. Reprints supersede older jobs.
+	 */
+	public function refreshOrderStatus($id_order){
+
+		$db = $this->CI->db;
+
+		$rows = $db->query('SELECT j.status, j.last_error, j.printer_name FROM print_jobs j
+			JOIN (SELECT id_printer, MAX(id_job) AS mj FROM print_jobs WHERE kind = "comanda" AND ref_type = "order" AND ref_id = ? GROUP BY id_printer) x ON x.mj = j.id_job
+			ORDER BY j.id_job', array((int) $id_order))->result();
+
+		if( !$rows ){ return; }
+
+		$failed = array(); $waiting = FALSE;
+		foreach( $rows as $r ){
+			if( $r->status === 'failed' ){ $failed[] = ($r->printer_name !== NULL ? $r->printer_name.': ' : '').(string) $r->last_error; }
+			elseif( $r->status !== 'printed' ){ $waiting = TRUE; }
+		}
+
+		if( $failed ){ $data = array('print_status' => 'failed', 'print_error' => mb_substr(implode(' | ', $failed), 0, 255, 'UTF-8')); }
+		elseif( $waiting ){ $data = array('print_status' => 'pending', 'print_error' => NULL); }
+		else{ $data = array('print_status' => 'printed', 'print_error' => NULL, 'printed_at' => date('Y-m-d H:i:s')); }
+
+		$db->where('id_order', (int) $id_order)->update('orders_kitchen', $data);
 	}
 
 	/* ---------- transports (return '' on success, else the error text) ---------- */

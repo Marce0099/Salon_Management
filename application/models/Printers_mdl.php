@@ -12,8 +12,15 @@ class Printers_mdl extends CI_Model{
 
 		return $this->db->query('SELECT p.*,
 				(SELECT COUNT(*) FROM print_jobs j WHERE j.id_printer = p.id_printer AND j.status = "failed") AS n_failed,
-				(SELECT j.status FROM print_jobs j WHERE j.id_printer = p.id_printer ORDER BY j.id_job DESC LIMIT 1) AS last_status
+				(SELECT j.status FROM print_jobs j WHERE j.id_printer = p.id_printer ORDER BY j.id_job DESC LIMIT 1) AS last_status,
+				(SELECT GROUP_CONCAT(c.name_category ORDER BY c.name_category SEPARATOR ", ") FROM service_category c WHERE c.id_printer = p.id_printer) AS categories
 			FROM printers p WHERE p.active = ? ORDER BY p.role, p.name', array($inactive ? 0 : 1))->result();
+	}
+
+	/** Active printers of a role, oldest first (the first kitchen one is the default). */
+	public function activeByRole($role){
+
+		return $this->db->where(array('role' => $role, 'active' => 1))->order_by('id_printer')->get('printers')->result();
 	}
 
 	public function nameTaken($name, $exclude = 0){

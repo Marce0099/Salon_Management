@@ -13,10 +13,10 @@ The server never "prints"; it **renders bytes once, stores a job, and delivers i
 
 The same job format and tables are meant to be reused by the future Rust/Tauri backend (agent mode = the Tauri terminal / Windows service).
 
-## Steps
+## Steps (status 2026-11-23: 1, 2 and 3 done)
 1. **Foundation (this branch).** Migration 030: `printers`, `print_jobs`, setting `receipt_copy`. Library `Printing` (render to bytes with `DummyPrintConnector`, store, deliver, retry). `Printers` admin screen (CRUD, test print, status), queue screen `/printers/queue` (retry, reprint, payload preview). Audit events. Fake network printer for tests (`tools/fake_printer.php`).
 2. **Move both paths onto it.** `Kitchen::printTicket` and `Sales::printInvoice` build bytes and call `Printing`; kitchen keeps `orders_kitchen.print_status`; receipts get job status + reprint; receipt copy count becomes a setting. Legacy settings (`kitchen_printer_name`, `'CAJA'`) are seeded into `printers` so existing installs keep working.
-3. **Routing.** Several kitchen stations (kitchen/bar): a product or category points to a printer role; one order may split into several jobs. Receipt printer per cashier station (terminal id).
+3. **Routing (done).** `service_category.id_printer` -> kitchen printer, one comanda per printer; receipt printer per device (cookie). Not done: per-PRODUCT override (would add `products.id_printer`, resolved before the category), routing by terminal id (arrives with the Tauri terminal).
 4. **Agent** for USB printers on other PCs: `GET /print/jobs?station=X` (token auth), print locally, `POST /print/jobs/{id}/result`. Reuses `print_jobs` as-is.
 5. (Rust/Tauri) mirror schema and renderer; PHP output is the reference bytes.
 

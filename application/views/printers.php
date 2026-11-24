@@ -4,6 +4,19 @@
 </h3>
 <p class="text-muted" style="font-size:13px;">Cada impresora recibe los tickets de su tipo: <b>Cocina</b> (comandas) o <b>Recibos</b> (factura al cliente). Una impresora de red (Ethernet/Wi-Fi) solo necesita su dirección IP; una USB se conecta por el nombre con que aparece en Windows en el equipo del servidor.</p>
 
+<?php if( !empty($receipt_printers) ) : ?>
+<div class="well well-sm" style="margin-top:10px;">
+	<b>Esta computadora imprime los recibos en:</b>
+	<select id="station" class="form-control input-sm" style="display:inline-block; width:auto; margin:0 6px;">
+		<option value="">Predeterminada (<?php echo htmlspecialchars($receipt_printers[0]->name); ?>)</option>
+		<?php foreach( $receipt_printers as $rp ) : ?>
+		<option value="<?php echo (int) $rp->id_printer; ?>" <?php echo $station === (int) $rp->id_printer ? 'selected' : ''; ?>><?php echo htmlspecialchars($rp->name); ?></option>
+		<?php endforeach; ?>
+	</select>
+	<small class="text-muted">Se recuerda en este navegador: cada caja elige su propia impresora de recibos.</small>
+</div>
+<?php endif; ?>
+
 <label style="font-weight:normal;"><input type="checkbox" onclick="location.href='<?php echo base_url('printers'); ?>' + (this.checked ? '?inactive=1' : '')" <?php echo $show_inactive ? 'checked' : ''; ?>> Ver desactivadas</label>
 
 <?php if( empty($printers) ) : ?>
@@ -16,7 +29,8 @@
 	<?php foreach( $printers as $p ) : ?>
 		<tr>
 			<td><?php echo htmlspecialchars($p->name); ?></td>
-			<td><?php echo $p->role === 'kitchen' ? 'Cocina (comandas)' : 'Recibos (factura)'; ?></td>
+			<td><?php echo $p->role === 'kitchen' ? 'Cocina (comandas)' : 'Recibos (factura)'; ?>
+				<?php if( $p->role === 'kitchen' ) : ?><br><small class="text-muted"><?php echo $p->categories ? htmlspecialchars($p->categories) : ''; ?><?php echo (int) $p->id_printer === $default_kitchen ? ($p->categories ? ' + ' : '').'el resto (predeterminada)' : ''; ?></small><?php endif; ?></td>
 			<td><?php echo $p->conn_type === 'network' ? 'Red: '.htmlspecialchars($p->address).':'.(int) $p->port : 'Windows: '.htmlspecialchars($p->address); ?></td>
 			<td>
 				<?php if( $p->last_status === 'printed' ) : ?><span class="label label-success">Impreso</span>
@@ -42,6 +56,11 @@
 <?php endif; ?>
 <input type="hidden" id="tk" value="<?php echo $tk; ?>">
 <script>
+	$('#station').on('change', function(){
+		$.post('<?php echo base_url('printers/set_station'); ?>', { tk: $('#tk').val(), id_printer: $(this).val() }, function(r){
+			new PNotify({ title: 'Notificación', text: r.message, type: r.type, styling: 'bootstrap3', delay: 3500 });
+		}, 'json').fail(function(){ new PNotify({ title: 'Notificación', text: 'Error de conexión', type: 'error', styling: 'bootstrap3' }); });
+	});
 	$('.js-test').on('click', function(){
 		var b = $(this).prop('disabled', true);
 		$.post('<?php echo base_url('printers/test'); ?>', { tk: $('#tk').val(), id_printer: b.data('id') }, function(r){

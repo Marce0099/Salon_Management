@@ -16,7 +16,7 @@ class Service_categories extends Admin_Controller{
 
 		$this->load->library('easysearch');
 
-		$search['query'] = 'select * from service_category';
+		$search['query'] = 'select c.*, p.name as printer_name from service_category c left join printers p on p.id_printer = c.id_printer';
 		$search['order_by'] = array( 'name_category' => 'asc' );
 		$search['return_as'] = 'categorias';
 		$search['fields'] = array(
@@ -42,6 +42,19 @@ class Service_categories extends Admin_Controller{
 		return $this->db->query( $sql )->row();
 	}
 
+	/** Kitchen printer chosen in the form: NULL (default printer) or the id of an ACTIVE kitchen printer. */
+	private function postedPrinter(){
+
+		$id = (int) $this->input->post('id_printer');
+		if( !$id ){ return NULL; }
+
+		if( !$this->db->where(array('id_printer' => $id, 'role' => 'kitchen', 'active' => 1))->get('printers')->row() ){
+			throw new Exception('Impresora inválida');
+		}
+
+		return $id;
+	}
+
 	public function register(){
 
 		if( !$this->is_admin() ){
@@ -64,9 +77,11 @@ class Service_categories extends Admin_Controller{
 						throw new Exception('Esa categoría ya está registrada');
 					}
 
+					$id_printer = $this->postedPrinter();
+
 					$this->db->trans_start();
-					$this->db->insert('service_category', array( 'name_category' => $name_category));
-					$this->audit->log('category.create', 'service_category', $this->db->insert_id(), array('summary' => 'Categoría creada: '.$name_category, 'after' => array('name_category' => $name_category)));
+					$this->db->insert('service_category', array( 'name_category' => $name_category, 'id_printer' => $id_printer));
+					$this->audit->log('category.create', 'service_category', $this->db->insert_id(), array('summary' => 'Categoría creada: '.$name_category, 'after' => array('name_category' => $name_category, 'id_printer' => $id_printer)));
 					$this->db->trans_complete();
 
 					$new_tk = generateToken();
@@ -122,10 +137,12 @@ class Service_categories extends Admin_Controller{
 						throw new Exception('Esa categoría ya está registrada');
 					}
 
+					$id_printer = $this->postedPrinter();
+
 					$before = $this->audit->row('service_category', 'id_service_category', $id_service_category);
 					$this->db->trans_start();
-					$this->db->update('service_category', array( 'name_category' => $name_category), array( 'id_service_category' => $id_service_category ));
-					$this->audit->log('category.update', 'service_category', $id_service_category, array('summary' => 'Categoría renombrada: '.$name_category, 'before' => array('name_category' => $before ? $before['name_category'] : NULL), 'after' => array('name_category' => $name_category)));
+					$this->db->update('service_category', array( 'name_category' => $name_category, 'id_printer' => $id_printer), array( 'id_service_category' => $id_service_category ));
+					$this->audit->log('category.update', 'service_category', $id_service_category, array('summary' => 'Categoría modificada: '.$name_category, 'before' => array('name_category' => $before ? $before['name_category'] : NULL, 'id_printer' => $before ? $before['id_printer'] : NULL), 'after' => array('name_category' => $name_category, 'id_printer' => $id_printer)));
 					$this->db->trans_complete();
 
 					$new_tk = generateToken();
@@ -175,6 +192,8 @@ class Service_categories extends Admin_Controller{
 
 		$view_data['tk'] = generateToken();
 		$this->session->set_userdata('tk', $view_data['tk']);
+
+		$view_data['kitchen_printers'] = $this->db->where(array('role' => 'kitchen', 'active' => 1))->order_by('id_printer')->get('printers')->result();
 
 		$this->content_data = $view_data;
 		$this->renderPanel('form_service_categories');

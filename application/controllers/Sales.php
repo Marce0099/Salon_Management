@@ -1293,7 +1293,7 @@ class Sales extends Admin_Controller{
 
 		// stored in the print queue first: a dead printer leaves a failed job that can be retried or reprinted
 		$res = $this->printing->send('receipt', 'receipt', 'sale', (int) $id_sale,
-			'Factura #'.(int) $id_sale.($copy ? ' (copia)' : '').(!empty($sale->table_label) ? ' - Mesa '.$sale->table_label : ''), $bytes, $this->id_admin);
+			'Factura #'.(int) $id_sale.($copy ? ' (copia)' : '').(!empty($sale->table_label) ? ' - Mesa '.$sale->table_label : ''), $bytes, $this->id_admin, $this->printing->receiptPrinter());
 
 		return $res['ok'];
 	}

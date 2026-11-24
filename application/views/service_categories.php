@@ -24,6 +24,7 @@
 	<thead>
 		<tr>
 			<th>Categoría</th>
+			<th>Impresora de comandas</th>
 			<?php if( $this->controller->is_admin() ) : ?>
 			<th>Acciones</th>
 			<?php endif; ?>
@@ -33,6 +34,7 @@
 		<?php foreach( $categorias as $c ) : ?>
 		<tr>
 			<td><?php echo $c->name_category; ?></td>
+			<td><?php echo $c->printer_name === NULL ? '<span class="text-muted">Predeterminada</span>' : htmlspecialchars($c->printer_name); ?></td>
 			<?php if( $this->controller->is_admin() ) : ?>
 			<td><a href="<?php echo base_url('service_categories/edit/'.$c->id_service_category); ?>" class="btn btn-default btn-xs">Editar</a></td>
 			<?php endif; ?>
