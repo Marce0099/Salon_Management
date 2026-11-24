@@ -73,6 +73,8 @@ class Printers extends Admin_Controller{
 			'show_inactive' => $show_inactive,
 			'counts'        => $this->printers_mdl->countByStatus(),
 			'tk'            => $this->token(),
+			'agents'        => $this->printers_mdl->agents(),
+			'server_hint'   => $this->serverHint(),
 			'receipt_printers' => $this->printers_mdl->activeByRole('receipt'),
 			'station'       => isset($_COOKIE['pos_receipt_printer']) ? (int) $_COOKIE['pos_receipt_printer'] : 0,
 			'default_kitchen' => ($k = $this->printers_mdl->activeByRole('kitchen')) ? (int) $k[0]->id_printer : 0,
@@ -110,7 +112,7 @@ class Printers extends Admin_Controller{
 
 	private function form($id){
 
-		$view = array('tk' => $this->token());
+		$view = array('tk' => $this->token(), 'agents' => array_values(array_filter($this->printers_mdl->agents(), function($a){ return $a->active; })));
 
 		if( $id ){
 			$p = $this->printers_mdl->get($id);
@@ -137,10 +139,11 @@ class Printers extends Admin_Controller{
 		if( !in_array($role, array('receipt', 'kitchen'), TRUE) ){ $this->fail('Elija para qué se usa la impresora'); }
 
 		$type = (string) $this->input->post('conn_type');
-		if( !in_array($type, array('network', 'windows'), TRUE) ){ $this->fail('Elija el tipo de conexión'); }
+		if( !in_array($type, array('network', 'windows', 'agent'), TRUE) ){ $this->fail('Elija el tipo de conexión'); }
 
 		$address = trim((string) $this->input->post('address'));
 		$port = 9100;
+		$id_agent = NULL;
 
 		if( $type === 'network' ){
 
@@ -150,6 +153,17 @@ class Printers extends Admin_Controller{
 			$port_in = trim((string) $this->input->post('port'));
 			$port = $port_in === '' ? 9100 : (preg_match('/^\d{1,5}$/', $port_in) ? (int) $port_in : 0);
 			if( $port < 1 || $port > 65535 ){ $this->fail('El puerto debe estar entre 1 y 65535'); }
+		}
+		elseif( $type === 'agent' ){
+
+			$id_agent = (int) $this->input->post('id_agent');
+			$agent = $id_agent ? $this->printers_mdl->agent($id_agent) : NULL;
+			if( !$agent || !$agent->active ){ $this->fail('Elija la estación de impresión (la PC donde está conectada la impresora)'); }
+
+			// the name is whatever Windows calls the printer ON THAT PC: only control characters and < > are refused
+			if( $address === '' || mb_strlen($address, 'UTF-8') > 150 || preg_match('/[\x00-\x1f<>]/', $address) ){
+				$this->fail('Escriba el nombre de la impresora tal como aparece en Windows en esa PC');
+			}
 		}
 		else{
 
@@ -164,10 +178,60 @@ class Printers extends Admin_Controller{
 		if( $id && !$this->printers_mdl->get($id) ){ $this->fail('Impresora inválida'); }
 		if( $this->printers_mdl->nameTaken($name, $id) ){ $this->fail('Ya existe una impresora con ese nombre'); }
 
-		$new = $this->printers_mdl->save($id, array('name' => $name, 'role' => $role, 'conn_type' => $type, 'address' => $address, 'port' => $port));
+		$new = $this->printers_mdl->save($id, array('name' => $name, 'role' => $role, 'conn_type' => $type, 'address' => $address, 'port' => $port, 'id_agent' => $id_agent));
 		if( !$new ){ $this->fail('No se pudo guardar la impresora'); }
 
 		$this->ok($id ? 'Impresora actualizada' : 'Impresora creada', array('redirect' => base_url('printers')));
+	}
+
+	/** IP the agents must use to reach this server (the address the admin typed may be "localhost"). */
+	private function serverHint(){
+
+		$host = $this->input->server('HTTP_HOST');
+		if( $host && !preg_match('/^(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/i', $host) ){ return rtrim(base_url(), '/'); }
+
+		$ip = $this->input->server('SERVER_ADDR');
+		if( !$ip || $ip === '::1' || $ip === '127.0.0.1' ){ $ip = gethostbyname((string) gethostname()); } // the PC's LAN address
+		return 'http://'.($ip && $ip !== '127.0.0.1' ? $ip : 'IP-DEL-SERVIDOR');
+	}
+
+	/** Creates a print station (the PC with a USB printer). The token is returned ONCE. */
+	public function agent_create(){
+
+		$this->requirePost();
+
+		$name = $this->cleanText($this->input->post('name'), 60);
+		if( $name === NULL ){ $this->fail('Escriba el nombre de la estación (ej. Caja 2, Cocina; sin símbolos < >)'); }
+		if( $this->printers_mdl->agentNameTaken($name) ){ $this->fail('Ya existe una estación con ese nombre'); }
+
+		$token = bin2hex(random_bytes(24));
+		if( !$this->printers_mdl->createAgent($name, $token) ){ $this->fail('No se pudo crear la estación'); }
+
+		$this->ok('Estación creada. Copie el token ahora: no se vuelve a mostrar', array('token' => $token, 'name' => $name, 'server' => $this->serverHint()));
+	}
+
+	public function agent_rotate(){
+
+		$this->requirePost();
+
+		$a = $this->printers_mdl->agent($this->input->post('id_agent'));
+		if( !$a ){ $this->fail('Estación inválida'); }
+
+		$token = bin2hex(random_bytes(24));
+		if( !$this->printers_mdl->rotateAgentToken($a->id_agent, $token) ){ $this->fail('No se pudo regenerar el token'); }
+
+		$this->ok('Token regenerado. El anterior ya no funciona; cópielo ahora', array('token' => $token, 'name' => $a->name, 'server' => $this->serverHint()));
+	}
+
+	public function agent_toggle(){
+
+		$this->requirePost();
+
+		$a = $this->printers_mdl->agent($this->input->post('id_agent'));
+		if( !$a ){ $this->fail('Estación inválida'); }
+
+		$this->printers_mdl->setAgentActive($a->id_agent, !$a->active);
+		$this->ok($a->active ? 'Estación desactivada' : 'Estación reactivada');
 	}
 
 	public function delete($id = 0){
@@ -202,7 +266,7 @@ class Printers extends Admin_Controller{
 		$this->audit->log('print.test', 'printer', $p->id_printer, array('best_effort' => TRUE,
 			'summary' => 'Prueba de impresión en '.$p->name.($res['ok'] ? '' : ' (falló)'), 'after' => array('id_job' => $res['id_job'], 'ok' => $res['ok'], 'error' => $res['error'])));
 
-		$this->json(array('type' => $res['ok'] ? 'success' : 'error', 'message' => $res['ok'] ? 'Página de prueba enviada a '.$p->name : 'No se pudo imprimir: '.$res['error']));
+		$this->json(array('type' => $res['ok'] ? 'success' : 'error', 'message' => $res['ok'] ? ($p->conn_type === 'agent' ? 'Página de prueba enviada a la estación; se imprimirá en unos segundos' : 'Página de prueba enviada a '.$p->name) : 'No se pudo imprimir: '.$res['error']));
 	}
 
 	/* ---------- queue ---------- */
@@ -234,7 +298,15 @@ class Printers extends Admin_Controller{
 		$this->audit->log('print.retry', 'print_job', $job->id_job, array('best_effort' => TRUE,
 			'summary' => 'Reintento de impresión #'.$job->id_job.' ('.$job->title.')'.($ok ? '' : ' (falló)'), 'after' => array('ok' => $ok, 'error' => $error)));
 
-		$this->json(array('type' => $ok ? 'success' : 'error', 'message' => $ok ? 'Impreso' : 'No se pudo imprimir: '.$error));
+		$this->json(array('type' => $ok ? 'success' : 'error', 'message' => $ok ? ($this->viaAgent($job) ? 'Enviado a la estación; se imprimirá en unos segundos' : 'Impreso') : 'No se pudo imprimir: '.$error));
+	}
+
+	/** True when the job's printer is on another PC (the job is only queued for its agent, not printed yet). */
+	private function viaAgent($job){
+
+		$p = $job->id_printer ? $this->printers_mdl->get($job->id_printer) : NULL;
+
+		return $p && $p->conn_type === 'agent';
 	}
 
 	/** Prints the same bytes again as a NEW job (a copy of a ticket that already printed). */
@@ -250,7 +322,7 @@ class Printers extends Admin_Controller{
 		$this->audit->log('print.reprint', 'print_job', $job->id_job, array('best_effort' => TRUE,
 			'summary' => 'Reimpresión de #'.$job->id_job.' ('.$job->title.')'.($ok ? '' : ' (falló)'), 'after' => array('new_job' => $id_new, 'ok' => $ok, 'error' => $error)));
 
-		$this->json(array('type' => $ok ? 'success' : 'error', 'message' => $ok ? 'Reimpreso' : 'No se pudo imprimir: '.$error));
+		$this->json(array('type' => $ok ? 'success' : 'error', 'message' => $ok ? ($this->viaAgent($job) ? 'Enviado a la estación; se imprimirá en unos segundos' : 'Reimpreso') : 'No se pudo imprimir: '.$error));
 	}
 
 	/** Text view of a stored job (ESC/POS control codes removed) to see what was sent. */

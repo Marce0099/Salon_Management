@@ -10,11 +10,11 @@ class Printers_mdl extends CI_Model{
 
 	public function all($inactive = FALSE){
 
-		return $this->db->query('SELECT p.*,
+		return $this->db->query('SELECT p.*, a.name AS agent_name, (a.last_seen_at >= NOW() - INTERVAL 45 SECOND) AS agent_online,
 				(SELECT COUNT(*) FROM print_jobs j WHERE j.id_printer = p.id_printer AND j.status = "failed") AS n_failed,
 				(SELECT j.status FROM print_jobs j WHERE j.id_printer = p.id_printer ORDER BY j.id_job DESC LIMIT 1) AS last_status,
 				(SELECT GROUP_CONCAT(c.name_category ORDER BY c.name_category SEPARATOR ", ") FROM service_category c WHERE c.id_printer = p.id_printer) AS categories
-			FROM printers p WHERE p.active = ? ORDER BY p.role, p.name', array($inactive ? 0 : 1))->result();
+			FROM printers p LEFT JOIN print_agents a ON a.id_agent = p.id_agent WHERE p.active = ? ORDER BY p.role, p.name', array($inactive ? 0 : 1))->result();
 	}
 
 	/** Active printers of a role, oldest first (the first kitchen one is the default). */
@@ -63,6 +63,58 @@ class Printers_mdl extends CI_Model{
 		$this->db->trans_start();
 		$this->db->where('id_printer', (int) $id)->update('printers', array('active' => $active ? 1 : 0));
 		$this->audit->log('printer.toggle', 'printer', $id, array('summary' => ($active ? 'Impresora reactivada #' : 'Impresora desactivada #').(int) $id, 'after' => array('active' => $active ? 1 : 0)));
+		$this->db->trans_complete();
+	}
+
+	/* ---------- agents (print stations) ---------- */
+
+	public function agent($id){
+
+		return $this->db->where('id_agent', (int) $id)->get('print_agents')->row();
+	}
+
+	public function agents(){
+
+		return $this->db->query('SELECT a.*, (a.last_seen_at >= NOW() - INTERVAL 45 SECOND) AS online,
+			(SELECT COUNT(*) FROM printers p WHERE p.id_agent = a.id_agent AND p.active = 1) AS n_printers
+			FROM print_agents a ORDER BY a.active DESC, a.name')->result();
+	}
+
+	public function agentNameTaken($name, $exclude = 0){
+
+		$this->db->where('name', $name);
+		if( $exclude ){ $this->db->where('id_agent !=', (int) $exclude); }
+
+		return $this->db->get('print_agents')->row();
+	}
+
+	/** Creates a station; only the sha256 of its token is stored. Returns the id or 0. */
+	public function createAgent($name, $token){
+
+		$this->db->trans_start();
+		$this->db->insert('print_agents', array('name' => $name, 'token_hash' => hash('sha256', $token)));
+		$id = (int) $this->db->insert_id();
+		$this->audit->log('print_agent.create', 'print_agent', $id, array('summary' => 'Estación de impresión creada: '.$name, 'after' => array('name' => $name)));
+		$this->db->trans_complete();
+
+		return $this->db->trans_status() === FALSE ? 0 : $id;
+	}
+
+	public function rotateAgentToken($id, $token){
+
+		$this->db->trans_start();
+		$this->db->where('id_agent', (int) $id)->update('print_agents', array('token_hash' => hash('sha256', $token), 'last_seen_at' => NULL));
+		$this->audit->log('print_agent.rotate', 'print_agent', $id, array('summary' => 'Token de la estación #'.(int) $id.' regenerado (el anterior deja de funcionar)'));
+		$this->db->trans_complete();
+
+		return $this->db->trans_status() !== FALSE;
+	}
+
+	public function setAgentActive($id, $active){
+
+		$this->db->trans_start();
+		$this->db->where('id_agent', (int) $id)->update('print_agents', array('active' => $active ? 1 : 0));
+		$this->audit->log('print_agent.toggle', 'print_agent', $id, array('summary' => ($active ? 'Estación reactivada #' : 'Estación desactivada #').(int) $id, 'after' => array('active' => $active ? 1 : 0)));
 		$this->db->trans_complete();
 	}
 

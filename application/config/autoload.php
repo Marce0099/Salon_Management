@@ -62,6 +62,11 @@ $autoload['packages'] = array();
 
 $autoload['libraries'] = array('database','session','form_validation','audit');
 
+// the print agent API is called by a program, not a browser: no session (it would create a ci_sessions row per poll) and no audit
+if( isset($_SERVER['REQUEST_URI']) && stripos($_SERVER['REQUEST_URI'], '/print_agent/') !== FALSE ){
+	$autoload['libraries'] = array('database');
+}
+
 
 /*
 | -------------------------------------------------------------------

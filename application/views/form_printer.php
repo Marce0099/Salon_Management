@@ -14,8 +14,17 @@
 			<select name="conn_type" id="conn_type" class="form-control">
 				<option value="network" <?php echo $type === 'network' ? 'selected' : ''; ?>>Red (Ethernet / Wi-Fi) — por IP</option>
 				<option value="windows" <?php echo $type === 'windows' ? 'selected' : ''; ?>>Windows (USB u otra instalada en el servidor) — por nombre</option>
+				<option value="agent" <?php echo $type === 'agent' ? 'selected' : ''; ?>>Estación (USB conectada a otra PC) — por agente</option>
 			</select>
 		</div>
+		<div class="form-group" id="grp-agent"><label>Estación (PC donde está conectada)</label>
+			<select name="id_agent" class="form-control">
+				<option value="">— elija —</option>
+				<?php foreach( $agents as $ag ) : ?>
+				<option value="<?php echo (int) $ag->id_agent; ?>" <?php echo $is_edit && (int) $printer->id_agent === (int) $ag->id_agent ? 'selected' : ''; ?>><?php echo htmlspecialchars($ag->name); ?></option>
+				<?php endforeach; ?>
+			</select>
+			<small class="text-muted">Cree las estaciones en <a href="<?php echo base_url('printers'); ?>">Impresoras</a> &gt; Estaciones de impresión.</small></div>
 		<div class="form-group"><label id="lbl-address">Dirección IP</label><input type="text" name="address" maxlength="150" class="form-control" value="<?php echo $is_edit ? htmlspecialchars($printer->address) : ''; ?>">
 			<small class="text-muted" id="hint-address"></small></div>
 		<div class="form-group" id="grp-port"><label>Puerto</label><input type="text" inputmode="numeric" name="port" maxlength="5" class="form-control" value="<?php echo $is_edit ? (int) $printer->port : '9100'; ?>"><small class="text-muted">Casi todas las impresoras térmicas usan 9100.</small></div>
@@ -27,10 +36,11 @@
 </div>
 <script>
 	function syncType(){
-		var net = $('#conn_type').val() === 'network';
+		var t = $('#conn_type').val(), net = t === 'network', ag = t === 'agent';
 		$('#grp-port').toggle(net);
-		$('#lbl-address').text(net ? 'Dirección IP o nombre de red' : 'Nombre de la impresora en Windows');
-		$('#hint-address').text(net ? 'Ej. 192.168.1.50 (imprima la hoja de configuración de la impresora para ver su IP).' : 'Tal como aparece en Windows (Impresoras y escáneres), ej. COCINA. Para una impresora de otro equipo: smb://equipo/impresora');
+		$('#grp-agent').toggle(ag);
+		$('#lbl-address').text(net ? 'Dirección IP o nombre de red' : (ag ? 'Nombre de la impresora en esa PC' : 'Nombre de la impresora en Windows'));
+		$('#hint-address').text(net ? 'Ej. 192.168.1.50 (imprima la hoja de configuración de la impresora para ver su IP).' : (ag ? 'Exactamente como aparece en Windows (Impresoras y escáneres) en la PC de la estación, ej. EPSON TM-T20II Receipt.' : 'Tal como aparece en Windows (Impresoras y escáneres), ej. COCINA. Para una impresora de otro equipo: smb://equipo/impresora'));
 	}
 	$('#conn_type').on('change', syncType); syncType();
 

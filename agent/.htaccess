@@ -1,0 +1,4 @@
+# agent.json holds the station token and agent.log may list tickets: never serve them
+<FilesMatch "\.(json|log|old)$">
+    Require all denied
+</FilesMatch>
