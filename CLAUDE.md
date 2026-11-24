@@ -7,7 +7,7 @@ Internal point-of-sale for a restaurant in Nicaragua (originally a salon/cosmeti
 - **Backend:** PHP 7/8 · CodeIgniter **3.0** (`system/`) + HMVC via the `MX` module extension. (Older notes say "CI2": the query builder `group_start()` etc. is CI3.)
 - **Database:** MariaDB/MySQL (XAMPP), DB name `restaurant` (credentials in `application/config/database.php`, `.env` `DB_NAME=restaurant`). Charset of the app connection is 3-byte `utf8`; the mysql CLI needs `--default-character-set=utf8mb4` for accents.
 - **Frontend:** Bootstrap 3 · Gentelella admin theme · jQuery · Chart.js · PNotify · bootbox. Mobile layer: `assets/css/mobile.css` (touch sizes, bottom nav, slide-in drawer) and `assets/css/floor.css` (floor canvas).
-- **Printing:** ESC/POS thermal printers through `mike42/escpos-php` (`print/autoload.php`): receipts → Windows printer `CAJA`; kitchen tickets → printer named in setting `kitchen_printer_name` (default `COCINA`). Neither printer exists on every machine: failures are logged/recorded and never fail a sale or order.
+- **Printing:** ESC/POS thermal printers through `mike42/escpos-php` (`print/autoload.php`). Every ticket (comanda, receipt, test) is rendered ONCE to bytes and goes through the **print queue** (`Printing` library, tables `printers`/`print_jobs`, see "Print queue" below); printers are configured in `/printers` (network = raw TCP port 9100, or a Windows printer name on the server PC). A missing/dead printer never fails a sale or order: the job stays `failed` and can be retried from `/printers/queue`. Plan and next steps: `.claude/docs/printing_plan.md`. Test without hardware: `C:/xampp/php/php.exe tools/fake_printer.php` (fake Ethernet printer on 9100).
 - **PDF:** html2pdf (`includes/html2pdf/`) → `uploads/receipts/` (receipt copy per sale).
 
 ## Key Directories
@@ -80,6 +80,15 @@ Money convention: prices, tip and IVA are C$ (see CÓRDOBA-ONLY above). Tip = `t
 
 Availability while ordering = `products.stock` (`Kitchen_mdl::available`), since the decrement happens when the order is sent. `Floor::close_tab` refuses a table with active items. Equal-split money: parts apportion subtotal/tip/IVA with floor-to-cents, last part takes the remainder (`Bills_mdl::childTotals`).
 
+### Print queue (migration 030)
+
+| Table | Key columns / rules |
+|---|---|
+| `printers` | `name` UNIQUE, `role` receipt\|kitchen, `conn_type` network\|windows, `address` (IP/host, or Windows printer name / LPT/COM / `smb://host/printer`), `port` (9100), `active` soft delete. Migration 030 seeds "Caja" (`CAJA`) and "Cocina" (legacy setting) as `windows`. Routing = first active printer of the role by id (per-station routing is plan step 3) |
+| `print_jobs` | one thermal print: `id_printer` (SET NULL) + `printer_name` snapshot, `kind` comanda\|receipt\|test, `ref_type`/`ref_id` (`order`/`sale`/`printer`), `title`, `payload` MEDIUMBLOB = the exact ESC/POS bytes (inserted as `UNHEX()`), `status` pending\|printing\|printed\|failed, `attempts`, `last_error`, `claimed_at` (a job stuck in `printing` > 60 s can be claimed again), `printed_at` |
+
+`application/libraries/Printing.php`: `canvas()`/`bytes()` render into memory (`DummyPrintConnector`), `send()` = `enqueue()` + `deliver()` (atomic claim; transport `network` = `stream_socket_client` with 3 s connect / 5 s write timeouts, `windows` = `WindowsPrintConnector`), `reprint()` clones a job. Delivery updates `orders_kitchen.print_status` for comandas. Controller `Printers` (admin): `/printers` CRUD + "Probar", `/printers/queue` (retry failed, reprint, `/printers/preview/{id}` text view). The thermal receipt prints twice (receipt + copy) unless `receipt_copy = 0`. Audit: `printer.create/update/toggle`, `print.test/retry/reprint`.
+
 ### Shift inventory report (migration 029)
 
 Informational only (never touches `products.stock`). Super registers storages at `/storages` (`inv_storages`: `name` UNIQUE, `description`, `sort_order`, `active`). Administrators and super use `/shift_inventory`: opening a report (`inv_shifts`: `status` open|done|void, opened/closed by + name snapshots; ONE open at a time, guarded by `GET_LOCK("inv_shift_open")`) snapshots every active storage into `inv_shift_storages` (`status` pending|counted, `counted_by(_name)`, `counted_at`, `is_empty`, `notes`; UNIQUE(id_shift,id_storage)). Counts are `inv_lines` (product snapshots, optional pack `id_pack/pack_name/pack_units`, `qty`, `base_units` = qty x pack units). **First save wins**: `Shift_inventory_mdl::saveCount` locks storage + shift rows FOR UPDATE; an already counted storage is refused (`taken`, audited as denied) except for super edits (`shift_inv.edit`) while the shift is open. The close button needs 0 pending storages; after `done`/`void` every write is refused for everyone. Print page `/shift_inventory/print_report/{id}` (standalone A4 layout). Audit actions: see `.claude/docs/audit_events.md`.
@@ -135,7 +144,7 @@ Informational only (never touches `products.stock`). Super registers storages at
 
 ### Settings (`settings` key/value; new keys must be seeded by INSERT, `Settings_mdl::save` only UPDATEs)
 
-`company_name`, receipt keys (`receipt_ruc/address/phone/tagline/footer_notice/footer_thanks`), logo keys (`logo_header/login/receipt/purchase_order`, files in `uploads/logos/`), `default_client_id`, `tip_enabled`, `tip_rate`, `tax_rate_iva`, `kitchen_printer_name`, `reservation_hold_minutes` (30), `reservation_default_minutes` (90). Editable in `/settings` (admin): company/receipt/logos, tip, IVA, kitchen printer.
+`company_name`, receipt keys (`receipt_ruc/address/phone/tagline/footer_notice/footer_thanks`), logo keys (`logo_header/login/receipt/purchase_order`, files in `uploads/logos/`), `default_client_id`, `tip_enabled`, `tip_rate`, `tax_rate_iva`, `receipt_copy` (1 = also print the "COPIA DE FACTURA" ticket; the legacy `kitchen_printer_name` only seeded `printers`, no longer read), `reservation_hold_minutes` (30), `reservation_default_minutes` (90). Editable in `/settings` (admin): company/receipt/logos, tip, IVA, receipt copy (printers live in `/printers`).
 
 ### Framework
 
@@ -147,5 +156,5 @@ Informational only (never touches `products.stock`). Super registers storages at
 
 ## Known environment gaps
 
-- Printers `CAJA` / `COCINA` may not exist (print failures are logged; the receipt PDF and HTML ticket always exist).
+- Printers `CAJA` / `COCINA` (seeded as Windows printers) may not exist (failed jobs stay in `/printers/queue`; the receipt PDF and HTML ticket always exist).
 - SMTP login fails on this machine (`sendOpenCash` is best-effort and only logs).

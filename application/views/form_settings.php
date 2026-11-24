@@ -75,10 +75,19 @@
         </div>
 	</div>
 	<div class="form-group">
-		<label class="control-label col-md-3 col-sm-3 col-xs-12" for="kitchen_printer_name">Impresora de cocina:
+		<label class="control-label col-md-3 col-sm-3 col-xs-12" for="receipt_copy">Copia del recibo:
         </label>
 		<div class="col-md-6 col-sm-6 col-xs-12">
-            <input type="text" name="kitchen_printer_name" id="kitchen_printer_name" maxlength="100" class="form-control col-md-7 col-xs-12" value="<?php echo htmlspecialchars($kitchen_printer_name); ?>">
+            <select name="receipt_copy" id="receipt_copy" class="form-control col-md-7 col-xs-12">
+                <option value="1" <?php echo $receipt_copy === '1' ? 'selected' : ''; ?>>Imprimir recibo y una copia</option>
+                <option value="0" <?php echo $receipt_copy === '1' ? '' : 'selected'; ?>>Imprimir solo el recibo</option>
+            </select>
+        </div>
+	</div>
+	<div class="form-group">
+		<label class="control-label col-md-3 col-sm-3 col-xs-12">Impresoras:</label>
+		<div class="col-md-6 col-sm-6 col-xs-12">
+            <p class="form-control-static">Cocina y recibos se configuran en <a href="<?php echo base_url('printers'); ?>">Impresoras</a> (IP o nombre de Windows, prueba de impresión y cola de reintentos).</p>
         </div>
 	</div>
 	<div class="form-group">

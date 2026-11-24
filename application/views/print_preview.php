@@ -1,0 +1,3 @@
+<h3 class="section-title"><?php echo htmlspecialchars($job->title); ?> <a href="<?php echo base_url('printers/queue'); ?>" class="btn btn-default btn-sm pull-right">Volver a la cola</a></h3>
+<p class="text-muted" style="font-size:13px;">Trabajo #<?php echo (int) $job->id_job; ?> · <?php echo $job->printer_name === NULL ? 'sin impresora' : htmlspecialchars($job->printer_name); ?> · <?php echo date('d/m/Y h:i A', strtotime($job->created_at)); ?>. Vista aproximada del texto enviado (sin tamaños ni negritas).</p>
+<pre style="max-width:380px; background:#fff; border:1px solid #ddd; padding:12px; font-size:12px; line-height:1.25;"><?php echo htmlspecialchars($text); ?></pre>

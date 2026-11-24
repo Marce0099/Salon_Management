@@ -3,7 +3,6 @@ require 'print/autoload.php';
 use Mike42\Escpos\Printer;
 use Mike42\Escpos\EscposImage;
 use Mike42\Escpos\PrintConnectors\FilePrintConnector;
-use Mike42\Escpos\PrintConnectors\WindowsPrintConnector;
 
 if( !defined('BASEPATH') ){ exit(); }
 
@@ -739,10 +738,9 @@ class Sales extends Admin_Controller{
 
 			ob_start();
 			$prnt = $this->printInvoice( $id_sale, FALSE );
-			ob_end_clean();
-
-			ob_start();
-			$prnt = $this->printInvoice( $id_sale, TRUE );
+			if( $this->settings_mdl->get('receipt_copy', '1') === '1' ){
+				$prnt = $this->printInvoice( $id_sale, TRUE ) && $prnt;
+			}
 			ob_end_clean();
 
 			$message = '<p>Venta registrada</p>';
@@ -1069,9 +1067,8 @@ class Sales extends Admin_Controller{
 			$receipt_footer_notice = $this->settings_mdl->get('receipt_footer_notice', 'Propina no incluida salvo indicación');
 			$receipt_footer_thanks = $this->settings_mdl->get('receipt_footer_thanks', "Gracias por su visita!\nLo esperamos pronto.");
 
-			$connector = new WindowsPrintConnector('CAJA');
-			$printer = new Printer($connector);
-			$printer->initialize();
+			$this->load->library('printing');
+			list($printer, $connector) = $this->printing->canvas();
 
 			//logo
 			$printer->setJustification(Printer::JUSTIFY_CENTER);
@@ -1286,13 +1283,19 @@ class Sales extends Admin_Controller{
 			$printer->text($receipt_footer_thanks);
 			$printer->feed(2);
 			$printer->cut();
-			$printer->close();
 
-			return TRUE;
+			$bytes = $this->printing->bytes($printer, $connector);
 		}
 		catch( \Throwable $e ){
+			log_message('error', 'receipt render failed for sale #'.(int) $id_sale.': '.$e->getMessage());
 			return FALSE;
 		}
+
+		// stored in the print queue first: a dead printer leaves a failed job that can be retried or reprinted
+		$res = $this->printing->send('receipt', 'receipt', 'sale', (int) $id_sale,
+			'Factura #'.(int) $id_sale.($copy ? ' (copia)' : '').(!empty($sale->table_label) ? ' - Mesa '.$sale->table_label : ''), $bytes, $this->id_admin);
+
+		return $res['ok'];
 	}
 
 	public function sale_form(){
