@@ -91,6 +91,7 @@
     async function showSalesGraph(){
         const graph = "showSalesGraph";
         const canvas = document.querySelector(`#${graph} canvas`);
+        if( !canvas ) return; // admin-only graph, not rendered for workers
 
         const res = await fetchGraph(graph);
         chart[graph]['source'] = res;
@@ -233,6 +234,7 @@
     async function showPaymentMethodGraph(){
         const graph = "showPaymentMethodGraph";
         const canvas = document.querySelector(`#${graph} canvas`);
+        if( !canvas ) return; // admin-only graph, not rendered for workers
 
         const methodMeta = {
             cash:     { label: 'Efectivo',       color: system.colorPalette[0] },
@@ -343,6 +345,7 @@
     async function showNewClientsGraph(){
         const graph = "showNewClientsGraph";
         const canvas = document.querySelector(`#${graph} canvas`);
+        if( !canvas ) return; // admin-only graph, not rendered for workers
 
         const res = await fetchGraph(graph);
         chart[graph]['source'] = res;

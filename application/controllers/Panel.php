@@ -24,11 +24,12 @@
 
 			$data['open_cash'] = $this->cash_mdl->getOpenedCash();
 			$data['cash_movements'] = $data['open_cash'] ? $this->cash_mdl->getCashMovements($data['open_cash']) : NULL;
-			$data['live'] = $this->reports_mdl->live();
+			$data['is_admin'] = $this->is_admin();
+			// waiters only see the open consumption of the tabs they opened
+			$data['live'] = $this->reports_mdl->live($data['is_admin'] ? NULL : $this->get_userID());
 			$data['low_stock_count'] = $this->products_mdl->getLowStockCount() + $this->ingredients_mdl->lowStockCount();
 			// monthly goals and per-employee sales are admin-only everywhere else
 			// (Sale_goals, Employees), so the dashboard does not leak them to workers
-			$data['is_admin'] = $this->is_admin();
 			$data['goal_progress'] = $data['is_admin'] ? $this->statistics_mdl->getCurrentMonthGoalProgress() : NULL;
 
 			$this->content_data = $data;

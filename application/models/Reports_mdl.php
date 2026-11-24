@@ -127,13 +127,15 @@ class Reports_mdl extends CI_Model{
 	}
 
 	/** Live restaurant status for the dashboard. */
-	public function live(){
+	public function live($id_admin = NULL){
 
 		$tables = (int) $this->db->where('active', 1)->count_all_results('dining_tables');
 		$open   = (int) $this->db->query('SELECT COUNT(DISTINCT t.id_table) AS n FROM tabs t JOIN dining_tables d ON d.id_table = t.id_table AND d.active = 1 WHERE t.status = "open"')->row()->n;
 
+		// $id_admin set = only the tabs opened by that account (waiters)
+		$own = $id_admin ? ' AND t.id_admin = '.(int) $id_admin : '';
 		$consumption = $this->db->query('SELECT IFNULL(SUM(oi.quantity * oi.unit_price), 0) AS cor FROM order_items oi
-			JOIN tabs t ON t.id_tab = oi.id_tab AND t.status = "open" WHERE oi.status = "active"')->row()->cor;
+			JOIN tabs t ON t.id_tab = oi.id_tab AND t.status = "open"'.$own.' WHERE oi.status = "active"')->row()->cor;
 
 		$reservations = (int) $this->db->query('SELECT COUNT(*) AS n FROM table_reservations WHERE status = "active" AND DATE(start_at) = CURDATE() AND end_at > NOW()')->row()->n;
 

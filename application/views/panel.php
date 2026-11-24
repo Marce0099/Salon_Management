@@ -15,10 +15,10 @@
     <div class="col-md-3 col-sm-6">
       <a href="<?php echo base_url('floor'); ?>" style="text-decoration:none; color:inherit;">
         <div class="panel panel-default kpi-tile">
-          <div class="panel-heading"><i class="fa fa-cutlery"></i> Consumo abierto</div>
+          <div class="panel-heading"><i class="fa fa-cutlery"></i> <?php echo $is_admin ? 'Consumo abierto' : 'Mis cuentas abiertas'; ?></div>
           <div class="panel-body">
             <div class="kpi-value">C$&nbsp;<?php echo number_format($live['consumption_cor'], 2); ?></div>
-            <div class="kpi-sub">En mesas aún sin cobrar</div>
+            <div class="kpi-sub"><?php echo $is_admin ? 'En mesas aún sin cobrar' : 'En tus mesas aún sin cobrar'; ?></div>
           </div>
         </div>
       </a>
@@ -92,6 +92,7 @@
   </div>
 
   <div class="row">
+    <?php if( $is_admin ) : ?>
     <div class="col-md-6">
       <div class="graph" id="showSalesGraph">
         <h3 class="graph_tittle">Tendencia de ventas (C$)</h3>
@@ -105,6 +106,8 @@
         <div class="graph_legend"></div>
       </div> <!-- .graph -->
     </div>
+
+    <?php endif; ?>
 
     <?php if( $is_admin ) : ?>
     <div class="col-md-6">
@@ -130,12 +133,14 @@
         <canvas></canvas>
       </div> <!-- .graph -->
     </div>
+    <?php if( $is_admin ) : ?>
     <div class="col-md-6">
       <div class="graph" id="showNewClientsGraph">
         <h3 class="graph_tittle">Clientes nuevos por mes</h3>
         <canvas></canvas>
       </div> <!-- .graph -->
     </div>
+    <?php endif; ?>
   </div>
 
   <script>
