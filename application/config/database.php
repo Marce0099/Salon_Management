@@ -63,11 +63,18 @@ defined('BASEPATH') OR exit('No direct script access allowed');
 $active_group = 'default';
 $query_builder = TRUE;
 
-$hostname = getenv('DB_HOSTNAME');
-$username = getenv('DB_USERNAME');
-$password = getenv('DB_PASSWORD');
-$database = getenv('DB_NAME');
-$port     = getenv('DB_PORT');
+$hostname = app_env('DB_HOSTNAME', 'localhost');
+$username = app_env('DB_USERNAME');
+$password = app_env('DB_PASSWORD');
+$database = app_env('DB_NAME');
+$port     = app_env('DB_PORT', '3306');
+
+// fail with the real reason instead of a confusing "Access denied for user ''"
+if( $username === '' || $database === '' ){
+	log_message('error', 'Database configuration missing: set DB_USERNAME and DB_NAME in .env or in the environment');
+	set_status_header(500);
+	exit('Database configuration missing: set DB_USERNAME and DB_NAME in the .env file.');
+}
 
 $db['default'] = array(
 	'dsn'	=> "mysql:host={$hostname};dbname={$database};port={$port}",
