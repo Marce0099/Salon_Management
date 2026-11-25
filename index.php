@@ -324,17 +324,7 @@ function formatDateIntl($date){
  *
  * And away we go...
  */
-$_env_path = __DIR__ . '/.env';
-if (file_exists($_env_path)) {
-	$env_vars = parse_ini_file($_env_path);
-	if (is_array($env_vars)) {
-		foreach ($env_vars as $_k => $_v) {
-			putenv("$_k=$_v");
-			$_ENV[$_k] = $_v;
-		}
-	}
-	unset($env_vars, $_k, $_v);
-}
-unset($_env_path);
+// app_env(): configuration from the real environment or .env, without touching the (thread-shared) process environment
+require_once APPPATH.'config/env.php';
 
 require_once BASEPATH.'core/CodeIgniter.php';

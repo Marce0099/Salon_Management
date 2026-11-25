@@ -1,0 +1,13 @@
+[
+  { "name": "plain pairs", "text": "DB_HOSTNAME=localhost\nDB_PORT=3306\n", "expect": { "DB_HOSTNAME": "localhost", "DB_PORT": "3306" } },
+  { "name": "CRLF and BOM", "text": "﻿DB_NAME=restaurant\r\nDB_USERNAME=app\r\n", "expect": { "DB_NAME": "restaurant", "DB_USERNAME": "app" } },
+  { "name": "comments and blank lines", "text": "# comment\n; also a comment\n\nA=1\n", "expect": { "A": "1" } },
+  { "name": "spaces around key and value", "text": "  A  =  two words  \n", "expect": { "A": "two words" } },
+  { "name": "double and single quotes", "text": "A=\"Your App Name\"\nB='x y'\n", "expect": { "A": "Your App Name", "B": "x y" } },
+  { "name": "special characters stay literal", "text": "P=ab;cd#ef=gh$ij\\kl\n", "expect": { "P": "ab;cd#ef=gh$ij\\kl" } },
+  { "name": "quotes keep outer spaces; only one pair removed", "text": "A=\" x \"\nB=\"\"q\"\"\nC=\"open\n", "expect": { "A": " x ", "B": "\"q\"", "C": "\"open" } },
+  { "name": "empty values and words are not converted", "text": "A=\nB=true\nC=null\nD=no\n", "expect": { "A": "", "B": "true", "C": "null", "D": "no" } },
+  { "name": "invalid lines are skipped", "text": "no equals sign\n1BAD=x\nbad key=x\n[section]\nOK=1\n", "expect": { "OK": "1" } },
+  { "name": "last duplicate wins", "text": "A=1\nA=2\n", "expect": { "A": "2" } },
+  { "name": "empty file", "text": "", "expect": {} }
+]
