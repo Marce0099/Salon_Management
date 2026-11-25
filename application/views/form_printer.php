@@ -13,7 +13,7 @@
 		<div class="form-group"><label>Conexión</label>
 			<select name="conn_type" id="conn_type" class="form-control">
 				<option value="network" <?php echo $type === 'network' ? 'selected' : ''; ?>>Red (Ethernet / Wi-Fi) — por IP</option>
-				<option value="windows" <?php echo $type === 'windows' ? 'selected' : ''; ?>>Windows (USB u otra instalada en el servidor) — por nombre</option>
+				<option value="windows" <?php echo $type === 'windows' ? 'selected' : ''; ?>>Windows (USB u otra instalada en el servidor) — por recurso compartido</option>
 				<option value="agent" <?php echo $type === 'agent' ? 'selected' : ''; ?>>Estación (USB conectada a otra PC) — por agente</option>
 			</select>
 		</div>
@@ -39,8 +39,8 @@
 		var t = $('#conn_type').val(), net = t === 'network', ag = t === 'agent';
 		$('#grp-port').toggle(net);
 		$('#grp-agent').toggle(ag);
-		$('#lbl-address').text(net ? 'Dirección IP o nombre de red' : (ag ? 'Nombre de la impresora en esa PC' : 'Nombre de la impresora en Windows'));
-		$('#hint-address').text(net ? 'Ej. 192.168.1.50 (imprima la hoja de configuración de la impresora para ver su IP).' : (ag ? 'Exactamente como aparece en Windows (Impresoras y escáneres) en la PC de la estación, ej. EPSON TM-T20II Receipt.' : 'Tal como aparece en Windows (Impresoras y escáneres), ej. COCINA. Para una impresora de otro equipo: smb://equipo/impresora'));
+		$('#lbl-address').text(net ? 'Dirección IP o nombre de red' : (ag ? 'Nombre de la impresora en esa PC' : 'Nombre compartido de la impresora'));
+		$('#hint-address').text(net ? 'Ej. 192.168.1.50 (imprima la hoja de configuración de la impresora para ver su IP).' : (ag ? 'Exactamente como aparece en Windows (Impresoras y escáneres) en la PC de la estación, ej. EPSON TM-T20II Receipt.' : 'Comparta la impresora en Windows (propiedades de la impresora > Compartir) y escriba aquí el nombre del recurso compartido, ej. COCINA. Puerto directo: LPT1 o COM3. Impresora de otro equipo: smb://equipo/recurso'));
 	}
 	$('#conn_type').on('change', syncType); syncType();
 

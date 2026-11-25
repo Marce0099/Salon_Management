@@ -474,7 +474,8 @@ class Kitchen_mdl extends CI_Model{
 		return array(TRUE, 'Producto anulado', $item, $qty);
 	}
 
-	/** Void (whole line or $qty units). Locks stock rows first (same global order as orders) and retries on deadlock. Returns array(ok, message). */
+	/** Void (whole line or $qty units). Locks stock rows first (same global order as orders) and retries on deadlock.
+	 *  Returns array(ok, message, item, qty_voided): item = the line as it was (with bill_status/tab_status), NULL on failure. */
 	public function voidItem($id_item, $reason, $id_admin, $qty = 0, $is_admin = TRUE){
 
 		$item = $this->item($id_item);
@@ -483,28 +484,28 @@ class Kitchen_mdl extends CI_Model{
 		$res = $this->runTx(function() use ($item, $id_item, $reason, $id_admin, $qty, $is_admin){
 			$this->lockFor(array($item->id_product), $this->snapshotIngredientIds($id_item));
 			$r = $this->doVoid($id_item, $reason, $id_admin, $qty, $is_admin);
-			return array($r[0], $r[1]);
+			return array($r[0], array($r[1], $r[2], $r[3]));
 		});
 
-		if( $res[2] ){ return array(FALSE, 'Hay mucha actividad en este momento, intente de nuevo'); }
+		if( $res[2] ){ return array(FALSE, 'Hay mucha actividad en este momento, intente de nuevo', NULL, 0); }
 
 		if( !$res[0] ){
 			$this->audit->denied('order_item.void', 'order_item', $id_item, array('tab' => $item->id_tab, 'bill' => $item->id_bill,
-				'summary' => 'Anulación rechazada: '.$res[1], 'after' => array('quantity' => (int) $qty, 'reason' => $reason)));
+				'summary' => 'Anulación rechazada: '.$res[1][0], 'after' => array('quantity' => (int) $qty, 'reason' => $reason)));
 		}
 
-		return array($res[0], $res[1]);
+		return array($res[0], $res[1][0], $res[1][1], $res[1][2]);
 	}
 
 	/**
 	 * Swap $qty units of a sent line for $new_qty of another product, atomically: the old units are voided and restocked, the new
 	 * product is ordered (same bill, same course) with its own stock guard. Any failure leaves everything untouched.
-	 * Returns array(ok, message, id_order).
+	 * Returns array(ok, message, id_order, old_item, qty_voided).
 	 */
 	public function replaceItem($id_item, $qty, $new, $new_qty, $notes, $reason, $id_admin, $is_admin, $mods = array()){
 
 		$first = $this->item($id_item);
-		if( !$first ){ return array(FALSE, 'El producto ya fue anulado', 0); }
+		if( !$first ){ return array(FALSE, 'El producto ya fue anulado', 0, NULL, 0); }
 
 		$res = $this->runTx(function() use ($first, $id_item, $qty, $new, $new_qty, $notes, $reason, $id_admin, $is_admin, $mods){
 
@@ -512,7 +513,7 @@ class Kitchen_mdl extends CI_Model{
 			$this->lockFor(array($first->id_product, $new->id_product), $this->snapshotIngredientIds($id_item));
 
 			$v = $this->doVoid($id_item, $reason, $id_admin, $qty, $is_admin, TRUE);
-			if( !$v[0] ){ return array(FALSE, array($v[1], 0)); }
+			if( !$v[0] ){ return array(FALSE, array($v[1], 0, NULL, 0)); }
 
 			$old = $v[2];
 			$line = array(
@@ -523,7 +524,7 @@ class Kitchen_mdl extends CI_Model{
 			$id_order = $this->insertOrder($old->id_tab, $id_admin, array($line), $old->id_bill);
 			if( $id_order < 1 ){
 				$msg = $id_order === -1 ? 'Stock insuficiente de '.$new->name : 'Ingredientes insuficientes para '.$new->name.' (falta '.$this->short_ingredient.')';
-				return array(FALSE, array($msg, 0));
+				return array(FALSE, array($msg, 0, NULL, 0));
 			}
 
 			$this->audit->log('order_item.replace', 'order_item', $id_item, array(
@@ -533,16 +534,16 @@ class Kitchen_mdl extends CI_Model{
 				'after' => array('id_order' => $id_order, 'id_product' => (int) $new->id_product, 'name' => $new->name, 'quantity' => (int) $new_qty, 'reason' => $reason)
 			));
 
-			return array(TRUE, array('Producto cambiado', $id_order));
+			return array(TRUE, array('Producto cambiado', $id_order, $old, $v[3]));
 		});
 
-		if( $res[2] ){ return array(FALSE, 'Hay mucha actividad en este momento, intente de nuevo', 0); }
+		if( $res[2] ){ return array(FALSE, 'Hay mucha actividad en este momento, intente de nuevo', 0, NULL, 0); }
 
 		if( !$res[0] ){
 			$this->audit->denied('order_item.replace', 'order_item', $id_item, array('tab' => $first->id_tab, 'bill' => $first->id_bill,
 				'summary' => 'Cambio de plato rechazado: '.$res[1][0], 'after' => array('new_product' => (int) $new->id_product)));
 		}
 
-		return array($res[0], $res[1][0], $res[1][1]);
+		return array($res[0], $res[1][0], $res[1][1], $res[1][2], $res[1][3]);
 	}
 }

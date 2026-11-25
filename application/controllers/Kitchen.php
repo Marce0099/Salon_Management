@@ -216,10 +216,20 @@ class Kitchen extends Admin_Controller{
 
 		$print = $this->printTicket($id_order);
 
+		if( $print['state'] === 'failed' ){
+			$message = 'Pedido guardado, pero no se pudo imprimir la comanda'.($print['stations'] ? '. '.$this->printing->waitingMessage($print['stations']) : '');
+		}
+		elseif( $print['state'] === 'waiting' ){
+			$message = 'Pedido guardado. '.$this->printing->waitingMessage($print['stations']);
+		}
+		else{
+			$message = 'Pedido enviado a cocina';
+		}
+
 		$this->json(array(
 			'type'     => 'success',
-			'message'  => $print['ok'] ? 'Pedido enviado a cocina' : 'Pedido guardado, pero no se pudo imprimir la comanda',
-			'printed'  => $print['ok'],
+			'message'  => $message,
+			'printed'  => $this->isOut($print),
 			'id_order' => $id_order,
 		));
 	}
@@ -236,11 +246,18 @@ class Kitchen extends Admin_Controller{
 		$print = $this->printTicket((int) $this->input->post('id_order'));
 		$now = $this->kitchen_mdl->order($ord->id_order);
 		$this->audit->log('order.reprint', 'order', $ord->id_order, array('tab' => $ord->id_tab, 'best_effort' => TRUE,
-			'summary' => 'Comanda reimpresa #'.$ord->id_order.($print['ok'] ? '' : ' (falló)'),
+			'summary' => 'Comanda reimpresa #'.$ord->id_order.($print['state'] === 'failed' ? ' (falló)' : ($print['state'] === 'waiting' ? ' (en espera)' : '')),
 			'before' => array('print_status' => $ord->print_status, 'printed_at' => $ord->printed_at, 'print_error' => $ord->print_error),
 			'after' => array('print_status' => $now ? $now->print_status : NULL, 'print_error' => $now ? $now->print_error : NULL)));
 
-		$this->json(array('type' => $print['ok'] ? 'success' : 'error', 'message' => $print['ok'] ? 'Comanda reimpresa' : 'No se pudo imprimir: '.$print['error']));
+		if( $print['state'] === 'failed' ){
+			$this->fail('No se pudo imprimir: '.$print['error']);
+		}
+		if( $print['state'] === 'waiting' ){
+			$this->json(array('type' => 'notice', 'message' => $this->printing->waitingMessage($print['stations'])));
+		}
+
+		$this->json(array('type' => 'success', 'message' => $print['state'] === 'skipped' ? 'El pedido ya no tiene platillos para cocina' : 'Comanda reimpresa'));
 	}
 
 	/** Void a sent line, whole or `quantity` units of it (waiters and admins; waiters cannot touch collected bills). */
@@ -259,8 +276,25 @@ class Kitchen extends Admin_Controller{
 			$this->fail('Indique el motivo de la anulación');
 		}
 
-		list($ok, $msg) = $this->kitchen_mdl->voidItem($item->id_order_item, $reason, $this->id_admin, $qty, $this->is_admin());
-		$this->json(array('type' => $ok ? 'success' : 'error', 'message' => $msg));
+		list($ok, $msg, $old, $voided) = $this->kitchen_mdl->voidItem($item->id_order_item, $reason, $this->id_admin, $qty, $this->is_admin());
+		if( !$ok ){
+			$this->fail($msg);
+		}
+
+		// the kitchen has the comanda on paper: tell it to stop preparing those units
+		$slip = $this->printVoidTicket($old, $voided, $reason);
+
+		if( $slip['state'] === 'failed' ){
+			$msg .= ', pero no se pudo imprimir el aviso: avise a cocina';
+		}
+		elseif( $slip['state'] === 'waiting' ){
+			$msg .= '. Aviso a cocina: '.$this->printing->waitingMessage($slip['stations']);
+		}
+		elseif( $slip['state'] !== 'skipped' ){
+			$msg .= ' y aviso enviado a cocina';
+		}
+
+		$this->json(array('type' => 'success', 'message' => $msg, 'printed' => $this->isOut($slip)));
 	}
 
 	/** Swap a sent line (or part of it) for another product in one step; the new product prints its own comanda. */
@@ -300,14 +334,34 @@ class Kitchen extends Admin_Controller{
 		if( $mod_err ){ $this->fail($mod_err); }
 
 		$reason = 'Cambio por '.mb_substr($new->name, 0, 200, 'UTF-8');
-		list($ok, $msg, $id_order) = $this->kitchen_mdl->replaceItem($item->id_order_item, $qty, $new, $new_qty, $notes, $reason, $this->id_admin, $this->is_admin(), $mods);
+		list($ok, $msg, $id_order, $old, $voided) = $this->kitchen_mdl->replaceItem($item->id_order_item, $qty, $new, $new_qty, $notes, $reason, $this->id_admin, $this->is_admin(), $mods);
 
 		if( !$ok ){
 			$this->fail($msg);
 		}
 
+		// cancellation of the old dish first, then the comanda of the new one
+		$slip  = $this->printVoidTicket($old, $voided, $reason);
 		$print = $this->printTicket($id_order);
-		$this->json(array('type' => 'success', 'message' => $print['ok'] ? 'Producto cambiado y comanda enviada' : 'Producto cambiado, pero no se pudo imprimir la comanda', 'printed' => $print['ok'], 'id_order' => $id_order));
+
+		$states   = array($slip['state'], $print['state']);
+		$stations = array_merge($slip['stations'], $print['stations']);
+
+		if( in_array('failed', $states, TRUE) ){
+			$message = 'Producto cambiado, pero no se pudo imprimir '.($slip['state'] !== 'failed' ? 'la comanda' : ($print['state'] !== 'failed' ? 'el aviso de anulación' : 'en cocina')).': avise a cocina';
+			if( $stations ){ $message .= '. '.$this->printing->waitingMessage($stations); }
+		}
+		elseif( in_array('waiting', $states, TRUE) ){
+			$message = 'Producto cambiado. '.$this->printing->waitingMessage($stations);
+		}
+		elseif( $print['state'] !== 'skipped' ){
+			$message = 'Producto cambiado y comanda enviada';
+		}
+		else{
+			$message = $slip['state'] !== 'skipped' ? 'Producto cambiado y aviso enviado a cocina' : 'Producto cambiado';
+		}
+
+		$this->json(array('type' => 'success', 'message' => $message, 'printed' => $this->isOut($slip) && $this->isOut($print), 'id_order' => $id_order));
 	}
 
 	/** Printable HTML copy of a ticket (also the fallback when the thermal printer is unavailable). */
@@ -338,9 +392,17 @@ class Kitchen extends Admin_Controller{
 		));
 	}
 
+	/** TRUE unless the ticket failed or is waiting for an offline station. */
+	private function isOut($print){
+
+		return $print['state'] !== 'failed' && $print['state'] !== 'waiting';
+	}
+
 	/**
 	 * Renders the comanda(s) and sends them through the print queue. The order is split into ONE ticket per kitchen printer
-	 * (menu category -> printer, default kitchen printer for the rest). Records the outcome on the order; never throws.
+	 * (menu category -> printer, default kitchen printer for the rest). Older unprinted comandas of the order are cancelled so
+	 * a reprint never comes out twice. Records the outcome on the order; never throws.
+	 * Returns array(state skipped|printed|sent|waiting|failed, error, stations that are offline).
 	 */
 	private function printTicket($id_order){
 
@@ -349,8 +411,10 @@ class Kitchen extends Admin_Controller{
 		$items = array_values(array_filter($this->kitchen_mdl->orderItems($id_order), function($i){ return $i->prints_kitchen && $i->status === 'active'; }));
 
 		if( !count($items) ){
+			$this->load->library('printing');
+			$this->printing->cancelOrderComandas($id_order);
 			$this->kitchen_mdl->setPrint($id_order, 'skipped');
-			return array('ok' => TRUE, 'error' => '');
+			return array('state' => 'skipped', 'error' => '', 'stations' => array());
 		}
 
 		$this->load->library('printing');
@@ -367,36 +431,106 @@ class Kitchen extends Admin_Controller{
 			$groups[$k]['items'][] = $i;
 		}
 
-		$ok = TRUE;
 		$errors = array();
+		$stations = array();
+		$state = 'printed';
 
-		foreach( $groups as $g ){
-
-			$name = $g['printer'] ? $g['printer']->name : 'sin impresora';
+		// render everything first: the older jobs are only cancelled when there is something to replace them
+		foreach( $groups as $k => $g ){
 
 			try{
-				$bytes = $this->renderTicket($order, $tab, $g['items'], $g['printer']);
+				$groups[$k]['bytes'] = $this->renderTicket($order, $tab, $g['items'], $g['printer']);
 			}
 			catch( \Throwable $e ){
 
-				$ok = FALSE;
-				$errors[] = $name.': '.$e->getMessage();
-				$this->kitchen_mdl->setPrint($id_order, 'failed', implode(' | ', $errors));
+				$errors[] = ($g['printer'] ? $g['printer']->name : 'sin impresora').': '.$e->getMessage();
 				log_message('error', 'kitchen ticket render failed: '.$e->getMessage());
-				continue;
-			}
-
-			// the library records printed/failed on the order itself (and keeps the bytes for retry/reprint)
-			$res = $this->printing->send('kitchen', 'comanda', 'order', $order->id_order,
-				'Comanda #'.$order->id_order.' - Mesa '.$tab->table_label.($g['printer'] ? ' - '.$g['printer']->name : ''), $bytes, $this->id_admin, $g['printer']);
-
-			if( !$res['ok'] ){
-				$ok = FALSE;
-				$errors[] = $name.': '.$res['error'];
 			}
 		}
 
-		return array('ok' => $ok, 'error' => implode(' | ', $errors));
+		if( $errors ){
+			$this->kitchen_mdl->setPrint($id_order, 'failed', implode(' | ', $errors));
+			return array('state' => 'failed', 'error' => implode(' | ', $errors), 'stations' => array());
+		}
+
+		$this->printing->cancelOrderComandas($id_order);
+
+		foreach( $groups as $g ){
+
+			// the library records printed/failed on the order itself (and keeps the bytes for retry/reprint)
+			$res = $this->printing->send('kitchen', 'comanda', 'order', $order->id_order,
+				'Comanda #'.$order->id_order.' - Mesa '.$tab->table_label.($g['printer'] ? ' - '.$g['printer']->name : ''), $g['bytes'], $this->id_admin, $g['printer']);
+
+			if( $res['state'] === 'failed' ){
+				$state = 'failed';
+				$errors[] = ($g['printer'] ? $g['printer']->name : 'sin impresora').': '.$res['error'];
+			}
+			elseif( $res['state'] === 'waiting' ){
+				$stations[] = $res['station'];
+				if( $state !== 'failed' ){ $state = 'waiting'; }
+			}
+			elseif( $res['state'] === 'sent' && $state === 'printed' ){
+				$state = 'sent';
+			}
+		}
+
+		return array('state' => $state, 'error' => implode(' | ', $errors), 'stations' => $stations);
+	}
+
+	/**
+	 * Cancellation slip for the kitchen: $qty units of a sent line ($item = the line before the void) must not be prepared.
+	 * Printed on the line's current kitchen printer. Nothing is printed for lines that never go to the kitchen, closed tables
+	 * or already collected bills (late corrections). Runs after the void is committed; never throws.
+	 * Returns the same shape as printTicket().
+	 */
+	private function printVoidTicket($item, $qty, $reason){
+
+		if( !$item || !$item->prints_kitchen || $item->tab_status !== 'open' || $item->bill_status === 'paid' ){
+			return array('state' => 'skipped', 'error' => '', 'stations' => array());
+		}
+
+		$this->load->library('printing');
+
+		try{
+
+			$this->load->model('modifiers_mdl');
+			$lines = $this->modifiers_mdl->attachTexts(array($item));
+			$line  = $lines[0];
+			$tab   = $this->kitchen_mdl->tab($item->id_tab);
+			$route = $this->printing->routeProducts(array((int) $item->id_product));
+			$station = isset($route[(int) $item->id_product]) ? $route[(int) $item->id_product] : NULL;
+
+			list($printer, $conn) = $this->printing->canvas();
+
+			$this->ticketHeader($printer, $station, $item->id_order);
+			$printer->setJustification(Printer::JUSTIFY_CENTER);
+			$printer->setEmphasis(TRUE);
+			$printer->setTextSize(2, 2);
+			$printer->text("** ANULADO **\n");
+			$printer->setTextSize(1, 1);
+			$printer->setEmphasis(FALSE);
+			$printer->text("NO PREPARAR\n");
+			$this->ticketTable($printer, $tab, time());
+
+			$this->ticketLine($printer, $qty, $line);
+
+			$printer->text("------------------------------------------\n");
+			$printer->text(wordwrap('Motivo: '.$this->ascii($reason), 42, "\n", TRUE)."\n");
+			$printer->feed(3);
+			$printer->cut();
+
+			// ref_type `void` keeps the slip out of the order's print status, which describes its comandas
+			$res = $this->printing->send('kitchen', 'comanda', 'void', $item->id_order_item,
+				'Anulación pedido #'.$item->id_order.' - Mesa '.$tab->table_label.($station ? ' - '.$station->name : ''),
+				$this->printing->bytes($printer, $conn), $this->id_admin, $station);
+		}
+		catch( \Throwable $e ){
+
+			log_message('error', 'void ticket failed for order item #'.(int) $item->id_order_item.': '.$e->getMessage());
+			return array('state' => 'failed', 'error' => $e->getMessage(), 'stations' => array());
+		}
+
+		return array('state' => $res['state'], 'error' => $res['error'], 'stations' => $res['state'] === 'waiting' ? array($res['station']) : array());
 	}
 
 	/** ESC/POS bytes of one comanda for one station (kitchen printer row, or NULL when none is configured). */
@@ -404,20 +538,8 @@ class Kitchen extends Admin_Controller{
 
 		list($printer, $conn) = $this->printing->canvas();
 
-		$printer->setJustification(Printer::JUSTIFY_CENTER);
-		$printer->setTextSize(2, 2);
-		$printer->text(($station ? strtoupper(mb_substr($this->ascii($station->name), 0, 20, 'UTF-8')) : 'COCINA')."\n");
-		$printer->setTextSize(1, 1);
-		$printer->text("Pedido #".$order->id_order."\n");
-		$printer->feed(1);
-
-		$printer->setJustification(Printer::JUSTIFY_LEFT);
-		$printer->setEmphasis(TRUE);
-		$printer->text("Mesa: ".$this->ascii($tab->table_label)." (".$this->ascii($tab->area_name).")\n");
-		$printer->setEmphasis(FALSE);
-		$printer->text("Mesero: ".$this->ascii($tab->waiter)."\n");
-		$printer->text("Hora: ".date('d/m/Y h:i A', strtotime($order->created_at))."\n");
-		$printer->text("------------------------------------------\n");
+		$this->ticketHeader($printer, $station, $order->id_order);
+		$this->ticketTable($printer, $tab, strtotime($order->created_at));
 
 		$course = NULL;
 		foreach( $items as $i ){
@@ -429,22 +551,7 @@ class Kitchen extends Admin_Controller{
 				$printer->setEmphasis(FALSE);
 			}
 
-			$printer->setTextSize(2, 2);
-			$printer->text($i->quantity." x ".$this->ascii($i->product_name)."\n");
-			$printer->setTextSize(1, 1);
-
-			foreach( $i->mods as $mod_text ){
-				// bold, wrapped at 36 chars; continuation lines stay indented so they never look detached from their dish
-				$printer->setEmphasis(TRUE);
-				foreach( explode("\n", wordwrap($this->ascii($mod_text), 36, "\n", TRUE)) as $n => $part ){
-					$printer->text(($n === 0 ? "   ** " : "      ").$part."\n");
-				}
-				$printer->setEmphasis(FALSE);
-			}
-
-			if( $i->notes ){
-				$printer->text("   >> ".$this->ascii($i->notes)."\n");
-			}
+			$this->ticketLine($printer, $i->quantity, $i);
 		}
 
 		$printer->text("------------------------------------------\n");
@@ -452,5 +559,49 @@ class Kitchen extends Admin_Controller{
 		$printer->cut();
 
 		return $this->printing->bytes($printer, $conn);
+	}
+
+	/** Station name and order number, centered. */
+	private function ticketHeader($printer, $station, $id_order){
+
+		$printer->setJustification(Printer::JUSTIFY_CENTER);
+		$printer->setTextSize(2, 2);
+		$printer->text(($station ? strtoupper(mb_substr($this->ascii($station->name), 0, 20, 'UTF-8')) : 'COCINA')."\n");
+		$printer->setTextSize(1, 1);
+		$printer->text("Pedido #".(int) $id_order."\n");
+		$printer->feed(1);
+	}
+
+	/** Table, waiter and time block. */
+	private function ticketTable($printer, $tab, $time){
+
+		$printer->setJustification(Printer::JUSTIFY_LEFT);
+		$printer->setEmphasis(TRUE);
+		$printer->text("Mesa: ".$this->ascii($tab->table_label)." (".$this->ascii($tab->area_name).")\n");
+		$printer->setEmphasis(FALSE);
+		$printer->text("Mesero: ".$this->ascii($tab->waiter)."\n");
+		$printer->text("Hora: ".date('d/m/Y h:i A', $time)."\n");
+		$printer->text("------------------------------------------\n");
+	}
+
+	/** One dish: quantity and name in double size, then its modifiers and note. */
+	private function ticketLine($printer, $qty, $line){
+
+		$printer->setTextSize(2, 2);
+		$printer->text((int) $qty." x ".$this->ascii($line->product_name)."\n");
+		$printer->setTextSize(1, 1);
+
+		foreach( $line->mods as $mod_text ){
+			// bold, wrapped at 36 chars; continuation lines stay indented so they never look detached from their dish
+			$printer->setEmphasis(TRUE);
+			foreach( explode("\n", wordwrap($this->ascii($mod_text), 36, "\n", TRUE)) as $n => $part ){
+				$printer->text(($n === 0 ? "   ** " : "      ").$part."\n");
+			}
+			$printer->setEmphasis(FALSE);
+		}
+
+		if( $line->notes ){
+			$printer->text("   >> ".$this->ascii($line->notes)."\n");
+		}
 	}
 }

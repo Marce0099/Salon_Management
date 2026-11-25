@@ -16,7 +16,7 @@ use Mike42\Escpos\PrintConnectors\WindowsPrintConnector;
  *
  *   list($p, $c) = $this->printing->canvas();   // build the ticket with $p->text(...)
  *   $res = $this->printing->send('kitchen', 'comanda', 'order', $id_order, 'Comanda #5', $this->printing->bytes($p, $c), $id_admin);
- *   // $res = array('ok' => bool, 'error' => string, 'id_job' => int)
+ *   // $res = array('ok' => bool, 'error' => string, 'state' => printed|sent|waiting|failed, 'station' => string|NULL, 'id_job' => int)
  */
 class Printing{
 
@@ -173,12 +173,15 @@ class Printing{
 	public function send($role, $kind, $ref_type, $ref_id, $title, $bytes, $id_admin = NULL, $printer = NULL){
 
 		$id_job = $this->enqueue($role, $kind, $ref_type, $ref_id, $title, $bytes, $id_admin, $printer);
-		list($ok, $error) = $this->deliver($id_job);
+		list($ok, $error, $state, $station) = $this->deliver($id_job);
 
-		return array('ok' => $ok, 'error' => $error, 'id_job' => $id_job);
+		return array('ok' => $ok, 'error' => $error, 'state' => $state, 'station' => $station, 'id_job' => $id_job);
 	}
 
-	/** Sends a stored job (pending/failed, or stuck in printing). Returns array(ok, error). */
+	/**
+	 * Sends a stored job (pending/failed, or stuck in printing). Returns array(ok, error, state, station):
+	 * state `printed` (delivered), `sent` (queued for an online station), `waiting` (queued, station `station` offline) or `failed`.
+	 */
 	public function deliver($id_job){
 
 		$db = $this->CI->db;
@@ -187,7 +190,7 @@ class Printing{
 			WHERE id_job = ? AND (status IN ("pending","failed") OR (status = "printing" AND claimed_at < NOW() - INTERVAL '.self::STALE_CLAIM.' SECOND))', array((int) $id_job));
 
 		if( $db->affected_rows() !== 1 ){
-			return array(FALSE, 'The job is already printing or was already printed');
+			return array(FALSE, 'The job is already printing or was already printed', 'failed', NULL);
 		}
 
 		$job = $db->where('id_job', (int) $id_job)->get('print_jobs')->row();
@@ -213,7 +216,7 @@ class Printing{
 
 		$this->finish($job, $error);
 
-		return array($error === '', $error);
+		return array($error === '', $error, $error === '' ? 'printed' : 'failed', NULL);
 	}
 
 	/* ---------- agents (printers on other PCs) ---------- */
@@ -235,7 +238,16 @@ class Printing{
 			array(mb_substr((string) $ip, 0, 45), mb_substr(preg_replace('/[^0-9A-Za-z._-]/', '', (string) $version), 0, 20), (int) $id_agent));
 	}
 
-	/** Puts the job back in `pending` so its agent collects it. Returns array(ok, error): ok = the station is online right now. */
+	/** Spanish message for tickets queued for stations that are offline right now. */
+	public function waitingMessage($stations){
+
+		$stations = array_values(array_unique(array_filter((array) $stations)));
+		$who = count($stations) > 1 ? 'las estaciones '.implode(', ', $stations).' están desconectadas' : 'la estación '.implode('', $stations).' está desconectada';
+
+		return 'En espera: '.$who.'; se imprimirá al reconectar. No hace falta reenviar.';
+	}
+
+	/** Puts the job back in `pending` so its agent collects it. Returns deliver()'s array: ok = the station is online right now. */
 	private function queueForAgent($job, $printer){
 
 		$db = $this->CI->db;
@@ -244,7 +256,7 @@ class Printing{
 		if( !$agent || !$agent->active ){
 			$error = 'Print station '.($agent ? '"'.$agent->name.'" ' : '').'is disabled or missing';
 			$this->finish($job, $error);
-			return array(FALSE, $error);
+			return array(FALSE, $error, 'failed', NULL);
 		}
 
 		$online = $this->agentOnline($agent->id_agent);
@@ -254,7 +266,7 @@ class Printing{
 
 		if( $job->kind === 'comanda' && $job->ref_type === 'order' && $job->ref_id ){ $this->refreshOrderStatus((int) $job->ref_id); }
 
-		return array($online, (string) $note);
+		return array($online, (string) $note, $online ? 'sent' : 'waiting', $agent->name);
 	}
 
 	/** Hands the agent its waiting jobs (claimed atomically). Returns a list of array(id_job, printer, title, payload(base64)). */
@@ -306,19 +318,46 @@ class Printing{
 		return array(TRUE, '');
 	}
 
-	/** Clones a job (same bytes) and delivers the copy. Returns array(ok, error, id_job). */
+	/* ---------- superseding ---------- */
+
+	/** Cancels the unprinted comandas of an order (a fresh set is about to replace them). Returns how many. */
+	public function cancelOrderComandas($id_order){
+
+		return $this->cancelUnprinted('kind = "comanda" AND ref_type = "order" AND ref_id = '.(int) $id_order);
+	}
+
+	/**
+	 * Marks matching jobs `cancelled` so the newer copy is the only one that prints. Only waiting, failed or stale ones:
+	 * a job a station has just claimed may be coming out of the printer and is left alone.
+	 */
+	private function cancelUnprinted($where){
+
+		$this->CI->db->query('UPDATE print_jobs SET status = "cancelled", claimed_at = NULL, last_error = "Replaced by a newer copy"
+			WHERE '.$where.' AND (status IN ("pending","failed") OR (status = "printing" AND claimed_at < NOW() - INTERVAL '.self::STALE_CLAIM.' SECOND))');
+
+		return (int) $this->CI->db->affected_rows();
+	}
+
+	/** Clones a job (same bytes), replaces its unprinted copies and delivers the new one. Returns array(ok, error, id_job, state, station). */
 	public function reprint($id_job, $id_admin = NULL){
 
 		$job = $this->CI->db->where('id_job', (int) $id_job)->get('print_jobs')->row();
 		if( !$job || $job->payload === NULL ){
-			return array(FALSE, 'The job has no content', 0);
+			return array(FALSE, 'The job has no content', 0, 'failed', NULL);
 		}
 
 		$printer = $job->id_printer ? $this->CI->db->where('id_printer', (int) $job->id_printer)->get('printers')->row() : NULL;
+		// copies of this same ticket still waiting or failed (this one included) would print twice
+		$db = $this->CI->db;
+		$this->cancelUnprinted('kind = '.$db->escape($job->kind)
+			.' AND ref_type <=> '.($job->ref_type === NULL ? 'NULL' : $db->escape($job->ref_type))
+			.' AND ref_id <=> '.($job->ref_id === NULL ? 'NULL' : (int) $job->ref_id)
+			.' AND payload = UNHEX('.$db->escape(bin2hex($job->payload)).')');
+
 		// a deleted printer falls back to the first active one of the job's role
 		$res = $this->send($job->kind === 'comanda' ? 'kitchen' : 'receipt', $job->kind, $job->ref_type, $job->ref_id, $job->title, $job->payload, $id_admin, $printer ? $printer : NULL);
 
-		return array($res['ok'], $res['error'], $res['id_job']);
+		return array($res['ok'], $res['error'], $res['id_job'], $res['state'], $res['station']);
 	}
 
 	private function finish($job, $error){
@@ -343,14 +382,14 @@ class Printing{
 
 	/**
 	 * An order can have one comanda per printer (kitchen, bar...). Its print status summarises the LATEST job of each printer:
-	 * any failed = failed (error names the printer), any waiting = pending, else printed. Reprints supersede older jobs.
+	 * any failed = failed (error names the printer), any waiting = pending, else printed. Reprints supersede older jobs; cancelled ones are ignored.
 	 */
 	public function refreshOrderStatus($id_order){
 
 		$db = $this->CI->db;
 
 		$rows = $db->query('SELECT j.status, j.last_error, j.printer_name FROM print_jobs j
-			JOIN (SELECT id_printer, MAX(id_job) AS mj FROM print_jobs WHERE kind = "comanda" AND ref_type = "order" AND ref_id = ? GROUP BY id_printer) x ON x.mj = j.id_job
+			JOIN (SELECT id_printer, MAX(id_job) AS mj FROM print_jobs WHERE kind = "comanda" AND ref_type = "order" AND ref_id = ? AND status <> "cancelled" GROUP BY id_printer) x ON x.mj = j.id_job
 			ORDER BY j.id_job', array((int) $id_order))->result();
 
 		if( !$rows ){ return; }
