@@ -20,6 +20,9 @@ The same job format and tables are meant to be reused by the future Rust/Tauri b
 4. **Agent (done)** for USB printers on other PCs: `agent/PosPrintAgent.ps1` long-polls `GET /print_agent/jobs` (token header), prints RAW via winspool, `POST /print_agent/result`. Tables `print_agents` + `printers.id_agent`. Not verified: a real successful print on a physical/virtual printer (no elevation on the dev PC); Windows service wrapper (today: Startup-folder shortcut via -Install).
 5. (Rust/Tauri) mirror schema and renderer; PHP output is the reference bytes.
 
+## Delivery states and duplicates (migration 033, 2026-11-24)
+`deliver()` reports printed / sent / waiting / failed. A newer copy of a ticket marks the unprinted older ones `cancelled`. Voids and swaps print a cancellation slip (`ref_type` `void`). Verified with the fake printer and the agent in dry-run mode; still no print on a physical printer.
+
 ## Testing without hardware
 - `tools/fake_printer.php`: a TCP listener on port 9100 that decodes ESC/POS to text and saves each job under `tools/fake_printer_out/`.
 - Failure cases: wrong IP (timeout), printer off (connection refused), invalid Windows name.

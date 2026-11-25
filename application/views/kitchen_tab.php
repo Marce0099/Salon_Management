@@ -47,6 +47,7 @@
 					<span class="text-muted"><?php echo date('h:i A', strtotime($o->created_at)); ?></span>
 					<?php if( $o->print_status === 'printed' ) : ?><span class="label label-success">Impreso</span>
 					<?php elseif( $o->print_status === 'failed' ) : ?><span class="label label-danger" title="<?php echo htmlspecialchars((string) $o->print_error); ?>">No impreso</span>
+					<?php elseif( $o->print_status === 'pending' ) : ?><span class="label label-warning" title="Se imprimirá cuando la estación esté conectada">En espera</span>
 					<?php elseif( $o->print_status === 'skipped' ) : ?><span class="label label-default">Sin cocina</span><?php endif; ?>
 				</div>
 				<ul class="list-unstyled">
@@ -282,7 +283,7 @@
 
 	/* ---- consumption actions ---- */
 	$('.js-reprint').on('click', function(){
-		$.post(BASE + 'reprint', { tk: TK, id_order: $(this).data('id') }, function(r){ notify(r.type === 'success' ? 'success' : 'error', r.message); }, 'json');
+		$.post(BASE + 'reprint', { tk: TK, id_order: $(this).data('id') }, function(r){ notify(r.type, r.message); if( r.type !== 'error' ){ setTimeout(function(){ location.reload(); }, 1800); } }, 'json');
 	});
 
 	function qtyOptions(max, sel){

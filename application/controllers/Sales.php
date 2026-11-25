@@ -737,9 +737,9 @@ class Sales extends Admin_Controller{
 				$this->sales_mdl->setFile( $id_sale, $pdf_name );
 
 			ob_start();
-			$prnt = $this->printInvoice( $id_sale, FALSE );
+			$prints = array( $this->printInvoice( $id_sale, FALSE ) );
 			if( $this->settings_mdl->get('receipt_copy', '1') === '1' ){
-				$prnt = $this->printInvoice( $id_sale, TRUE ) && $prnt;
+				$prints[] = $this->printInvoice( $id_sale, TRUE );
 			}
 			ob_end_clean();
 
@@ -759,8 +759,17 @@ class Sales extends Admin_Controller{
 				$message .= '<p>Cambio: C$'.number_format($cash_cordobas - $total_cordobas, 2 ).'</p>';
 			}*/
 
-			if( !$prnt )
+			$waiting = array();
+			$print_failed = FALSE;
+			foreach( $prints as $pr ){
+				if( $pr['state'] === 'failed' ){ $print_failed = TRUE; }
+				elseif( $pr['state'] === 'waiting' ){ $waiting[] = $pr['station']; }
+			}
+
+			if( $print_failed )
 				$message .= '<p>No ha sido posible imprimir la factura</p>';
+			elseif( $waiting )
+				$message .= '<p>Factura: '.$this->printing->waitingMessage($waiting).'</p>';
 
 			$new_tk = generateToken();
 			$this->session->set_userdata('tk', $new_tk);
@@ -1050,6 +1059,7 @@ class Sales extends Admin_Controller{
 		return strtr((string) $t, array('á' => 'a', 'é' => 'e', 'í' => 'i', 'ó' => 'o', 'ú' => 'u', 'ü' => 'u', 'ñ' => 'n', 'Á' => 'A', 'É' => 'E', 'Í' => 'I', 'Ó' => 'O', 'Ú' => 'U', 'Ü' => 'U', 'Ñ' => 'N'));
 	}
 
+	/** Renders and queues the thermal receipt. Returns array(state printed|sent|waiting|failed, station). */
 	private function printInvoice( $id_sale = 0, $copy = FALSE ){
 
 		$sale = $this->sales_mdl->getSale( $id_sale );
@@ -1288,14 +1298,14 @@ class Sales extends Admin_Controller{
 		}
 		catch( \Throwable $e ){
 			log_message('error', 'receipt render failed for sale #'.(int) $id_sale.': '.$e->getMessage());
-			return FALSE;
+			return array('state' => 'failed', 'station' => NULL);
 		}
 
 		// stored in the print queue first: a dead printer leaves a failed job that can be retried or reprinted
 		$res = $this->printing->send('receipt', 'receipt', 'sale', (int) $id_sale,
 			'Factura #'.(int) $id_sale.($copy ? ' (copia)' : '').(!empty($sale->table_label) ? ' - Mesa '.$sale->table_label : ''), $bytes, $this->id_admin, $this->printing->receiptPrinter());
 
-		return $res['ok'];
+		return array('state' => $res['state'], 'station' => $res['station']);
 	}
 
 	public function sale_form(){

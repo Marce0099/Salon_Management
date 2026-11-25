@@ -171,7 +171,7 @@ class Printers extends Admin_Controller{
 			$valid = preg_match('/^[\d\w-]+(\s[\d\w-]+)*$/', $address) || preg_match('/^(LPT\d|COM\d)$/', $address)
 				|| preg_match('/^smb:\/\/([\s\d\w-]+(:[\s\d\w-]+)?@)?([\d\w-]+\.)*[\d\w-]+\/([\d\w-]+\/)?[\d\w-]+(\s[\d\w-]+)*$/', $address);
 			if( !$valid || mb_strlen($address, 'UTF-8') > 150 ){
-				$this->fail('Nombre de impresora inválido: use letras, números, guiones y espacios (como aparece en Windows) o smb://equipo/impresora');
+				$this->fail('Nombre inválido: escriba el nombre con que se comparte la impresora (letras, números, guiones y espacios), un puerto LPT/COM o smb://equipo/impresora');
 			}
 		}
 
@@ -264,9 +264,18 @@ class Printers extends Admin_Controller{
 		$res = $this->printing->send($p->role, 'test', 'printer', $p->id_printer, 'Prueba: '.$p->name, $this->printing->testPage($p), $this->id_admin, $p);
 
 		$this->audit->log('print.test', 'printer', $p->id_printer, array('best_effort' => TRUE,
-			'summary' => 'Prueba de impresión en '.$p->name.($res['ok'] ? '' : ' (falló)'), 'after' => array('id_job' => $res['id_job'], 'ok' => $res['ok'], 'error' => $res['error'])));
+			'summary' => 'Prueba de impresión en '.$p->name.($res['state'] === 'failed' ? ' (falló)' : ($res['state'] === 'waiting' ? ' (en espera)' : '')), 'after' => array('id_job' => $res['id_job'], 'ok' => $res['ok'], 'error' => $res['error'])));
 
-		$this->json(array('type' => $res['ok'] ? 'success' : 'error', 'message' => $res['ok'] ? ($p->conn_type === 'agent' ? 'Página de prueba enviada a la estación; se imprimirá en unos segundos' : 'Página de prueba enviada a '.$p->name) : 'No se pudo imprimir: '.$res['error']));
+		$this->outcome($res['state'], $res['station'], $res['error'], $res['state'] === 'sent' ? 'Página de prueba enviada a la estación; se imprimirá en unos segundos' : 'Página de prueba enviada a '.$p->name);
+	}
+
+	/** JSON answer for a delivery: error, notice (queued for an offline station) or success. */
+	private function outcome($state, $station, $error, $success){
+
+		if( $state === 'failed' ){ $this->fail('No se pudo imprimir: '.$error); }
+		if( $state === 'waiting' ){ $this->json(array('type' => 'notice', 'message' => $this->printing->waitingMessage(array($station)))); }
+
+		$this->json(array('type' => 'success', 'message' => $success));
 	}
 
 	/* ---------- queue ---------- */
@@ -293,20 +302,14 @@ class Printers extends Admin_Controller{
 		if( !$job ){ $this->fail('Trabajo no encontrado'); }
 		if( $job->status === 'printed' ){ $this->fail('Ese trabajo ya se imprimió; use Reimprimir'); }
 
-		list($ok, $error) = $this->printing->deliver($job->id_job);
+		if( $job->status === 'cancelled' ){ $this->fail('Ese trabajo fue reemplazado por una copia más reciente'); }
+
+		list($ok, $error, $state, $station) = $this->printing->deliver($job->id_job);
 
 		$this->audit->log('print.retry', 'print_job', $job->id_job, array('best_effort' => TRUE,
-			'summary' => 'Reintento de impresión #'.$job->id_job.' ('.$job->title.')'.($ok ? '' : ' (falló)'), 'after' => array('ok' => $ok, 'error' => $error)));
+			'summary' => 'Reintento de impresión #'.$job->id_job.' ('.$job->title.')'.($state === 'failed' ? ' (falló)' : ($state === 'waiting' ? ' (en espera)' : '')), 'after' => array('ok' => $ok, 'error' => $error)));
 
-		$this->json(array('type' => $ok ? 'success' : 'error', 'message' => $ok ? ($this->viaAgent($job) ? 'Enviado a la estación; se imprimirá en unos segundos' : 'Impreso') : 'No se pudo imprimir: '.$error));
-	}
-
-	/** True when the job's printer is on another PC (the job is only queued for its agent, not printed yet). */
-	private function viaAgent($job){
-
-		$p = $job->id_printer ? $this->printers_mdl->get($job->id_printer) : NULL;
-
-		return $p && $p->conn_type === 'agent';
+		$this->outcome($state, $station, $error, $state === 'sent' ? 'Enviado a la estación; se imprimirá en unos segundos' : 'Impreso');
 	}
 
 	/** Prints the same bytes again as a NEW job (a copy of a ticket that already printed). */
@@ -317,12 +320,12 @@ class Printers extends Admin_Controller{
 		$job = $this->printers_mdl->job($this->input->post('id_job'));
 		if( !$job ){ $this->fail('Trabajo no encontrado'); }
 
-		list($ok, $error, $id_new) = $this->printing->reprint($job->id_job, $this->id_admin);
+		list($ok, $error, $id_new, $state, $station) = $this->printing->reprint($job->id_job, $this->id_admin);
 
 		$this->audit->log('print.reprint', 'print_job', $job->id_job, array('best_effort' => TRUE,
-			'summary' => 'Reimpresión de #'.$job->id_job.' ('.$job->title.')'.($ok ? '' : ' (falló)'), 'after' => array('new_job' => $id_new, 'ok' => $ok, 'error' => $error)));
+			'summary' => 'Reimpresión de #'.$job->id_job.' ('.$job->title.')'.($state === 'failed' ? ' (falló)' : ($state === 'waiting' ? ' (en espera)' : '')), 'after' => array('new_job' => $id_new, 'ok' => $ok, 'error' => $error)));
 
-		$this->json(array('type' => $ok ? 'success' : 'error', 'message' => $ok ? ($this->viaAgent($job) ? 'Enviado a la estación; se imprimirá en unos segundos' : 'Reimpreso') : 'No se pudo imprimir: '.$error));
+		$this->outcome($state, $station, $error, $state === 'sent' ? 'Enviado a la estación; se imprimirá en unos segundos' : 'Reimpreso');
 	}
 
 	/** Text view of a stored job (ESC/POS control codes removed) to see what was sent. */

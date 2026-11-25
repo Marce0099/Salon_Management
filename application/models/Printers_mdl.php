@@ -129,7 +129,7 @@ class Printers_mdl extends CI_Model{
 	public function jobs($status = '', $limit = 100){
 
 		$this->db->select('id_job, id_printer, printer_name, kind, ref_type, ref_id, title, status, attempts, last_error, id_admin, created_at, printed_at, OCTET_LENGTH(payload) AS size', FALSE);
-		if( in_array($status, array('pending', 'printing', 'printed', 'failed'), TRUE) ){
+		if( in_array($status, array('pending', 'printing', 'printed', 'failed', 'cancelled'), TRUE) ){
 			$this->db->where('status', $status);
 		}
 
@@ -138,7 +138,7 @@ class Printers_mdl extends CI_Model{
 
 	public function countByStatus(){
 
-		$out = array('pending' => 0, 'printing' => 0, 'printed' => 0, 'failed' => 0);
+		$out = array('pending' => 0, 'printing' => 0, 'printed' => 0, 'failed' => 0, 'cancelled' => 0);
 		foreach( $this->db->query('SELECT status, COUNT(*) AS n FROM print_jobs GROUP BY status')->result() as $r ){
 			$out[$r->status] = (int) $r->n;
 		}

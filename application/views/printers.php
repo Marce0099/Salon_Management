@@ -2,7 +2,7 @@
 	<a href="<?php echo base_url('printers/register'); ?>" class="btn btn-success btn-sm pull-right">Nueva impresora</a>
 	<a href="<?php echo base_url('printers/queue'); ?>" class="btn btn-default btn-sm pull-right" style="margin-right:6px;">Cola de impresión<?php if( $counts['failed'] ) : ?> <span class="label label-danger"><?php echo (int) $counts['failed']; ?></span><?php endif; ?></a>
 </h3>
-<p class="text-muted" style="font-size:13px;">Cada impresora recibe los tickets de su tipo: <b>Cocina</b> (comandas) o <b>Recibos</b> (factura al cliente). Una impresora de red (Ethernet/Wi-Fi) solo necesita su dirección IP; una USB se conecta por el nombre con que aparece en Windows en el equipo del servidor.</p>
+<p class="text-muted" style="font-size:13px;">Cada impresora recibe los tickets de su tipo: <b>Cocina</b> (comandas) o <b>Recibos</b> (factura al cliente). Una impresora de red (Ethernet/Wi-Fi) solo necesita su dirección IP; una USB en el equipo del servidor debe estar <b>compartida</b> en Windows (propiedades de la impresora &gt; Compartir) y se conecta por su nombre de recurso compartido.</p>
 
 <?php if( !empty($receipt_printers) ) : ?>
 <div class="well well-sm" style="margin-top:10px;">
@@ -37,7 +37,9 @@
 			<td>
 				<?php if( $p->last_status === 'printed' ) : ?><span class="label label-success">Impreso</span>
 				<?php elseif( $p->last_status === 'failed' ) : ?><span class="label label-danger">Falló</span>
-				<?php elseif( $p->last_status ) : ?><span class="label label-default"><?php echo htmlspecialchars($p->last_status); ?></span>
+				<?php elseif( $p->last_status === 'pending' ) : ?><span class="label label-warning">En espera</span>
+				<?php elseif( $p->last_status === 'printing' ) : ?><span class="label label-default">Imprimiendo</span>
+				<?php elseif( $p->last_status === 'cancelled' ) : ?><span class="label label-default">Cancelado</span>
 				<?php else : ?><span class="text-muted">—</span><?php endif; ?>
 				<?php if( (int) $p->n_failed ) : ?> <a href="<?php echo base_url('printers/queue?status=failed'); ?>"><small><?php echo (int) $p->n_failed; ?> sin imprimir</small></a><?php endif; ?>
 			</td>
@@ -108,7 +110,7 @@
 	function showToken(r){
 		$('#agent-token-name').text(r.name);
 		$('#agent-token').text(r.token);
-		$('#agent-cmd').text('powershell -ExecutionPolicy Bypass -File .\PosPrintAgent.ps1 -Server ' + r.server + ' -Token ' + r.token);
+		$('#agent-cmd').text('powershell -ExecutionPolicy Bypass -File .\\PosPrintAgent.ps1 -Server ' + r.server + ' -Token ' + r.token);
 		$('#agent-token-box').show()[0].scrollIntoView();
 	}
 	$('#btn-agent-create').on('click', function(){
