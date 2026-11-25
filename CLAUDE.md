@@ -26,6 +26,8 @@ Internal point-of-sale for a restaurant in Nicaragua (originally a salon/cosmeti
 
 ## Running the App
 
+**Web access is an allow list** (root `.htaccess`): only `index.php`, `favicon.ico`, static files under `assets/`, and pdf/images under `uploads/` and `orders_pdf/` are served; a new public file type or folder must be added there. Check with `php tools/test_web_access.php`.
+
 No build step. Start Apache + MySQL from XAMPP, open `http://localhost/`. Default route `login`. No automated tests: verify in the browser (resize_window does not change the viewport in Chrome automation; use a 390px iframe to emulate a phone). PHP lint: `C:\xampp\php\php.exe -l file`.
 
 ## Working agreements

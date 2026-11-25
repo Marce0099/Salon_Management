@@ -1,9 +1,35 @@
+# Web access is an ALLOW LIST: only the front controller and static files are served. Everything else on disk
+# (.env, .git, SQL dumps, archives, docs, tools, PHP libraries and vendor examples...) answers 403.
+# A block list is not enough on Windows: short names such as ENV~1 reach the same file.
+# New public file type or folder? Add it here and run: php tools/test_web_access.php
+Options -Indexes
+
 <IfModule mod_rewrite.c>
 RewriteEngine On
 RewriteBase /
 RewriteCond %{HTTP_HOST} ^www\.(.*)$ [NC]
 RewriteRule ^(.*)$ http://%1%{REQUEST_URI} [R=301,QSA,NC,L]
-RewriteCond %{REQUEST_FILENAME} !-f
-RewriteCond %{REQUEST_FILENAME} !-d
+
+# 1. the application itself
+RewriteRule ^$ index.php [L]
+RewriteRule ^index\.php(/|$) - [L]
+
+# 2. public static files
+RewriteRule ^favicon\.ico$ - [L]
+RewriteRule ^assets/.+\.(css|js|map|json|png|jpe?g|gif|webp|svg|ico|ttf|otf|woff2?|eot)$ - [NC,L]
+RewriteRule ^uploads/.+\.(pdf|png|jpe?g|gif|webp)$ - [NC,L]
+RewriteRule ^orders_pdf/.+\.pdf$ - [NC,L]
+
+# 3. any other existing file or folder is private
+RewriteCond %{REQUEST_FILENAME} -f [OR]
+RewriteCond %{REQUEST_FILENAME} -d
+RewriteRule ^ - [F,L]
+
+# 4. everything else is an application route
 RewriteRule ^(.*)$ index.php/$1 [L]
+</IfModule>
+
+# without mod_rewrite the rules above do nothing: refuse everything rather than expose the files
+<IfModule !mod_rewrite.c>
+Require all denied
 </IfModule>
